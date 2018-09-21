@@ -53,16 +53,11 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
         num_periods=num_periods, ini_perimeter=10, random=random, seed=seed)
 
     res_wild = ResourcesWildfire([ResourcePeriod(i, p, resources_efficiency=1)
-                                  for i in resources.resources
-                                  for p in wildfire.periods])
+                                  for i in resources for p in wildfire])
 
     grp_wild = GroupsWildfire([
-        GroupPeriod(
-            g, p,
-            min_res_groups=0,
-            max_res_groups=g.size())
-        for g in groups
-        for p in wildfire])
+        GroupPeriod(g, p, min_res_groups=0, max_res_groups=g.size())
+        for g in groups for p in wildfire])
 
     return Problem(resources, wildfire, groups, grp_wild, res_wild)
 # --------------------------------------------------------------------------- #
@@ -219,7 +214,7 @@ def resources_example(num_brigades=5, num_aircraft=5, num_machines=5,
     resources = ['brigade']*num_brigades + \
                 ['aircraft']*num_aircraft + \
                 ['machine']*num_machines
-    print(resources)
+
     return Resources([
             resource_example(random=random, res_type=rec, seed=seed+i)
             for i, rec in enumerate(resources)])
