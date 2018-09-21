@@ -1,11 +1,11 @@
 """Module with ResourcePeriod class definitions"""
 
-# Package module
-from firedecomp.classes import resources, wildfire
+# Package modules
+from firedecomp.classes import general_classes as gc
 
 
 # ResourcePeriod --------------------------------------------------------------
-class ResourcePeriod(object):
+class ResourcePeriod(gc.Element):
     """ResourcePeriod class."""
 
     def __init__(self, resource, period, resources_efficiency=1,
@@ -36,6 +36,8 @@ class ResourcePeriod(object):
 
         TODO: Add example
         """
+        super(ResourcePeriod, self).__init__(
+            name=(resource.get_index(), period.get_index()))
         self.resource = resource
         self.period = period
         self.resources_efficiency = resources_efficiency
@@ -46,20 +48,11 @@ class ResourcePeriod(object):
         self.end = end
         self.use = use
         self.work = work
-
-    def get_index(self):
-        """Return index."""
-        return self.resource.get_index(), self.period.get_index()
-
-    def __repr__(self):
-        index = self.get_index()
-        return "<ResourcePeriod({}, {})>".format(
-            index[0].__repr__(), index[1].__repr__())
 # --------------------------------------------------------------------------- #
 
 
 # ResourcesWildfire -----------------------------------------------------------
-class ResourcesWildfire(object):
+class ResourcesWildfire(gc.Set):
     """ResourcePeriod class."""
 
     def __init__(self, resources_wildfire):
@@ -71,53 +64,5 @@ class ResourcesWildfire(object):
 
         TODO: Add example.
         """
-        self.__index__ = self.__check_names__(resources_wildfire)
-        self.resources_wildfire = resources_wildfire
-
-    @staticmethod
-    def __check_names__(resources_wildfire):
-        """Check resource names."""
-        indices = {n.get_index(): i for i, n in enumerate(resources_wildfire)}
-        if len(indices) == len(resources_wildfire):
-            return indices
-        else:
-            raise ValueError("ResourcePeriod name is repeated.")
-
-    def get_names(self):
-        return self.__index__.keys()
-
-    def get_resource_period(self, i, p):
-        """Get group by name.
-
-        Args:
-            i (:obj:`str` or `int`): resource name.
-            p (:obj:`str` or `int`): period name.
-
-        Return:
-            :obj:`ResourcePeriod`: resource and period.
-        """
-        if (i, p) in self.get_index():
-            return self.resources_wildfire[self.__index__[(i, p)]]
-        else:
-            raise ValueError(
-                "Unknown group and period name: '({}, {})'".format(i, p))
-
-    def get_resources(self):
-        """Return resources."""
-        return resources.Resources(
-            list(set([rw.resource for rw in self.resources_wildfire])))
-
-    def get_wildfire(self):
-        """Return resources."""
-        return wildfire.Wildfire(
-            list(set([rw.wildfire for rw in self.resources_wildfire])))
-
-    def __iter__(self):
-        return (rw for rw in self.resources_wildfire)
-
-    def __getitem__(self, key):
-        return self.get_group_period(*key)
-
-    def __repr__(self):
-        return self.resources_wildfire.__repr__()
+        super(ResourcesWildfire, self).__init__(elements=resources_wildfire)
 # --------------------------------------------------------------------------- #

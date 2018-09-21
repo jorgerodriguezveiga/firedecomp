@@ -3,9 +3,12 @@
 # Python packages
 import numpy as np
 
+# Package modules
+from firedecomp.classes import general_classes as gc
+
 
 # GroupPeriod -----------------------------------------------------------------
-class GroupPeriod(object):
+class GroupPeriod(gc.Element):
     """GroupPeriod class."""
 
     def __init__(self, group, period, min_res_groups=0,
@@ -27,25 +30,18 @@ class GroupPeriod(object):
 
         TODO: Add example.
         """
+        super(GroupPeriod, self).__init__(
+            name=(group.get_index(), period.get_index()))
         self.group = group
         self.period = period
         self.min_res_groups = min_res_groups
         self.max_res_groups = max_res_groups
         self.number_resources = number_resources
-
-    def get_index(self):
-        """Return index."""
-        return self.group.get_index(), self.period.get_index()
-
-    def __repr__(self):
-        index = self.get_index()
-        return "<GroupPeriod({}, {})>".format(
-            index[0].__repr__(), index[1].__repr__())
 # --------------------------------------------------------------------------- #
 
 
 # GroupsWildfire --------------------------------------------------------------
-class GroupsWildfire(object):
+class GroupsWildfire(gc.Set):
     """GroupsWildfire class."""
 
     def __init__(self, groups_wildfire):
@@ -57,43 +53,5 @@ class GroupsWildfire(object):
 
         TODO: Add example.
         """
-        self.__index__ = self.__check_names__(groups_wildfire)
-        self.groups_wildfire = groups_wildfire
-
-    @staticmethod
-    def __check_names__(groups_wildfire):
-        """Check group and period names."""
-        indices = {n.get_index(): i for i, n in enumerate(groups_wildfire)}
-        if len(indices) == len(groups_wildfire):
-            return indices
-        else:
-            raise ValueError("Group and period name is repeated.")
-
-    def get_names(self):
-        return self.__index__.keys()
-
-    def get_group_period(self, g, p):
-        """Get group and period object.
-
-        Args:
-            g (:obj:`str` or `int`): group name.
-            p (:obj:`str` or `int`): period name.
-
-        Return:
-            :obj:`GroupPeriod`: group and period.
-        """
-        if (g, p) in self.get_names():
-            return self.groups_wildfire[self.__index__[(g, p)]]
-        else:
-            raise ValueError(
-                "Unknown group and period name: '({}, {})'".format(g, p))
-
-    def __iter__(self):
-        return (gw for gw in self.groups_wildfire)
-
-    def __getitem__(self, key):
-        return self.get_group_period(*key)
-
-    def __repr__(self):
-        return self.groups_wildfire.__repr__()
+        super(GroupsWildfire, self).__init__(elements=groups_wildfire)
 # --------------------------------------------------------------------------- #

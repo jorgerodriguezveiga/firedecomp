@@ -1,8 +1,11 @@
 """Wildfire module."""
 
+# Package modules
+from firedecomp.classes import general_classes as gc
 
-# Period --------------------------------------------------------------------
-class Period(object):
+
+# Period ----------------------------------------------------------------------
+class Period(gc.Element):
     """Period problem input class."""
 
     def __init__(self, name, perimeter, cost, contained=None):
@@ -22,24 +25,17 @@ class Period(object):
 
         TODO: Check if name is int and perimeter and cost floats or int.
         """
-        self.name = name
+        super(Period, self).__init__(name=name)
         self.perimeter = perimeter
         self.increment_perimeter = None
         self.cost = cost
         self.increment_cost = None
         self.contained = contained
-
-    def get_index(self):
-        """Return index."""
-        return self.name
-
-    def __repr__(self):
-        return "<Period({})>".format(str(self.name.__repr__()))
 # --------------------------------------------------------------------------- #
 
 
 # Wildfire --------------------------------------------------------------------
-class Wildfire(object):
+class Wildfire(gc.Set):
     """Wildfire class."""
 
     def __init__(self, periods, time_per_period=10):
@@ -58,41 +54,14 @@ class Wildfire(object):
             >>> p3 = Period(3, increment_perimeter=150, increment_cost=150)
             >>> wildfire = Wildfire([p1, p2, p3])
         """
-        self.__index__ = self.__check_names__(periods)
-        self.periods = periods
+        super(Wildfire, self).__init__(elements=periods)
         self.time_per_period = time_per_period
 
         # Compute perimeter and cost increments
         self.compute_increments()
 
-    @staticmethod
-    def __check_names__(periods):
-        """Check periods names."""
-        indices = {p.get_index(): i for i, p in enumerate(periods)}
-        if len(indices) == len(periods):
-            return indices
-        else:
-            raise ValueError("Period name is repeated.")
-
-    def get_names(self):
-        return list(self.__index__.keys())
-
-    def get_period(self, p):
-        """Get period by name.
-
-        Args:
-            p (:obj:`str` or `int`): period name.
-
-        Return:
-            :obj:`Period`: period.
-        """
-        if p in self.get_names():
-            return self.periods[self.__index__[p]]
-        else:
-            raise ValueError("Unknown period name: '{}'".format(p))
-
-    def get_periods(self, p_min=None, p_max=None):
-        """Get periods between p_min and p_max.
+    def get_elements(self, p_min=None, p_max=None):
+        """Get elements between p_min and p_max.
 
         Args:
             p_min (:obj:`int`, opt): start period. If None, first one is taken.
@@ -119,14 +88,14 @@ class Wildfire(object):
         elif p_max <= max_period:
             p_max = max_period
 
-        return [self.get_period(p) for p in range(p_min, p_max+1)]
+        return [self.get_element(p) for p in range(p_min, p_max+1)]
 
     def compute_increments(self):
         """Compute perimeter and cost increment."""
         names_period = self.get_names()
         first_period = min(names_period)
 
-        p = self.get_period(first_period)
+        p = self.get_element(first_period)
 
         p.increment_cost = p.cost
         p.increment_perimeter = p.perimeter
@@ -134,23 +103,11 @@ class Wildfire(object):
         cost_prev = p.cost
         perimeter_prev = p.perimeter
 
-        for p in self.get_periods(p_min=first_period+1):
+        for p in self.get_elements(p_min=first_period+1):
 
             p.increment_cost = p.cost - cost_prev
             p.increment_perimeter = p.perimeter - perimeter_prev
 
             cost_prev = p.cost
             perimeter_prev = p.perimeter
-
-    def size(self):
-        return len(self.periods)
-
-    def __iter__(self):
-        return (p for p in self.periods)
-
-    def __getitem__(self, key):
-        return self.get_period(key)
-
-    def __repr__(self):
-        return self.periods.__repr__()
 # --------------------------------------------------------------------------- #

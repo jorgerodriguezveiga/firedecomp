@@ -1,8 +1,11 @@
 """Module with group definition."""
 
+# Package modules
+from firedecomp.classes import general_classes as gc
+
 
 # Group -----------------------------------------------------------------------
-class Group(object):
+class Group(gc.Element):
     """Group class."""
 
     def __init__(self, name, resources):
@@ -21,24 +24,17 @@ class Group(object):
             >>>     num_machines=5, num_aircraft=0, num_brigades=0)
             >>> group = firedecomp.classes.groups.Group(name=1, resources=res)
         """
-        self.name = name
+        super(Group, self).__init__(name=name)
         self.resources = resources
-
-    def get_index(self):
-        """Return index."""
-        return self.name
 
     def size(self):
         """Return the number of members of the group."""
         return len(list(self.resources))
-
-    def __repr__(self):
-        return "<Group({})>".format(self.name.__repr__())
 # --------------------------------------------------------------------------- #
 
 
 # Groups ----------------------------------------------------------------------
-class Groups(object):
+class Groups(gc.Set):
     """Groups class."""
 
     def __init__(self, groups):
@@ -64,41 +60,5 @@ class Groups(object):
             >>> groups = firedecomp.classes.groups.Groups(
             >>>     [brigades_grp, aircraft_grp])
         """
-        self.__index__ = self.__check_names__(groups)
-        self.groups = groups
-
-    @staticmethod
-    def __check_names__(groups):
-        """Check resource names."""
-        indices = {n.get_index(): i for i, n in enumerate(groups)}
-        if len(groups) == len(indices):
-            return indices
-        else:
-            raise ValueError("Group name is repeated.")
-
-    def get_names(self):
-        return self.__index__.keys()
-
-    def get_group(self, g):
-        """Get group by name.
-
-        Args:
-            g (:obj:`str` or `int`): group name.
-
-        Return:
-            :obj:`Group`: group.
-        """
-        if g in self.get_names():
-            return self.groups[self.__index__[g]]
-        else:
-            raise ValueError("Unknown group name: '{}'".format(g))
-
-    def __iter__(self):
-        return (g for g in self.groups)
-
-    def __getitem__(self, key):
-        return self.get_group(key)
-
-    def __repr__(self):
-        return self.groups.__repr__()
+        super(Groups, self).__init__(elements=groups)
 # --------------------------------------------------------------------------- #
