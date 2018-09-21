@@ -1,12 +1,12 @@
 """Module with model class."""
 
 
-# Model -----------------------------------------------------------------------
-class Model(object):
-    """Model class."""
+# Solution --------------------------------------------------------------------
+class Solution(object):
+    """Solution class."""
 
     def __init__(self, model, variables=None):
-        """Model class.
+        """Solution class.
 
         Args:
             model (:obj:`gurobipy.Model` or `list`): gurobipy model or list of
