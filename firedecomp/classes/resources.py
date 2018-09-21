@@ -63,6 +63,41 @@ class Resource(gc.Element):
         self.necessary_rest_time = necessary_rest_time
         self.max_work_daily = max_work_daily
         self.value = value
+
+    def update_units(self, time, period_unit, inplace=True):
+        """Update resource attributes units.
+
+        Args:
+            period_unit (:obj:`bool`): if ``True`` period units. Defaults to
+                ``True``.
+            time (:obj:`int`): minutes corresponding a period.
+            inplace (:obj:`bool`): if ``True``, perform operation in-place.
+                Defaults to ``False``.
+        """
+        if inplace is True:
+            resource = self
+        else:
+            resource = self.__copy__()
+
+        if period_unit is True:
+            prop_time_min = 1/time
+            prop_time_hour = 60/time
+        else:
+            prop_time_min = time
+            prop_time_hour = time/60
+
+        resource.arrival = self.arrival*prop_time_min
+        resource.rest = self.rest*prop_time_min
+        resource.total_work = self.total_work*prop_time_min
+        resource.performance = self.performance/prop_time_hour
+        resource.variable_cost = self.variable_cost/prop_time_hour
+        resource.time_between_rests = self.time_between_rests*prop_time_min
+        resource.max_work_time = self.max_work_time*prop_time_min
+        resource.necessary_rest_time = self.necessary_rest_time*prop_time_min
+        resource.max_work_daily = self.max_work_daily*prop_time_min
+
+        if inplace is not True:
+            return resource
 # --------------------------------------------------------------------------- #
 
 
@@ -88,4 +123,17 @@ class Resources(gc.Set):
             >>> resources = Resources(resources=[Air1, Air2, Bri1])
         """
         super(Resources, self).__init__(elements=resources)
+
+    def update_units(self, time, period_unit):
+        """Update resources attributes units.
+
+        Args:
+            period_unit (:obj:`bool`): if ``True`` period units. Defaults to
+                ``True``.
+            time (:obj:`int`): minutes corresponding a period.
+            inplace (:obj:`bool`): if ``True``, perform operation in-place.
+                Defaults to ``False``.
+        """
+        for e in self:
+            e.update_units(time=time, period_unit=period_unit)
 # --------------------------------------------------------------------------- #

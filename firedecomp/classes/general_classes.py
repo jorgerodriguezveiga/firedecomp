@@ -13,6 +13,21 @@ class Element(object):
         """
         self.name = name
 
+    def copy(self):
+        obj = type(self).__new__(self.__class__)
+        for k, v in self.__dict__.items():
+            if isinstance(v, list):
+                obj.__dict__[k] = [e.copy() if 'copy' in dir(e) else e
+                                   for e in v]
+            elif isinstance(v, dict):
+                obj.__dict__[k] = {i: e.copy() if 'copy' in dir(e) else e
+                                   for i, e in v.items()}
+            elif 'copy' in dir(v):
+                obj.__dict__[k] = v.copy()
+            else:
+                obj.__dict__[k] = v
+        return obj
+
     def get_index(self):
         """Return index."""
         return self.name
@@ -50,7 +65,7 @@ class Set(object):
             raise ValueError("Element name is repeated.")
 
     def get_names(self):
-        return self.__index__.keys()
+        return list(self.__index__.keys())
 
     def get_element(self, *e):
         """Get element by name.
@@ -65,8 +80,32 @@ class Set(object):
         else:
             raise ValueError("Unknown element name: '{}'".format(e))
 
+    def get_info(self, attr):
+        """Get a dictionary with attribute information of the elements.
+
+        Args:
+            attr (:obj:`str`): attribute name.
+        """
+        return {e.get_index(): getattr(e, attr)
+                for e in self.elements}
+
     def size(self):
         return len(self.elements)
+
+    def copy(self):
+        obj = type(self).__new__(self.__class__)
+        for k, v in self.__dict__.items():
+            if isinstance(v, list):
+                obj.__dict__[k] = [e.copy() if 'copy' in dir(e) else e
+                                   for e in v]
+            elif isinstance(v, dict):
+                obj.__dict__[k] = {i: e.copy() if 'copy' in dir(e) else e
+                                   for i, e in v.items()}
+            elif 'copy' in dir(v):
+                obj.__dict__[k] = v.copy()
+            else:
+                obj.__dict__[k] = v
+        return obj
 
     def __iter__(self):
         return (e for e in self.elements)
