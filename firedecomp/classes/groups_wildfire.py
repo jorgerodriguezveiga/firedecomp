@@ -4,7 +4,7 @@
 import numpy as np
 
 # Package modules
-from firedecomp.classes import general_classes as gc
+from firedecomp.classes import general as gc
 
 
 # GroupPeriod -----------------------------------------------------------------

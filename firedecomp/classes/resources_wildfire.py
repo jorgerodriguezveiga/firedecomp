@@ -1,7 +1,7 @@
 """Module with ResourcePeriod class definitions"""
 
 # Package modules
-from firedecomp.classes import general_classes as gc
+from firedecomp.classes import general as gc
 
 
 # ResourcePeriod --------------------------------------------------------------

@@ -1,7 +1,7 @@
 """Wildfire module."""
 
 # Package modules
-from firedecomp.classes import general_classes as gc
+from firedecomp.classes import general as gc
 
 
 # Period ----------------------------------------------------------------------
@@ -60,6 +60,34 @@ class Wildfire(gc.Set):
         # Compute perimeter and cost increments
         self.compute_increments()
 
+    def get_min(self):
+        periods_names = self.get_names()
+
+        if len(periods_names) == 0:
+            None
+        elif len(periods_names) == 1:
+            min_period = periods_names[0]
+        else:
+            min_period = int(min(periods_names))
+        return self.get_element(min_period)
+
+    def get_max(self):
+        periods_names = self.get_names()
+
+        if len(periods_names) == 0:
+            None
+        elif len(periods_names) == 1:
+            max_period = periods_names[0]
+        else:
+            max_period = int(max(periods_names))
+        return self.get_element(max_period)
+
+    def get_names(self, p_min=None, p_max=None):
+        if p_min is None and p_max is None:
+            return list(self.__index__.keys())
+        else:
+            return [e.name for e in self.get_elements(p_min=p_min, p_max=p_max)]
+
     def get_elements(self, p_min=None, p_max=None):
         """Get elements between p_min and p_max.
 
@@ -72,30 +100,26 @@ class Wildfire(gc.Set):
         Return:
             :obj:`list`: list of periods.
         """
-        periods_names = self.get_names()
-
         # min period
-        min_period = min(periods_names)
+        min_period = self.get_min().name
         if p_min is None:
             p_min = min_period
         elif p_min <= min_period:
             p_min = min_period
 
         # max period
-        max_period = max(periods_names)
+        max_period = self.get_max().name
         if p_max is None:
             p_max = max_period
-        elif p_max <= max_period:
+        elif p_max >= max_period:
             p_max = max_period
 
-        return [self.get_element(p) for p in range(p_min, p_max+1)]
+        return [self.get_element(p) for p in range(int(p_min), int(p_max+1))]
 
     def compute_increments(self):
         """Compute perimeter and cost increment."""
-        names_period = self.get_names()
-        first_period = min(names_period)
-
-        p = self.get_element(first_period)
+        p = self.get_min()
+        first_period = p.name
 
         p.increment_cost = p.cost
         p.increment_perimeter = p.perimeter

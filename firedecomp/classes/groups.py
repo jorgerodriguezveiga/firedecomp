@@ -1,7 +1,7 @@
 """Module with group definition."""
 
 # Package modules
-from firedecomp.classes import general_classes as gc
+from firedecomp.classes import general as gc
 
 
 # Group -----------------------------------------------------------------------
