@@ -18,7 +18,7 @@ from . import random as r
 
 # input_example ---------------------------------------------------------------
 def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
-                  num_periods=20, random=False, seed=None):
+                  num_periods=20, ini_perimeter=20, random=False, seed=None):
     """Input example."""
     if seed is not None:
         np.random.seed(seed)
@@ -50,12 +50,16 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
     groups = Groups([brigades_grp, aircraft_grp, machines_grp])
 
     wildfire = wildfire_example(
-        num_periods=num_periods, ini_perimeter=10, random=random, seed=seed)
+        num_periods=num_periods, ini_perimeter=ini_perimeter, random=random,
+        seed=seed)
 
     res_wild = ResourcesWildfire([ResourcePeriod(i, p, resources_efficiency=1)
                                   for i in resources for p in wildfire])
 
     grp_wild = GroupsWildfire([
+        GroupPeriod(g, p,
+                    min_res_groups=min(2, g.size()), max_res_groups=g.size())
+        if g.name == "brigades" else
         GroupPeriod(g, p, min_res_groups=0, max_res_groups=g.size())
         for g in groups for p in wildfire])
 
@@ -248,8 +252,9 @@ def wildfire_example(num_periods=10, ini_perimeter=10, random=False,
     periods_list = [Period(name=0, perimeter=perimeter, cost=cost)]
 
     for p in range(1, num_periods):
-        inc_per = r.random_num(min(1, perimeter/30),
-                               max(3, perimeter/10), zero=-2)
+        inc_per = r.random_num(max(1, perimeter/30),
+                               min(3, perimeter/10),
+                               zero=-2)
         perimeter += inc_per
         cost += r.random_num(300*inc_per, 500*inc_per)
         periods_list.append(Period(name=p, perimeter=perimeter, cost=cost))
