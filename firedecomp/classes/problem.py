@@ -1,5 +1,8 @@
 """Module to define input class."""
 
+# Package modules
+from firedecomp.original import model
+from firedecomp import config
 
 # Problem ---------------------------------------------------------------------
 class Problem(object):
@@ -27,6 +30,7 @@ class Problem(object):
         self.groups_wildfire = groups_wildfire
         self.resources_wildfire = resources_wildfire
         self.period_unit = period_unit
+        self.solve_status = None
 
     def update_units(self, period_unit=True, inplace=True):
         """Update problem units.
@@ -34,6 +38,8 @@ class Problem(object):
         Args:
             period_unit (:obj:`bool`): if ``True`` period units. Defaults to
                 ``True``.
+            inplace (:obj:`bool`): if ``True`` modify the object in place (do
+                not create a new object).
         """
         if inplace is True:
             problem = self
@@ -45,13 +51,62 @@ class Problem(object):
             time = self.wildfire.time_per_period
 
             # Update resource attributes units
-            problem.resources.update_units(time=time, period_unit=period_unit)
+            problem.resources.update_units(
+                time=time, period_unit=period_unit, inplace=True)
+            problem.resources_wildfire.update_units(
+                time=time, period_unit=period_unit, inplace=True)
 
             # Update units status
             problem.period_unit = period_unit
 
         if inplace is not True:
             return problem
+
+    def status(self, info="status"):
+        """Return resolution status.
+
+        Args:
+            info (:obj:`str`): status information. Options: ``'status'``,
+                ``'status_code'`` or ``'description'``. Defaults to
+                ``'status'``.
+        """
+        if info == 'status':
+            return self.solve_status
+        else:
+            return config.gurobi.status_info[self.status][info]
+
+    def solve(self, method='original', solver_options=None,
+              min_res_penalty=1000000):
+        """Solve mathematical model.
+
+        Args:
+            method (:obj:`str`): method to solve the mathematical problem.
+                Options: ``'original'``. Defaults to ``'original'``.
+            solver_options (:obj:`dict`): gurobi options. Default ``None``.
+                Example: ``{'TimeLimit': 10}``.
+            min_res_penalty (:obj:`float`): positive value that penalize the
+                breach of the minimum number of resources in each period.
+                Defaults to ``1000000``.
+        """
+        self.update_units()
+        if method == 'original':
+            m = model.InputModel(self, min_res_penalty=min_res_penalty)
+            solution = m.solve(solver_options=solver_options)
+            self.solve_status = solution.model.Status
+            return solution
+        else:
+            raise ValueError(
+                "Incorrect method '{}'. Options allowed: {}".format(
+                    method, ["original"]
+                ))
+
+    def plot(self, info=['contantion', 'performance', 'resources']):
+        """Plot solution.
+
+        Args:
+            info (:obj:`list`)
+        """
+        return
 
     def get_names(self, attr):
         """Get attribute names."""
