@@ -12,7 +12,7 @@ class GroupPeriod(gc.Element):
     """GroupPeriod class."""
 
     def __init__(self, group, period, min_res_groups=0,
-                 max_res_groups=np.infty, number_resources=None):
+                 max_res_groups=np.infty, num_left_resources=None):
         """Initialization of the class.
 
         Args:
@@ -25,7 +25,7 @@ class GroupPeriod(gc.Element):
             max_res_groups (:obj:`dict`): maximum number of resources of each
                 group working on the wildfire in the period. Defaults to
                 ``None``.
-            number_resources (:obj:`int`): number of resources of the group.
+            num_left_resources (:obj:`int`): number of left resources.
                 Defaults to ``None``.
 
         TODO: Add example.
@@ -36,7 +36,7 @@ class GroupPeriod(gc.Element):
         self.period = period
         self.min_res_groups = min_res_groups
         self.max_res_groups = max_res_groups
-        self.number_resources = number_resources
+        self.num_left_resources = num_left_resources
 # --------------------------------------------------------------------------- #
 
 
