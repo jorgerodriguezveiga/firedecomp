@@ -13,7 +13,7 @@ class Resource(gc.Element):
                  total_work=0, performance=0, fix_cost=0, variable_cost=0,
                  time_between_rests=10, max_work_time=120,
                  necessary_rest_time=40, max_work_daily=480,
-                 value=None
+                 select=None
                  ):
         """Initialization of the class.
 
@@ -38,7 +38,7 @@ class Resource(gc.Element):
                 Defaults to ``40``.
             max_work_daily (:obj:`int`): maximum daily time working
                 (including rests, ...) (min). Defaults to ``480``.
-            value (:obj:`bool`): ``True`` if resource is used in the wildfire.
+            select (:obj:`bool`): ``True`` if resource is used in the wildfire.
                 Defaults to ``None``.
 
         Example:
@@ -62,7 +62,7 @@ class Resource(gc.Element):
         self.max_work_time = max_work_time
         self.necessary_rest_time = necessary_rest_time
         self.max_work_daily = max_work_daily
-        self.value = value
+        self.select = select
 
     def update_units(self, time, period_unit, inplace=True):
         """Update resource attributes units.
@@ -77,7 +77,7 @@ class Resource(gc.Element):
         if inplace is True:
             resource = self
         else:
-            resource = self.__copy__()
+            resource = self.copy()
 
         if period_unit is True:
             prop_time_min = 1/time
@@ -124,16 +124,16 @@ class Resources(gc.Set):
         """
         super(Resources, self).__init__(elements=resources)
 
-    def update_units(self, time, period_unit):
+    def update_units(self, time, period_unit=True, inplace=False):
         """Update resources attributes units.
 
         Args:
+            time (:obj:`int`): minutes corresponding a period.
             period_unit (:obj:`bool`): if ``True`` period units. Defaults to
                 ``True``.
-            time (:obj:`int`): minutes corresponding a period.
             inplace (:obj:`bool`): if ``True``, perform operation in-place.
                 Defaults to ``False``.
         """
         for e in self:
-            e.update_units(time=time, period_unit=period_unit)
+            e.update_units(time=time, period_unit=period_unit, inplace=inplace)
 # --------------------------------------------------------------------------- #
