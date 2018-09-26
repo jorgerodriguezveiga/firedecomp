@@ -32,6 +32,15 @@ class Element(object):
         """Return index."""
         return self.name
 
+    def update(self, dictionary):
+        """Update object attributes.
+
+        Args:
+            dictionary (:obj:`dict`): dictionary with attribute information to
+                update.
+        """
+        self.__dict__.update(dictionary)
+
     def __repr__(self):
         index = self.name
         if isinstance(index, tuple):
@@ -106,6 +115,16 @@ class Set(object):
             else:
                 obj.__dict__[k] = v
         return obj
+
+    def update(self, dictionary):
+        """Update object attributes.
+
+        Args:
+            dictionary (:obj:`dict`): dictionary with attribute information to
+                update.
+        """
+        for e, v in dictionary.items():
+            self.get_element(e).__dict__.update(v)
 
     def __iter__(self):
         return (e for e in self.elements)
