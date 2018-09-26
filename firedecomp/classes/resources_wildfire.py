@@ -41,6 +41,7 @@ class ResourcePeriod(gc.Element):
         self.resource = resource
         self.period = period
         self.resources_efficiency = resources_efficiency
+        self.resource_performance = resources_efficiency*resource.performance
         self.start = start
         self.travel = travel
         self.rest = rest
@@ -48,6 +49,31 @@ class ResourcePeriod(gc.Element):
         self.end = end
         self.use = use
         self.work = work
+
+    def update_units(self, time, period_unit, inplace=True):
+        """Update resource attributes units.
+
+        Args:
+            period_unit (:obj:`bool`): if ``True`` period units. Defaults to
+                ``True``.
+            time (:obj:`int`): minutes corresponding a period.
+            inplace (:obj:`bool`): if ``True``, perform operation in-place.
+                Defaults to ``False``.
+        """
+        if inplace is True:
+            resource_period = self
+        else:
+            resource_period = self.copy()
+
+        if period_unit is True:
+            prop_time_hour = 60/time
+        else:
+            prop_time_hour = time/60
+
+        self.resource_performance = self.resource_performance/prop_time_hour
+
+        if inplace is not True:
+            return resource_period
 # --------------------------------------------------------------------------- #
 
 
@@ -65,4 +91,17 @@ class ResourcesWildfire(gc.Set):
         TODO: Add example.
         """
         super(ResourcesWildfire, self).__init__(elements=resources_wildfire)
+
+    def update_units(self, time, period_unit=True, inplace=False):
+        """Update wildfire_resources attributes units.
+
+        Args:
+            time (:obj:`int`): minutes corresponding a period.
+            period_unit (:obj:`bool`): if ``True`` period units. Defaults to
+                ``True``.
+            inplace (:obj:`bool`): if ``True``, perform operation in-place.
+                Defaults to ``False``.
+        """
+        for e in self:
+            e.update_units(time=time, period_unit=period_unit, inplace=inplace)
 # --------------------------------------------------------------------------- #

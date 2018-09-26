@@ -2,15 +2,20 @@
 
 # Python packages
 import gurobipy
+import logging as log
 
 # Package modules
 from firedecomp.classes import solution
+from firedecomp import config
 
 
+# InputModel ------------------------------------------------------------------
 class InputModel(object):
     def __init__(self, problem_data, min_res_penalty=1000000):
         if problem_data.period_unit is False:
             raise ValueError("Time unit of the problem is not a period.")
+
+        self.problem_data = problem_data
 
         # Sets
         self.I = problem_data.get_names("resources")
@@ -35,24 +40,81 @@ class InputModel(object):
         self.WP = problem_data.resources.get_info("max_work_time")
         self.RP = problem_data.resources.get_info("necessary_rest_time")
         self.UP = problem_data.resources.get_info("max_work_daily")
+        self.PR = problem_data.resources_wildfire.get_info(
+            "resource_performance")
 
         self.PER = problem_data.wildfire.get_info("increment_perimeter")
         self.NVC = problem_data.wildfire.get_info("increment_cost")
 
-        self.EF = problem_data.resources_wildfire.get_info(
-            "resources_efficiency")
-
         self.nMin = problem_data.groups_wildfire.get_info("min_res_groups")
         self.nMax = problem_data.groups_wildfire.get_info("max_res_groups")
 
-        self.PR = {(i, t): self.BPR[i]*self.EF[i, t]
-                   for i in self.I for t in self.T}
         self.Mp = min_res_penalty
         self.M = sum([v for k, v in self.PER.items()])
         self.min_t = int(min(self.T))
+        self.max_t = int(max(self.T))
+        self.model = self.__get_model__()
 
-    def solve(self):
+    def __get_model__(self):
         return model(self)
+
+    def solve(self, solver_options):
+        """Solve mathematical model.
+
+        Args:
+            solver_options (:obj:`dict`): gurobi options. Default ``None``.
+                Example: ``{'TimeLimit': 10}``.
+        """
+        if solver_options is None:
+            solver_options = {'OutputFlag': 0}
+
+        m = self.model
+
+        # set gurobi options
+        if isinstance(solver_options, dict):
+            for k, v in solver_options.items():
+                m.model.setParam(k, v)
+
+        m.model.optimize()
+
+        # Todo: check what status number return a solution
+        if m.model.Status != 3:
+            # Load variables values
+            self.problem_data.resources.update(
+                {i: {'select': m.variables.z[i].getValue() == 1}
+                 for i in self.I})
+
+            self.problem_data.resources_wildfire.update(
+                {(i, t): {
+                    'start': m.variables.s[i, t].x == 1,
+                    'travel': m.variables.tr[i, t].x == 1,
+                    'rest': m.variables.r[i, t].x == 1,
+                    'end_rest': m.variables.er[i, t].x == 1,
+                    'end': m.variables.e[i, t].x == 1,
+                    'use': m.variables.u[i, t].getValue() == 1,
+                    'work': m.variables.w[i, t].getValue() == 1
+                }
+                 for i in self.I for t in self.T})
+
+            self.problem_data.groups_wildfire.update(
+                {(g, t): {'number_resources': m.variables.mu[g, t].x}
+                 for g in self.G for t in self.T})
+
+            contained = {t: m.variables.y[t].x == 0 for t in self.T}
+            contained_period = [t for t, v in contained.items() if v is True]
+
+            if len(contained_period) > 0:
+                first_contained = min(contained_period) + 1
+            else:
+                first_contained = self.max_t + 1
+
+            self.problem_data.wildfire.update(
+                {t: {'contained': False if t < first_contained else True}
+                 for t in self.T})
+        else:
+            log.info(config.gurobi.status_info[m.model.Status]['description'])
+
+        return m
 # --------------------------------------------------------------------------- #
 
 
@@ -112,7 +174,8 @@ def model(data):
     m.setObjective(sum([data.C[i]*u[i, t] for i in data.I for t in data.T]) +
                    sum([data.P[i] * z[i] for i in data.I]) +
                    sum([data.NVC[t] * y[t-1] for t in data.T]) +
-                   sum([data.Mp*mu[g, t] for g in data.G for t in data.T])
+                   sum([data.Mp*mu[g, t] for g in data.G for t in data.T]) +
+                   0.001*y[data.max_t]
                    , gurobipy.GRB.MINIMIZE)
 
     # Constraints
@@ -133,6 +196,27 @@ def model(data):
               for i in data.I for t1 in data.T_int.get_names(p_max=t)])
          for t in data.T),
         name='wildfire_containment_2')
+
+    # Start of activity
+    # -----------------
+    m.addConstrs(
+        (data.A[i]*w[i, t] <=
+         sum([tr[i, t1] for t1 in data.T_int.get_names(p_max=t)])
+         for i in data.I for t in data.T),
+        name='start_activity_1')
+
+    m.addConstrs(
+        (s[i, data.min_t] +
+         sum([(data.max_t + 1)*s[i, t]
+              for t in data.T_int.get_names(p_min=data.min_t+1)]) <=
+         data.max_t*z[i]
+         for i in data.I if data.ITW[i] == 1),
+        name='start_activity_2')
+
+    m.addConstrs(
+        (sum([s[i, t] for t in data.T]) <= z[i]
+         for i in data.I if data.ITW[i] == 0),
+        name='start_activity_3')
 
     # End of Activity
     # ---------------
@@ -226,5 +310,6 @@ def model(data):
 
     m.update()
 
-    return m
+    return solution.Solution(
+        m, dict(s=s, tr=tr, r=r, er=er, e=e, u=u, w=w, z=z, cr=cr, y=y, mu=mu))
 # --------------------------------------------------------------------------- #
