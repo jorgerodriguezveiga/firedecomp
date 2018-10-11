@@ -79,6 +79,7 @@ class InputModel(object):
 
         # Todo: check what status number return a solution
         if m.model.Status != 3:
+
             # Load variables values
             self.problem_data.resources.update(
                 {i: {'select': m.variables.z[i].getValue() == 1}
@@ -112,7 +113,8 @@ class InputModel(object):
                 {t: {'contained': False if t < first_contained else True}
                  for t in self.T})
         else:
-            log.info(config.gurobi.status_info[m.model.Status]['description'])
+            log.warning(
+                config.gurobi.status_info[m.model.Status]['description'])
 
         return m
 # --------------------------------------------------------------------------- #
@@ -143,6 +145,7 @@ def model(data):
         for i in data.I for t in data.T}
     w = {(i, t): u[i, t] - r[i, t] - tr[i, t] for i in data.I for t in data.T}
     z = {i: e.sum(i, '*') for i in data.I}
+
     cr = {(i, t):
           sum([
               (t+1-t1)*s[i, t1]
@@ -150,17 +153,22 @@ def model(data):
               - r[i, t1]
               - data.WP[i]*er[i, t1]
               for t1 in data.T_int.get_names(p_max=t)])
-          if data.ITW[i] == 0 and data.IOW[i] == 0 else
-          (t+data.CWP[i]-data.CRP[i]) * s[i, data.min_t]
-          + sum([
-              (t + 1 - t1 + data.WP[i]) * s[i, t1]
-              for t1 in data.T_int.get_names(p_min=data.min_t+1, p_max=t)])
-          - sum([
-              - (t - t1) * e[i, t1]
-              - r[i, t1]
-              - data.WP[i] * er[i, t1]
-              for t1 in data.T_int.get_names(p_max=t)])
-          for i in data.I for t in data.T}
+          for i in data.I for t in data.T
+          if not data.ITW[i] and not data.IOW[i]}
+
+    cr.update({
+        (i, t):
+            (t+data.CWP[i]-data.CRP[i]) * s[i, data.min_t]
+            + sum([
+                (t + 1 - t1 + data.WP[i]) * s[i, t1]
+                for t1 in data.T_int.get_names(p_min=data.min_t+1, p_max=t)])
+            - sum([
+                (t - t1) * e[i, t1]
+                + r[i, t1]
+                + data.WP[i] * er[i, t1]
+                for t1 in data.T_int.get_names(p_max=t)])
+        for i in data.I for t in data.T
+        if data.ITW[i] or data.IOW[i]})
 
     # Wildfire
     # --------
@@ -210,12 +218,12 @@ def model(data):
          sum([(data.max_t + 1)*s[i, t]
               for t in data.T_int.get_names(p_min=data.min_t+1)]) <=
          data.max_t*z[i]
-         for i in data.I if data.ITW[i] == 1),
+         for i in data.I if data.ITW[i] == True),
         name='start_activity_2')
 
     m.addConstrs(
         (sum([s[i, t] for t in data.T]) <= z[i]
-         for i in data.I if data.ITW[i] == 0),
+         for i in data.I if data.ITW[i] == False),
         name='start_activity_3')
 
     # End of Activity
@@ -249,7 +257,7 @@ def model(data):
     m.addConstrs(
         (sum([
             r[i, t1]
-            for t1 in data.T_int.get_names(p_min=t, p_max=t-data.RP[i]+1)]) >=
+            for t1 in data.T_int.get_names(p_min=t-data.RP[i]+1, p_max=t)]) >=
          data.RP[i]*er[i, t]
          if t >= data.RP[i] else
          data.CRP[i]*s[i, data.min_t] +
@@ -262,8 +270,8 @@ def model(data):
         (sum([r[i, t1]+tr[i, t1]
               for t1 in data.T_int.get_names(p_min=t-data.TRP[i],
                                              p_max=t+data.TRP[i])]) >=
-         sum([r[i, t] for t1 in data.T_int.get_names(p_min=t - data.TRP[i],
-                                                     p_max=t + data.TRP[i])])
+         len(data.T_int.get_names(p_min=t-data.TRP[i],
+                                  p_max=t+data.TRP[i]))*r[i, t]
          for i in data.I for t in data.T),
         name='Breaks_4')
 
