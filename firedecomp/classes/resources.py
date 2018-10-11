@@ -87,6 +87,7 @@ class Resource(gc.Element):
             prop_time_hour = time/60
 
         resource.arrival = self.arrival*prop_time_min
+        resource.work = self.work*prop_time_min
         resource.rest = self.rest*prop_time_min
         resource.total_work = self.total_work*prop_time_min
         resource.performance = self.performance/prop_time_hour
