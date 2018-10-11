@@ -8,13 +8,69 @@ import bson
 from firedecomp.classes.resources import Resources, Resource
 from firedecomp.classes.wildfire import Wildfire, Period
 from firedecomp.classes.groups import Group, Groups
-from firedecomp.classes.resources_wildfire import ResourcePeriod, ResourcesWildfire
+from firedecomp.classes.resources_wildfire import ResourcePeriod, \
+    ResourcesWildfire
 from firedecomp.classes.groups_wildfire import GroupPeriod, GroupsWildfire
 from firedecomp.classes.problem import Problem
 from . import random as r
 
 
 # INPUT =======================================================================
+
+# small_example ---------------------------------------------------------------
+def small_example():
+    aircraft_1 = Resource(
+        name='aircraft_1',
+        working_this_wildfire=True,
+        working_other_wildfire=False,
+        arrival=0,
+        work=100,
+        rest=0,
+        total_work=100,
+        performance=3,
+        fix_cost=100,
+        variable_cost=100,
+        time_between_rests=10,
+        max_work_time=120,
+        necessary_rest_time=40,
+        max_work_daily=480)
+
+    aircraft_2 = Resource(
+        name='aircraft_2',
+        working_this_wildfire=True,
+        working_other_wildfire=False,
+        arrival=0,
+        work=120,
+        rest=0,
+        total_work=120,
+        performance=3,
+        fix_cost=100,
+        variable_cost=100,
+        time_between_rests=10,
+        max_work_time=120,
+        necessary_rest_time=40,
+        max_work_daily=480)
+
+    resources = Resources([aircraft_1, aircraft_2])
+
+    aircraft_grp = Group(name='aircraft', resources=resources)
+    groups = Groups([aircraft_grp])
+
+    wildfire = Wildfire(
+        [Period(name=p, perimeter=1 + p / 2, cost=10)
+         for p in range(1, 20)], time_per_period=10)
+
+    res_wild = ResourcesWildfire(
+        [ResourcePeriod(i, p, resources_efficiency=1)
+         for i in resources for p in wildfire])
+
+    grp_wild = GroupsWildfire([
+        GroupPeriod(g, p, min_res_groups=0, max_res_groups=g.size())
+        for g in groups for p in wildfire])
+
+    return Problem(resources, wildfire, groups, grp_wild, res_wild)
+# --------------------------------------------------------------------------- #
+
 
 # input_example ---------------------------------------------------------------
 def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
@@ -58,7 +114,7 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
 
     grp_wild = GroupsWildfire([
         GroupPeriod(g, p,
-                    min_res_groups=min(2, g.size()), max_res_groups=g.size())
+                    min_res_groups=min(1, g.size()), max_res_groups=g.size())
         if g.name == "brigades" else
         GroupPeriod(g, p, min_res_groups=0, max_res_groups=g.size())
         for g in groups for p in wildfire])
@@ -115,7 +171,7 @@ def resource_example(random=False, res_type='brigade', seed=None):
                 rest = 0
 
         total_work = work
-        performance = r.random_num(2, 10)
+        performance = r.random_num(2, 10, zero=-1)
         fix_cost = r.random_num(0, 1000)
         variable_cost = r.random_num(200, 500)
         time_between_rests = 10
@@ -143,7 +199,7 @@ def resource_example(random=False, res_type='brigade', seed=None):
                 rest = 0
 
         total_work = work
-        performance = r.random_num(4, 15)
+        performance = r.random_num(4, 15, zero=-1)
         fix_cost = r.random_num(0, 1000)
         variable_cost = r.random_num(500, 1000)
         time_between_rests = 10
@@ -175,7 +231,7 @@ def resource_example(random=False, res_type='brigade', seed=None):
                 rest = 0
 
         total_work = 160*np.random.choice([0, 1, 2]) + work
-        performance = r.random_num(4, 15)
+        performance = r.random_num(4, 15, zero=-1)
         fix_cost = r.random_num(0, 1000)
         variable_cost = r.random_num(1000, 3000)
         time_between_rests = 10
@@ -249,9 +305,9 @@ def wildfire_example(num_periods=10, ini_perimeter=10, random=False,
     perimeter = ini_perimeter
     cost = r.random_num(300*perimeter, 500*perimeter, zero=-2)
 
-    periods_list = [Period(name=0, perimeter=perimeter, cost=cost)]
+    periods_list = [Period(name=1, perimeter=perimeter, cost=cost)]
 
-    for p in range(1, num_periods):
+    for p in range(2, num_periods+1):
         inc_per = r.random_num(max(1, perimeter/30),
                                min(3, perimeter/10),
                                zero=-2)
