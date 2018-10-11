@@ -3,6 +3,8 @@
 # Package modules
 from firedecomp.original import model
 from firedecomp import config
+from firedecomp import plot
+
 
 # Problem ---------------------------------------------------------------------
 class Problem(object):
@@ -22,7 +24,7 @@ class Problem(object):
                 Defaults to ``False``.
 
         TODO: Add example.
-        TODO: Create class to convert to period units.
+        TODO: Add mathematical models as attributes.
         """
         self.resources = resources
         self.wildfire = wildfire
@@ -30,6 +32,10 @@ class Problem(object):
         self.groups_wildfire = groups_wildfire
         self.resources_wildfire = resources_wildfire
         self.period_unit = period_unit
+        self.original_model = None
+        self.benders_model = None
+        self.branch_price_model = None
+        self.lagrangian_model = None
         self.solve_status = None
 
     def update_units(self, period_unit=True, inplace=True):
@@ -100,13 +106,17 @@ class Problem(object):
                     method, ["original"]
                 ))
 
-    def plot(self, info=['contantion', 'performance', 'resources']):
+    def plot(self, info='scheduling'):
         """Plot solution.
 
         Args:
-            info (:obj:`list`)
+            info (:obj:`str`): What you want to plot. Options allowed:
+                ``'contention'`` or ``'scheduling'``.
         """
-        return
+        if info == 'contention':
+            plot.solution.plot_contention(self)
+        elif info == 'scheduling':
+            plot.solution.plot_scheduling(self)
 
     def get_names(self, attr):
         """Get attribute names."""
