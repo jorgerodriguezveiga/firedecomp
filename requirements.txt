@@ -1,0 +1,4 @@
+numpy
+bson
+plotly
+#gurobipy
