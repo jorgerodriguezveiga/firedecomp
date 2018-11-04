@@ -37,9 +37,9 @@ def small_example():
 
     aircraft_2 = Resource(
         name='aircraft_2',
-        working_this_wildfire=True,
+        working_this_wildfire=False,
         working_other_wildfire=False,
-        arrival=0,
+        arrival=20,
         work=120,
         rest=0,
         total_work=120,
@@ -51,14 +51,30 @@ def small_example():
         necessary_rest_time=40,
         max_work_daily=480)
 
-    resources = Resources([aircraft_1, aircraft_2])
+    aircraft_3 = Resource(
+        name='aircraft_3',
+        working_this_wildfire=False,
+        working_other_wildfire=True,
+        arrival=10,
+        work=120,
+        rest=0,
+        total_work=120,
+        performance=3,
+        fix_cost=100,
+        variable_cost=100,
+        time_between_rests=10,
+        max_work_time=120,
+        necessary_rest_time=40,
+        max_work_daily=480)
+
+    resources = Resources([aircraft_1, aircraft_2, aircraft_3])
 
     aircraft_grp = Group(name='aircraft', resources=resources)
     groups = Groups([aircraft_grp])
 
     wildfire = Wildfire(
-        [Period(name=p, perimeter=1 + p / 2, cost=10)
-         for p in range(1, 20)], time_per_period=10)
+        [Period(name=p, perimeter=1 + p / 2, cost=p*10)
+         for p in range(1, 10)], time_per_period=10)
 
     res_wild = ResourcesWildfire(
         [ResourcePeriod(i, p, resources_efficiency=1)
