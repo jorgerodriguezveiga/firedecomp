@@ -1,4 +1,5 @@
 numpy
 bson
 plotly
+pandas
 #gurobipy
