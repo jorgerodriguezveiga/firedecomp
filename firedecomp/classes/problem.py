@@ -68,6 +68,27 @@ class Problem(object):
         if inplace is not True:
             return problem
 
+    def get_cost(self, resources=True, wildfire=True, per_period=False):
+        """Return objective function value."""
+        cost = {t: 0 for t in self.wildfire.get_names()}
+        if resources:
+            cost = {k: c + sum([r.fix_cost*r.select for r in self.resources])
+                    for k, c in cost.items()}
+            cost = {k: c + sum([rw.resource.variable_cost*rw.use
+                                for rw in self.resources_wildfire
+                                if rw.get_index()[1] <= k])
+                    for k, c in cost.items()}
+
+        if wildfire:
+            cost = {k: c + sum([p.cost*(1-p.contained)
+                                for p in self.wildfire
+                                if p.get_index() <= k])
+                    for k, c in cost.items()}
+
+        if per_period is False:
+            cost = cost[max(self.wildfire.get_names())]
+        return cost
+
     def status(self, info="status"):
         """Return resolution status.
 
@@ -96,8 +117,9 @@ class Problem(object):
         """
         self.update_units()
         if method == 'original':
-            m = model.InputModel(self, min_res_penalty=min_res_penalty)
-            solution = m.solve(solver_options=solver_options)
+            self.original_model = model.InputModel(
+                self, min_res_penalty=min_res_penalty)
+            solution = self.original_model.solve(solver_options=solver_options)
             self.solve_status = solution.model.Status
             return solution
         else:
