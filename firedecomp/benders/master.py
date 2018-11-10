@@ -4,10 +4,12 @@
 import gurobipy
 import logging as log
 import re
+import numpy as np
 
 # Package modules
 from firedecomp.classes import solution
 from firedecomp import config
+from firedecomp.benders import utils
 
 
 # Class which can have attributes set.
@@ -29,6 +31,7 @@ class Master(object):
         self.results = Expando()
         self.solution = {}
         self.obj_val = None
+        self.obj_val_zeta = None
 
         self.__build_data__(min_res_penalty)
         self.__build_model__()
@@ -81,6 +84,15 @@ class Master(object):
         self.data.min_t = int(min(self.data.T))
         self.data.max_t = int(max(self.data.T))
 
+        variable_start = {
+            (i, t): 1 if self.data.min_t == t else 0
+            for i in self.data.I for t in self.data.T}
+        info = utils.get_start_info(self.data, variable_start)
+        self.data.start_work = info['work']
+        self.data.start_travel = info['travel']
+        self.data.start_rest = info['rest']
+        self.data.min_resources = utils.get_minimum_resources(self.data)
+
     def __build_variables__(self):
         """Build variables."""
         m = self.model
@@ -127,15 +139,31 @@ class Master(object):
         m = self.model
         data = self.data
         s = self.variables.s
+        z = self.variables.z
+
         zeta = self.variables.zeta
         mu_prime = self.variables.mu_prime
 
-        help_objective = sum([t*s[i, t] for i in data.I for t in data.T]) +\
-                         sum([data.Mp * mu_prime[g] for g in data.G])
-        sub_objective = zeta
+        start_coef = {
+            (i, t):
+                max(data.P.values()) *
+                (1 + sum([data.PR[i, t1] * data.start_work[i, t1]
+                          for t1 in data.T_int.get_names(p_min=t)])/data.C[i])
+            for i in data.I for t in data.T}
+
+        self.variables.help_obj = \
+            - sum([(data.max_t - t)*(start_coef[i, t])*s[i, t]
+                   for i in data.I for t in data.T]) +\
+            sum([data.Mp * mu_prime[g] for g in data.G])
+
+        self.variables.master_obj = sum([data.P[i] * z[i] for i in data.I])
+
+        self.variables.sub_obj = zeta
 
         self.objective = m.setObjective(
-            help_objective + sub_objective,
+            self.variables.master_obj +
+            self.variables.help_obj +
+            self.variables.sub_obj,
             gurobipy.GRB.MINIMIZE)
 
     def __build_constraints__(self):
@@ -151,7 +179,7 @@ class Master(object):
         # Benders constraints
         self.constraints.opt = {}
         self.constraints.opt_int = {}
-        self.constraints.feas = {}
+        self.constraints.content_feas_int = {}
         self.constraints.feas_int = {}
 
         # Non-Negligence of Fronts
@@ -170,6 +198,10 @@ class Master(object):
                 (z[i] <= 1
                  for i in data.I),
                 name='logical_2')
+
+        self.constraints.logical_5 = \
+            m.addConstr(sum([z[i] for i in data.I]) >= data.min_resources,
+                        name='logical_5')
 
     def add_opt_cut(self, vars_coeffs, rhs):
         m = self.model
@@ -206,19 +238,23 @@ class Master(object):
         )
         m.update()
 
-    def add_feas_cut(self, vars_coeffs, rhs):
+    def add_contention_feas_int_cut(self, vars_coeffs, rhs):
         m = self.model
 
-        cut_num = len(self.constraints.feas)
-        self.constraints.feas[cut_num] = m.addConstr(
+        cut_num = len(self.constraints.content_feas_int)
+        self.constraints.content_feas_int[cut_num] = m.addConstr(
             sum(coeff*m.getVarByName(var)
                 for var, coeff in vars_coeffs.items()) >= rhs,
-            name='feas[{}]'.format(cut_num)
+            name='content_feas_int[{}]'.format(cut_num)
         )
         m.update()
 
-    def get_obj(self):
-        return self.obj_val
+    def get_obj(self, zeta=True):
+        """Get objective function value."""
+        if zeta:
+            return self.obj_val_zeta
+        else:
+            return self.obj_val
 
     def solve(self, solver_options):
         """Solve mathematical model.
@@ -228,7 +264,7 @@ class Master(object):
                 Example: ``{'TimeLimit': 10}``.
         """
         if solver_options is None:
-            solver_options = {'OutputFlag': 0}
+            solver_options = {'OutputFlag': 0, 'LogToConsole': 0}
 
         m = self.model
         variables = self.variables
@@ -243,7 +279,11 @@ class Master(object):
         # Todo: check what status number return a solution
         if m.Status != 3:
 
-            self.obj_val = self.variables.zeta.x
+            self.obj_val = self.variables.master_obj.getValue() + \
+                self.variables.help_obj.getValue()
+            self.obj_val_zeta = self.variables.master_obj.getValue() + \
+                self.variables.help_obj.getValue() + \
+                self.variables.sub_obj.x
             self.solution = {v.VarName: v.x for v in self.model.getVars()}
 
             # Load variables values
@@ -257,7 +297,7 @@ class Master(object):
                 }
                  for i in self.data.I for t in self.data.T})
         else:
-            log.warning(config.gurobi.status_info[m.Status]['description'])
-
+            # log.warning(config.gurobi.status_info[m.Status]['description'])
+            pass
         return m.Status
 # --------------------------------------------------------------------------- #

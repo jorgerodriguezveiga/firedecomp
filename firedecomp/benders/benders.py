@@ -2,6 +2,8 @@
 
 # Python packages
 import logging as log
+import re
+import time
 
 # Package modules
 from firedecomp import benders
@@ -20,6 +22,10 @@ class Benders(object):
         self.obj_lb = -float("inf")
         self.obj_ub = float("inf")
         self.gap = gap
+        self.iter = 0
+        self.time = 0
+
+        self.best_sol = None
 
         # Models
         self.relaxed_problem = original.model.InputModel(
@@ -31,7 +37,7 @@ class Benders(object):
         self.subproblem_relaxed = benders.subproblem.Subproblem(
             problem_data, min_res_penalty, relaxed=True)
         self.subproblem_infeas = benders.subproblem.Subproblem(
-            problem_data, min_res_penalty, relaxed=True, slack=True)
+            problem_data, min_res_penalty, relaxed=False, slack=True)
 
         # Master info
         self.L = None
@@ -43,6 +49,19 @@ class Benders(object):
         self.optimality_cuts = []
         self.feasible_cuts = []
         self.integer_cuts = []
+
+    def __log__(self, level="critical"):
+        log_level = getattr(log, level)
+        if not hasattr(self, "log"):
+            self.log = log.getLogger()
+            self.log.setLevel(log_level)
+            ch = log.StreamHandler()
+            formatter = log.Formatter('%(levelname)8s:%(message)s')
+            ch.setFormatter(formatter)
+            self.log.addHandler(ch)
+        else:
+            for h in self.log.handlers:
+                h.setLevel(log_level)
 
     def get_obj_bound(self):
         model = self.relaxed_problem.solve(None)
@@ -65,13 +84,22 @@ class Benders(object):
         rhs = term*(len(s_set)-1)+lower_obj
         self.master.add_opt_int_cut(coeffs, rhs)
 
-    def add_feas_cut(self):
-        matrix = self.subproblem_infeas.get_constraint_matrix()
-        dual = self.subproblem_infeas.get_dual()
-
-        rhs = self.subproblem_infeas.get_rhs()
-        coeffs = matrix[self.common_vars].T.dot(dual)
-        self.master.add_feas_cut(coeffs.to_dict(), rhs.dot(dual))
+    def add_contention_feas_int_cut(self):
+        S_set = self.master.get_S_set()
+        max_t = int(max(self.problem_data.get_names("wildfire")))
+        vars = []
+        for v in S_set:
+            search = re.search('start\[([^,]+),(\d+)\]', v)
+            if search:
+                res, min_t = search.groups()
+                vars += ["start[{},{}]".format(res, t)
+                         for t in range(int(min_t), max_t+1)]
+            else:
+                raise ValueError(
+                    "Unkown format of variables start '{}'".format(v))
+        coeffs = {v: - 1 if v in vars else 1 for v in self.common_vars}
+        rhs = 1 - len(S_set)
+        self.master.add_contention_feas_int_cut(coeffs, rhs)
 
     def add_feas_int_cut(self):
         S_set = self.master.get_S_set()
@@ -80,8 +108,11 @@ class Benders(object):
         self.master.add_feas_int_cut(coeffs, rhs)
 
     def solve(self, max_iters=10,
-              solver_options_master=None, solver_options_subproblem=None):
+              solver_options_master=None, solver_options_subproblem=None,
+              log_level="CRITICAL"):
 
+        self.__log__(log_level)
+        start_time = time.time()
         self.L = self.get_obj_bound()
 
         master = self.master
@@ -89,21 +120,23 @@ class Benders(object):
         subproblem_relaxed = self.subproblem_relaxed
         subproblem_infeas = self.subproblem_infeas
 
-        for iter in range(1, max_iters+1):
-            log.info("Iteration: {}".format(iter))
+        for it in range(1, max_iters+1):
+            self.iter = it
+            self.log.info("[ITER]: {}".format(it))
 
             # Solve Master problem
-            log.debug("\t[MASTER] Solve")
+            self.log.debug("\t[MASTER]:")
             master_status = master.solve(solver_options=solver_options_master)
-            log.debug(
-                {k: v
-                 for k, v in self.problem_data.resources_wildfire.get_info(
-                    "start").items() if v == 1})
+
             if master_status != 2:
-                log.debug("\t[MASTER] Not optimal solution.")
+                self.log.debug("\t - Not optimal solution.")
                 return master_status
             else:
-                log.debug("\t[MASTER] Optimal")
+                self.log.debug("\t - Optimal")
+                start = self.problem_data.resources_wildfire.get_info("start")
+                self.log.debug(
+                    "\t - Solution: " +
+                    ", ".join([str(k) for k, v in start.items() if v == 1]))
 
             # Update subproblems
             subproblem.__update_model__()
@@ -111,55 +144,61 @@ class Benders(object):
             subproblem_infeas.__update_model__()
 
             # Solve Relaxed Subproblem
-            log.debug("\t[SUBREL] Solve")
+            self.log.debug("\t[RELAXED SUBPROBLEM]:")
             sub_rel_status = subproblem_relaxed.solve(
                 solver_options=solver_options_subproblem)
+            sub_status = 3
             if sub_rel_status == 2:
-                log.debug("\t[SUBREL] Optimal")
-                log.info("\t[MASTER] Add optimality cut")
+                self.log.debug("\t - Optimal")
+                self.log.info("\t - Add optimality cut")
                 self.add_opt_cut()
 
                 # Solve Subproblem
-                log.debug("\t[SUBPRO] Solve")
+                self.log.debug("\t[SUBPROBLEM]:")
                 sub_status = subproblem.solve(
                     solver_options=solver_options_subproblem)
 
                 if sub_status == 2:
-                    log.debug("\t[SUBPRO] Optimal")
+                    self.log.debug("\t - Optimal")
 
-                    log.info("\t[BENDER] Update obj bounds")
-                    self.obj_lb = master.get_obj()
-                    self.obj_ub = min(self.obj_ub, subproblem.get_obj())
-
-                    log.info("\t[MASTER] Add integer optimality cut")
+                    self.log.info("\t - Add integer optimality cut")
                     self.add_opt_int_cut()
-                else:
-                    log.debug("\t[SUBPRO] Not optimal")
-                    log.info("\t[MASTER] Add integer feasibility cut")
-                    self.add_feas_int_cut()
 
-            else:
-                log.debug("\t[SUBREL] Not optimal")
+                    self.log.info("\t - Update objective bounds")
+                    self.obj_lb = master.get_obj()
+                    new_ub = master.get_obj(zeta=False) + subproblem.get_obj()
+                    if new_ub <= self.obj_ub:
+                        log.info("\t - Update best solution")
+                        self.obj_ub = new_ub
+                        self.best_sol = \
+                            self.problem_data.resources_wildfire.get_info(
+                                "start")
+
+            if sub_status != 2:
+                self.log.debug("\t - Not optimal")
 
                 # Solve Subproblem Infeasibilities
-                log.debug("\t[SUBINF] Solve")
+                self.log.debug("\t[SLACK SUBPROBLEM]:")
                 sub_infeas_status = subproblem_infeas.solve(
                     solver_options=solver_options_subproblem)
 
                 if sub_infeas_status == 2:
-                    log.info("\t[MASTER] Add feasibility cut")
-                    # Todo: Check theses constraints
-                    # self.add_feas_cut()
-
-                    log.info("\t[MASTER] Add integer feasibility cut")
-                    self.add_feas_int_cut()
+                    self.log.debug("\t - Optimal")
+                    self.log.info("\t - Add contention integer feasibility cut")
+                    self.add_contention_feas_int_cut()
                 else:
-                    raise ValueError("[SUBINF] Must be optimal")
+                    self.log.debug("\t - Not optimal")
+                    self.log.info("\t - Add integer feasibility cut")
+                    self.add_feas_int_cut()
+
+            self.log.info("[STOP CRITERIA]:")
+            self.log.debug("\t - lb: %s", self.obj_lb)
+            self.log.debug("\t - ub: %s", self.obj_ub)
+            self.log.info("\t - GAP: %s", self.obj_ub - self.obj_lb)
 
             if (self.obj_ub - self.obj_lb)/(self.obj_ub + self.gap) <= self.gap:
-                log.info("[BENDER] Convergence")
+                self.log.info("\t - Convergence")
                 break
 
-            log.info("[BENDER] lb = {}, ub = {}".format(
-                self.obj_lb, self.obj_ub))
+        self.time = time.time() - start_time
 # --------------------------------------------------------------------------- #
