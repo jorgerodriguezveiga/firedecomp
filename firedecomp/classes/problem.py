@@ -2,6 +2,7 @@
 
 # Package modules
 from firedecomp.original import model
+from firedecomp.benders import benders
 from firedecomp import config
 from firedecomp import plot
 
@@ -68,7 +69,9 @@ class Problem(object):
         if inplace is not True:
             return problem
 
-    def get_cost(self, resources=True, wildfire=True, per_period=False):
+    def get_cost(self, resources=True, wildfire=True,
+                 resources_penalty=True, per_period=False,
+                 min_res_penalty=1000000):
         """Return objective function value."""
         cost = {t: 0 for t in self.wildfire.get_names()}
         if resources:
@@ -80,12 +83,18 @@ class Problem(object):
                     for k, c in cost.items()}
 
         if wildfire:
-            cost = {k: c + sum([p.cost*(1-p.contained)
+            cost = {k: c + sum([p.increment_cost*(1-p.contained)
                                 for p in self.wildfire
                                 if p.get_index() <= k])
                     for k, c in cost.items()}
 
-        if per_period is False:
+        if resources_penalty:
+            cost = {k: c + sum([min_res_penalty * gp.num_left_resources
+                                for gp in self.groups_wildfire
+                                if gp.get_index()[1] <= k])
+                    for k, c in cost.items()}
+
+        if per_period is not True:
             cost = cost[max(self.wildfire.get_names())]
         return cost
 
@@ -102,15 +111,21 @@ class Problem(object):
         else:
             return config.gurobi.status_info[self.status][info]
 
-    def solve(self, method='original', solver_options=None,
-              min_res_penalty=1000000):
+    def solve(self, method='original',
+              solver_options=None, benders_options=None,
+              min_res_penalty=1000000,
+              log_level='WARNING'):
         """Solve mathematical model.
 
         Args:
             method (:obj:`str`): method to solve the mathematical problem.
-                Options: ``'original'``. Defaults to ``'original'``.
+                Options: ``'original'``, ``'benders'``. Defaults to
+                ``'original'``.
             solver_options (:obj:`dict`): gurobi options. Default ``None``.
                 Example: ``{'TimeLimit': 10}``.
+            benders_options (:obj:`dict`): benders method options. Default
+                ``None``. If None:
+                ``{'max_iters': 100, 'min_res_penalty':1000000, 'gap':0.01}``.
             min_res_penalty (:obj:`float`): positive value that penalize the
                 breach of the minimum number of resources in each period.
                 Defaults to ``1000000``.
@@ -122,6 +137,22 @@ class Problem(object):
             solution = self.original_model.solve(solver_options=solver_options)
             self.solve_status = solution.model.Status
             return solution
+        elif method == 'benders':
+
+            default_benders_options = {
+                'max_iters': 100,
+                'min_res_penalty': 1000000,
+                'mip_gap_obj': 0.01,
+                'mip_gap_cost': 0.01,
+                'solver_options_master': None,
+                'solver_options_subproblem': None
+            }
+            if isinstance(benders_options, dict):
+                default_benders_options.update(benders_options)
+            benders_problem = benders.Benders(
+                self, **default_benders_options, log_level=log_level)
+            self.solve_status = benders_problem.solve()
+            return benders_problem
         else:
             raise ValueError(
                 "Incorrect method '{}'. Options allowed: {}".format(
