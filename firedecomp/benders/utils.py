@@ -1,7 +1,7 @@
 """Module with utilities."""
 
-import pandas as pd
 import numpy as np
+import math
 
 
 # get_expr_cos ----------------------------------------------------------------
@@ -43,7 +43,7 @@ def get_start_info(data, start_dict):
     travel = {(i, t): 0 for i in data.I for t in data.T}
 
     for i in data.I:
-        if (data.ITW[i] is False) and (data.IOW[i] is False):
+        if (data.ITW[i] is not True) and (data.IOW[i] is not True):
             work_count = 1
         else:
             if start_dict[i, data.min_t] == 1:
@@ -114,4 +114,33 @@ def get_minimum_resources(data):
         if v <= max_wildfire_perimeter])
 
     return num
+# --------------------------------------------------------------------------- #
+
+
+# format_benders --------------------------------------------------------------
+def format_benders(message):
+    return " | ".join([format_benders_element(e) for e in message])
+# --------------------------------------------------------------------------- #
+
+
+# format_benders_element ------------------------------------------------------
+def format_benders_element(element):
+    log_s_format = "{:10s}"
+    log_e_format = "{:.4E}"
+    log_f_format = "{:7.2f}"
+    log_d_format = "{:10d}"
+    if isinstance(element, int):
+        return log_d_format.format(element)
+    elif isinstance(element, float):
+        if abs(element) == float("inf") or math.isnan(element):
+            str_num = str(element)
+            return " " * (10 - len(str_num)-3) + str_num + " "*3
+        else:
+            if len(str(round(element))) > 7:
+                return log_e_format.format(element)
+            else:
+                str_num = log_f_format.format(element)
+                return " "*(10-len(str_num)) + str_num
+    else:
+        return log_s_format.format(str(element))
 # --------------------------------------------------------------------------- #

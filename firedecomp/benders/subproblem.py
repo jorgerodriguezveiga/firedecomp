@@ -19,7 +19,7 @@ class Subproblem(object):
     """Todo: Considered only selected resources."""
     def __init__(self, problem_data, min_res_penalty=1000000, relaxed=False,
                  slack=False):
-        if problem_data.period_unit is False:
+        if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
         self.problem_data = problem_data
@@ -83,15 +83,6 @@ class Subproblem(object):
         self.data.min_t = int(min(self.data.T))
         self.data.max_t = int(max(self.data.T))
 
-        variable_start = {
-            (i, t): 1 if self.data.min_t == t else 0
-            for i in self.data.I for t in self.data.T}
-        info = utils.get_start_info(self.data, variable_start)
-        self.data.start_work = info['work']
-        self.data.start_travel = info['travel']
-        self.data.start_rest = info['rest']
-        self.data.min_resources = utils.get_minimum_resources(self.data)
-
         self.__update_data__()
 
     def __update_data__(self):
@@ -149,8 +140,8 @@ class Subproblem(object):
 
         self.variables.s = self.model.addVars(
             data.I, data.T, vtype=vtype, lb=s_fix, ub=s_fix, name="start")
-        self.variables.z = {
-            i: sum([self.variables.s[i, t] for t in data.T]) for i in data.I}
+        self.variables.z = {i: sum([s_fix[i, t] for t in data.T])
+                            for i in data.I}
 
         start = {i: min([t for t in data.T if s_fix[i, t] == 1]+[data.max_t])
                  for i in data.I}
@@ -159,6 +150,7 @@ class Subproblem(object):
             (i, t): 0
             if (t < start[i]) or (self.data.rest[i, t] == 1) else 1
             for i in data.I for t in data.T}
+
         self.variables.tr = self.model.addVars(
             data.I, data.T, vtype=vtype, lb=lb, ub=tr_ub, name="travel")
 #
@@ -200,33 +192,29 @@ class Subproblem(object):
         u = self.variables.u
         y = self.variables.y
         mu = self.variables.mu
-        s = self.data.s_fix
-        mu_prime = self.data.mu_prime_fix
+        z = self.variables.z
 
-        start_coef = {
-            (i, t):
-                max(data.P.values()) *
-                (1 + sum([data.PR[i, t1] * data.start_work[i, t1]
-                          for t1 in data.T_int.get_names(p_min=t)])/data.C[i])
-            for i in data.I for t in data.T}
-
-        self.variables.master_help_objective = \
-            - sum([(data.max_t - t)*(start_coef[i, t])*s[i, t]
-                   for i in data.I for t in data.T]) + \
-            sum([data.Mp * mu_prime[g] for g in data.G])
+        self.variables.fix_cost_resources = sum(
+            [data.P[i] * z[i] for i in data.I])
+        self.variables.variable_cost_resources = sum(
+            [data.C[i] * u[i, t] for i in data.I for t in data.T])
+        self.variables.wildfire_cost = sum(
+            [data.NVC[t] * y[t - 1] for t in data.T])
+        self.variables.law_cost = sum(
+            [data.Mp * mu[g, t] for g in data.G for t in data.T])
 
         self.variables.subproblem_objective = \
-            sum([data.C[i] * u[i, t] for i in data.I for t in data.T]) + \
-            sum([data.NVC[t] * y[t - 1] for t in data.T]) + \
-            sum([data.Mp * mu[g, t] for g in data.G for t in data.T]) + \
+            self.variables.fix_cost_resources + \
+            self.variables.variable_cost_resources + \
+            self.variables.wildfire_cost + \
+            self.variables.law_cost + \
             0.001 * y[data.max_t]
 
         # Objective
         # =========
-        if self.slack is False:
+        if self.slack is not True:
             m.setObjective(
-                self.variables.subproblem_objective -
-                self.variables.master_help_objective,
+                self.variables.subproblem_objective,
                 gurobipy.GRB.MINIMIZE)
         else:
             m.setObjective(self.variables.slack, gurobipy.GRB.MINIMIZE)
@@ -476,9 +464,23 @@ class Subproblem(object):
     def get_rhs(self):
         return pd.Series(utils.get_rhs(self.model))
 
-    def get_obj(self):
-        return self.variables.subproblem_objective.getValue() - \
-            self.variables.master_help_objective
+    def get_obj(self, resources_fix=True, resources_variable=True,
+                wildfire=True, law=True):
+        obj_val = 0
+
+        if resources_fix:
+            obj_val += self.variables.fix_cost_resources
+
+        if resources_variable:
+            obj_val += self.variables.variable_cost_resources.getValue()
+
+        if wildfire:
+            obj_val += self.variables.wildfire_cost.getValue()
+
+        if law:
+            obj_val += self.variables.law_cost.getValue()
+
+        return obj_val
 
     def solve(self, solver_options):
         """Solve mathematical model.
@@ -505,7 +507,7 @@ class Subproblem(object):
                 self.dual = pd.Series({c.ConstrName: c.pi
                                        for c in self.model.getConstrs()})
 
-            if self.slack is False:
+            if self.slack is not True:
                 u = {(i, t): self.variables.u[i, t].getValue() == 1
                      for i in self.data.I for t in self.data.T}
                 travel = {
@@ -536,7 +538,7 @@ class Subproblem(object):
                      for i in self.data.I for t in self.data.T})
 
                 self.problem_data.groups_wildfire.update(
-                    {(g, t): {'number_resources': self.variables.mu[g, t].x}
+                    {(g, t): {'num_left_resources': self.variables.mu[g, t].x}
                      for g in self.data.G for t in self.data.T})
 
                 contained = {t: self.variables.y[t].x == 0 for t in self.data.T}
