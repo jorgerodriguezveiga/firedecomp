@@ -12,7 +12,7 @@ from firedecomp import config
 # InputModel ------------------------------------------------------------------
 class InputModel(object):
     def __init__(self, problem_data, relaxed=False, min_res_penalty=1000000):
-        if problem_data.period_unit is False:
+        if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
         self.problem_data = problem_data
@@ -80,7 +80,7 @@ class InputModel(object):
 
         # Todo: check what status number return a solution
         if m.model.Status != 3:
-            if self.relaxed is False:
+            if self.relaxed is not True:
                 # Load variables values
                 self.problem_data.resources.update(
                     {i: {'select': m.variables.z[i].getValue() == 1}
@@ -99,7 +99,7 @@ class InputModel(object):
                      for i in self.I for t in self.T})
 
                 self.problem_data.groups_wildfire.update(
-                    {(g, t): {'number_resources': m.variables.mu[g, t].x}
+                    {(g, t): {'num_left_resources': m.variables.mu[g, t].x}
                      for g in self.G for t in self.T})
 
                 contained = {t: m.variables.y[t].x == 0 for t in self.T}
