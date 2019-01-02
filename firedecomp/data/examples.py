@@ -96,7 +96,7 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
         np.random.seed(seed)
     else:
         seed = 1
-        if random is False:
+        if random is not True:
             np.random.seed(seed)
 
     brigades = resources_example(num_brigades=num_brigades,
@@ -154,14 +154,14 @@ def resource_example(random=False, res_type='brigade', seed=None):
     """
     if seed is not None:
         np.random.seed(seed)
-        if random is False:
+        if random is not True:
             res_id = str(seed)
         else:
             res_id = str(bson.ObjectId())
 
     else:
         seed = 1
-        if random is False:
+        if random is not True:
             np.random.seed(seed)
             res_id = str(seed)
         else:
@@ -315,7 +315,7 @@ def wildfire_example(num_periods=10, ini_perimeter=10, random=False,
         np.random.seed(seed)
     else:
         seed = 1
-        if random is False:
+        if random is not True:
             np.random.seed(seed)
 
     perimeter = ini_perimeter
