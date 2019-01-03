@@ -17,7 +17,6 @@ class Benders(object):
     def __init__(
             self,
             problem_data,
-            min_res_penalty=1000000,
             mip_gap_obj=0.01, mip_gap_cost=0.01, max_iters=10, max_time=3600,
             solver_options_master=None,
             solver_options_subproblem=None,
@@ -48,13 +47,13 @@ class Benders(object):
 
         # Models
         self.relaxed_problem = original.model.InputModel(
-            problem_data, relaxed=True, min_res_penalty=min_res_penalty)
+            problem_data, relaxed=True)
         self.master = benders.master.Master(
-            problem_data, min_res_penalty)
+            problem_data)
         self.subproblem = benders.subproblem.Subproblem(
-            problem_data, min_res_penalty, relaxed=False)
+            problem_data, relaxed=False)
         self.subproblem_infeas = benders.subproblem.Subproblem(
-            problem_data, min_res_penalty, relaxed=False, slack=True)
+            problem_data, relaxed=False, slack=True)
 
         # Master info
         self.L = None

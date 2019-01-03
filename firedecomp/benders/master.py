@@ -13,7 +13,7 @@ class Expando(object):
 
 # Master ----------------------------------------------------------------------
 class Master(object):
-    def __init__(self, problem_data, min_res_penalty=1000000):
+    def __init__(self, problem_data):
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
@@ -29,7 +29,7 @@ class Master(object):
         self.obj_law = None
         self.obj_zeta = None
 
-        self.__build_data__(min_res_penalty)
+        self.data = self.problem_data.data
         self.__build_model__()
 
     def __build_model__(self):
@@ -38,47 +38,6 @@ class Master(object):
         self.__build_objective__()
         self.__build_constraints__()
         self.model.update()
-
-    def __build_data__(self, min_res_penalty):
-        """Build problem data."""
-        problem_data = self.problem_data
-        # Sets
-        self.data.I = problem_data.get_names("resources")
-        self.data.G = problem_data.get_names("groups")
-        self.data.T = problem_data.get_names("wildfire")
-        self.data.Ig = {
-            k: [e.name for e in v]
-            for k, v in problem_data.groups.get_info('resources').items()}
-        self.data.T_int = problem_data.wildfire
-
-        # Parameters
-        self.data.C = problem_data.resources.get_info("variable_cost")
-        self.data.P = problem_data.resources.get_info("fix_cost")
-        self.data.BPR = problem_data.resources.get_info("performance")
-        self.data.A = problem_data.resources.get_info("arrival")
-        self.data.CWP = problem_data.resources.get_info("work")
-        self.data.CRP = problem_data.resources.get_info("rest")
-        self.data.CUP = problem_data.resources.get_info("total_work")
-        self.data.ITW = problem_data.resources.get_info("working_this_wildfire")
-        self.data.IOW = problem_data.resources.get_info(
-            "working_other_wildfire")
-        self.data.TRP = problem_data.resources.get_info("time_between_rests")
-        self.data.WP = problem_data.resources.get_info("max_work_time")
-        self.data.RP = problem_data.resources.get_info("necessary_rest_time")
-        self.data.UP = problem_data.resources.get_info("max_work_daily")
-        self.data.PR = problem_data.resources_wildfire.get_info(
-            "resource_performance")
-
-        self.data.PER = problem_data.wildfire.get_info("increment_perimeter")
-        self.data.NVC = problem_data.wildfire.get_info("increment_cost")
-
-        self.data.nMin = problem_data.groups_wildfire.get_info("min_res_groups")
-        self.data.nMax = problem_data.groups_wildfire.get_info("max_res_groups")
-
-        self.data.Mp = min_res_penalty
-        self.data.M = sum([v for k, v in self.data.PER.items()])
-        self.data.min_t = int(min(self.data.T))
-        self.data.max_t = int(max(self.data.T))
 
     def __build_variables__(self):
         """Build variables."""

@@ -13,7 +13,8 @@ class Problem(object):
 
     def __init__(
             self, resources, wildfire, groups,
-            groups_wildfire=None, resources_wildfire=None, period_unit=False):
+            groups_wildfire=None, resources_wildfire=None, period_unit=False,
+            min_res_penalty=1000000):
         """Problem class.
 
         Args:
@@ -33,11 +34,14 @@ class Problem(object):
         self.groups_wildfire = groups_wildfire
         self.resources_wildfire = resources_wildfire
         self.period_unit = period_unit
+        self.min_res_penalty = min_res_penalty
         self.original_model = None
         self.benders_model = None
         self.branch_price_model = None
         self.lagrangian_model = None
         self.solve_status = None
+
+        self.__build_data__()
 
     def update_units(self, period_unit=True, inplace=True):
         """Update problem units.
@@ -111,10 +115,15 @@ class Problem(object):
         else:
             return config.gurobi.status_info[self.status][info]
 
+    def __build_data__(self):
+        """Build problem data."""
+        self.update_units()
+        self.data = Data(self)
+
     def solve(self, method='original',
               solver_options=None, benders_options=None,
               min_res_penalty=1000000,
-              log_level='WARNING'):
+              log_level=None):
         """Solve mathematical model.
 
         Args:
@@ -129,19 +138,23 @@ class Problem(object):
             min_res_penalty (:obj:`float`): positive value that penalize the
                 breach of the minimum number of resources in each period.
                 Defaults to ``1000000``.
+            log_level (:obj:`str`): logging level. Defaults to ``None``.
         """
         self.update_units()
         if method == 'original':
+            if log_level is None:
+                log_level = 'WARNING'
             self.original_model = model.InputModel(
                 self, min_res_penalty=min_res_penalty)
             solution = self.original_model.solve(solver_options=solver_options)
             self.solve_status = solution.model.Status
             return solution
         elif method == 'benders':
+            if log_level is None:
+                log_level = 'benders'
 
             default_benders_options = {
                 'max_iters': 100,
-                'min_res_penalty': 1000000,
                 'mip_gap_obj': 0.01,
                 'mip_gap_cost': 0.01,
                 'solver_options_master': None,
@@ -215,4 +228,47 @@ class Problem(object):
                l_start + l_grps + l_space*(max_len - len_grps) + l_end + \
                l_start + l_pers + l_space*(max_len - len_pers) + l_end + \
                footer_start + footer_space*max_len + footer_end
+# --------------------------------------------------------------------------- #
+
+
+# Data ------------------------------------------------------------------------
+class Data(object):
+    """Data class."""
+
+    def __init__(self, problem):
+        # Sets
+        self.I = problem.get_names("resources")
+        self.G = problem.get_names("groups")
+        self.T = problem.get_names("wildfire")
+        self.Ig = {
+            k: [e.name for e in v]
+            for k, v in problem.groups.get_info('resources').items()}
+        self.T_int = problem.wildfire
+
+        # Parameters
+        self.C = problem.resources.get_info("variable_cost")
+        self.P = problem.resources.get_info("fix_cost")
+        self.BPR = problem.resources.get_info("performance")
+        self.A = problem.resources.get_info("arrival")
+        self.CWP = problem.resources.get_info("work")
+        self.CRP = problem.resources.get_info("rest")
+        self.CUP = problem.resources.get_info("total_work")
+        self.ITW = problem.resources.get_info("working_this_wildfire")
+        self.IOW = problem.resources.get_info("working_other_wildfire")
+        self.TRP = problem.resources.get_info("time_between_rests")
+        self.WP = problem.resources.get_info("max_work_time")
+        self.RP = problem.resources.get_info("necessary_rest_time")
+        self.UP = problem.resources.get_info("max_work_daily")
+        self.PR = problem.resources_wildfire.get_info("resource_performance")
+
+        self.PER = problem.wildfire.get_info("increment_perimeter")
+        self.NVC = problem.wildfire.get_info("increment_cost")
+
+        self.nMin = problem.groups_wildfire.get_info("min_res_groups")
+        self.nMax = problem.groups_wildfire.get_info("max_res_groups")
+
+        self.Mp = problem.min_res_penalty
+        self.M = sum([v for k, v in self.PER.items()])
+        self.min_t = int(min(self.T))
+        self.max_t = int(max(self.T))
 # --------------------------------------------------------------------------- #
