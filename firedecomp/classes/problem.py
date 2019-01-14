@@ -42,6 +42,7 @@ class Problem(object):
         self.solve_status = None
 
         self.__build_data__()
+        self.__build_period_data__()
 
     def update_units(self, period_unit=True, inplace=True):
         """Update problem units.
@@ -115,6 +116,22 @@ class Problem(object):
         else:
             return config.gurobi.status_info[self.status][info]
 
+    def update_period_data(self, max_period=None):
+        self.__build_period_data__(max_period=max_period)
+
+    def __build_period_data__(self, max_period=None):
+        self.period_data = self.get_data(max_period=max_period)
+
+    def get_data(self, max_period=None):
+        if max_period is None:
+            return self.data
+        elif isinstance(max_period, int):
+            return Data(self, max_period=max_period)
+        else:
+            raise TypeError(
+                "max_period must be integer or None, not '{}'".format(
+                    type(max_period)))
+
     def __build_data__(self):
         """Build problem data."""
         self.update_units()
@@ -156,9 +173,9 @@ class Problem(object):
             default_benders_options = {
                 'max_iters': 100,
                 'mip_gap_obj': 0.01,
-                'mip_gap_cost': 0.01,
+                'compute_feas_cuts': False,
                 'solver_options_master': None,
-                'solver_options_subproblem': None
+                'solver_options_subproblem': None,
             }
             if isinstance(benders_options, dict):
                 default_benders_options.update(benders_options)
@@ -235,15 +252,14 @@ class Problem(object):
 class Data(object):
     """Data class."""
 
-    def __init__(self, problem):
+    def __init__(self, problem, max_period=float('inf')):
         # Sets
         self.I = problem.get_names("resources")
         self.G = problem.get_names("groups")
-        self.T = problem.get_names("wildfire")
+        self.T = [t for t in problem.get_names("wildfire") if t <= max_period]
         self.Ig = {
             k: [e.name for e in v]
             for k, v in problem.groups.get_info('resources').items()}
-        self.T_int = problem.wildfire
 
         # Parameters
         self.C = problem.resources.get_info("variable_cost")
@@ -259,16 +275,49 @@ class Data(object):
         self.WP = problem.resources.get_info("max_work_time")
         self.RP = problem.resources.get_info("necessary_rest_time")
         self.UP = problem.resources.get_info("max_work_daily")
-        self.PR = problem.resources_wildfire.get_info("resource_performance")
+        self.PR = {
+            k: v for k, v in problem.resources_wildfire.get_info(
+            "resource_performance").items()
+            if k[1] <= max_period
+        }
 
-        self.PER = problem.wildfire.get_info("increment_perimeter")
-        self.NVC = problem.wildfire.get_info("increment_cost")
+        self.PER = {
+            t: v
+            for t, v in problem.wildfire.get_info("increment_perimeter").items()
+            if t <= max_period
+        }
+        self.NVC = {
+            t: v for t, v in problem.wildfire.get_info("increment_cost").items()
+            if t <= max_period
+        }
 
-        self.nMin = problem.groups_wildfire.get_info("min_res_groups")
-        self.nMax = problem.groups_wildfire.get_info("max_res_groups")
+        self.nMin = {
+            k: v
+            for k, v in problem.groups_wildfire.get_info(
+            "min_res_groups").items()
+            if k[1] <= max_period
+        }
+        self.nMax = {
+            k: v
+            for k, v in problem.groups_wildfire.get_info(
+            "max_res_groups").items()
+            if k[1] <= max_period
+        }
 
         self.Mp = problem.min_res_penalty
         self.M = sum([v for k, v in self.PER.items()])
         self.min_t = int(min(self.T))
         self.max_t = int(max(self.T))
+
+    def T_int(self, p_min=None, p_max=None):
+        if p_min is None:
+            p_min = self.min_t
+        else:
+            p_min = max(p_min, self.min_t)
+
+        if p_max is None:
+            p_max = self.max_t
+        else:
+            p_max = min(p_max, self.max_t)
+        return [t for t in range(int(p_min), int(p_max+1))]
 # --------------------------------------------------------------------------- #
