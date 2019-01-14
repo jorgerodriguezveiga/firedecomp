@@ -99,6 +99,69 @@ def get_start_info(data, start_dict):
 # --------------------------------------------------------------------------- #
 
 
+# get_start_info --------------------------------------------------------------
+def get_start_resource_info(data, i, start_period):
+    """Establish work, travel and rest periods."""
+    work = {(i, t): 0 for t in data.T}
+    rest = {(i, t): 0 for t in data.T}
+    travel = {(i, t): 0 for t in data.T}
+
+    if (data.ITW[i] is not True) and (data.IOW[i] is not True):
+        work_count = 1
+    else:
+        if start_period == data.min_t:
+            work_count = data.CWP[i] - data.CRP[i] + 1
+        else:
+            work_count = data.WP[i] + 1
+
+    start = False
+    travel_count = 1
+    for t in data.T:
+        if start_period == t:
+            start = True
+
+        if start:
+            if t == data.max_t:
+                work_count += 1
+                travel_count += 1
+                travel[i, t] = 1
+                continue
+
+            if (data.ITW[i] is True) or (data.IOW[i] is True):
+                if (work_count == data.CWP[i] + 1) and (data.A[i] == 1):
+                    work_count += 1
+                    rest[i, t] = 1
+                    continue
+
+            if work_count <= data.WP[i] - data.TRP[i]:
+                work_count += 1
+                if travel_count <= data.A[i]:
+                    travel_count += 1
+                    travel[i, t] = 1
+                else:
+                    work[i, t] = 1
+            elif work_count <= data.WP[i]:
+                work_count += 1
+                travel_count += 1
+                travel[i, t] = 1
+            elif work_count <= data.WP[i] + data.RP[i]:
+                work_count += 1
+                rest[i, t] = 1
+            elif work_count < data.WP[i] + data.RP[i]:
+                work_count += 1
+                travel_count += 1
+                travel[i, t] = 1
+            else:
+                work_count = 0
+                travel_count += 1
+                travel[i, t] = 1
+        else:
+            pass
+
+    return {'work': work, 'rest': rest, 'travel': travel}
+# --------------------------------------------------------------------------- #
+
+
 # get_minimum_resources -------------------------------------------------------
 def get_minimum_resources(data):
     """Get a lower bound of the minimum number of resources."""
