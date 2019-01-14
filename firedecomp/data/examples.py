@@ -37,9 +37,9 @@ def small_example():
 
     aircraft_2 = Resource(
         name='aircraft_2',
-        working_this_wildfire=True,
+        working_this_wildfire=False,
         working_other_wildfire=False,
-        arrival=0,
+        arrival=20,
         work=120,
         rest=0,
         total_work=120,
@@ -51,14 +51,30 @@ def small_example():
         necessary_rest_time=40,
         max_work_daily=480)
 
-    resources = Resources([aircraft_1, aircraft_2])
+    aircraft_3 = Resource(
+        name='aircraft_3',
+        working_this_wildfire=False,
+        working_other_wildfire=True,
+        arrival=10,
+        work=120,
+        rest=0,
+        total_work=120,
+        performance=3,
+        fix_cost=100,
+        variable_cost=100,
+        time_between_rests=10,
+        max_work_time=120,
+        necessary_rest_time=40,
+        max_work_daily=480)
+
+    resources = Resources([aircraft_1, aircraft_2, aircraft_3])
 
     aircraft_grp = Group(name='aircraft', resources=resources)
     groups = Groups([aircraft_grp])
 
     wildfire = Wildfire(
-        [Period(name=p, perimeter=1 + p / 2, cost=10)
-         for p in range(1, 20)], time_per_period=10)
+        [Period(name=p, perimeter=1 + p / 2, cost=p*10)
+         for p in range(1, 10)], time_per_period=10)
 
     res_wild = ResourcesWildfire(
         [ResourcePeriod(i, p, resources_efficiency=1)
@@ -80,7 +96,7 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
         np.random.seed(seed)
     else:
         seed = 1
-        if random is False:
+        if random is not True:
             np.random.seed(seed)
 
     brigades = resources_example(num_brigades=num_brigades,
@@ -138,14 +154,14 @@ def resource_example(random=False, res_type='brigade', seed=None):
     """
     if seed is not None:
         np.random.seed(seed)
-        if random is False:
+        if random is not True:
             res_id = str(seed)
         else:
             res_id = str(bson.ObjectId())
 
     else:
         seed = 1
-        if random is False:
+        if random is not True:
             np.random.seed(seed)
             res_id = str(seed)
         else:
@@ -171,7 +187,7 @@ def resource_example(random=False, res_type='brigade', seed=None):
                 rest = 0
 
         total_work = work
-        performance = r.random_num(2, 10, zero=-1)
+        performance = r.random_num(2/6, 10/6, zero=-1) * 6
         fix_cost = r.random_num(0, 1000)
         variable_cost = r.random_num(200, 500)
         time_between_rests = 10
@@ -199,7 +215,7 @@ def resource_example(random=False, res_type='brigade', seed=None):
                 rest = 0
 
         total_work = work
-        performance = r.random_num(4, 15, zero=-1)
+        performance = r.random_num(4/6, 15/6, zero=-1) * 6
         fix_cost = r.random_num(0, 1000)
         variable_cost = r.random_num(500, 1000)
         time_between_rests = 10
@@ -231,7 +247,7 @@ def resource_example(random=False, res_type='brigade', seed=None):
                 rest = 0
 
         total_work = 160*np.random.choice([0, 1, 2]) + work
-        performance = r.random_num(4, 15, zero=-1)
+        performance = r.random_num(4/6, 15/6, zero=-1) * 6
         fix_cost = r.random_num(0, 1000)
         variable_cost = r.random_num(1000, 3000)
         time_between_rests = 10
@@ -299,7 +315,7 @@ def wildfire_example(num_periods=10, ini_perimeter=10, random=False,
         np.random.seed(seed)
     else:
         seed = 1
-        if random is False:
+        if random is not True:
             np.random.seed(seed)
 
     perimeter = ini_perimeter

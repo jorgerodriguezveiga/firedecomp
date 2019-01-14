@@ -11,11 +11,12 @@ from firedecomp import config
 
 # InputModel ------------------------------------------------------------------
 class InputModel(object):
-    def __init__(self, problem_data, min_res_penalty=1000000):
-        if problem_data.period_unit is False:
+    def __init__(self, problem_data, relaxed=False, min_res_penalty=1000000):
+        if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
         self.problem_data = problem_data
+        self.relaxed = relaxed
 
         # Sets
         self.I = problem_data.get_names("resources")
@@ -56,7 +57,7 @@ class InputModel(object):
         self.model = self.__get_model__()
 
     def __get_model__(self):
-        return model(self)
+        return model(self, relaxed=self.relaxed)
 
     def solve(self, solver_options):
         """Solve mathematical model.
@@ -79,39 +80,40 @@ class InputModel(object):
 
         # Todo: check what status number return a solution
         if m.model.Status != 3:
+            if self.relaxed is not True:
+                # Load variables values
+                self.problem_data.resources.update(
+                    {i: {'select': m.variables.z[i].getValue() == 1}
+                     for i in self.I})
 
-            # Load variables values
-            self.problem_data.resources.update(
-                {i: {'select': m.variables.z[i].getValue() == 1}
-                 for i in self.I})
+                self.problem_data.resources_wildfire.update(
+                    {(i, t): {
+                        'start': m.variables.s[i, t].x == 1,
+                        'travel': m.variables.tr[i, t].x == 1,
+                        'rest': m.variables.r[i, t].x == 1,
+                        'end_rest': m.variables.er[i, t].x == 1,
+                        'end': m.variables.e[i, t].x == 1,
+                        'use': m.variables.u[i, t].getValue() == 1,
+                        'work': m.variables.w[i, t].getValue() == 1
+                    }
+                     for i in self.I for t in self.T})
 
-            self.problem_data.resources_wildfire.update(
-                {(i, t): {
-                    'start': m.variables.s[i, t].x == 1,
-                    'travel': m.variables.tr[i, t].x == 1,
-                    'rest': m.variables.r[i, t].x == 1,
-                    'end_rest': m.variables.er[i, t].x == 1,
-                    'end': m.variables.e[i, t].x == 1,
-                    'use': m.variables.u[i, t].getValue() == 1,
-                    'work': m.variables.w[i, t].getValue() == 1
-                }
-                 for i in self.I for t in self.T})
+                self.problem_data.groups_wildfire.update(
+                    {(g, t): {'num_left_resources': m.variables.mu[g, t].x}
+                     for g in self.G for t in self.T})
 
-            self.problem_data.groups_wildfire.update(
-                {(g, t): {'number_resources': m.variables.mu[g, t].x}
-                 for g in self.G for t in self.T})
+                contained = {t: m.variables.y[t].x == 0 for t in self.T}
+                contained_period = [t for t, v in contained.items()
+                                    if v is True]
 
-            contained = {t: m.variables.y[t].x == 0 for t in self.T}
-            contained_period = [t for t, v in contained.items() if v is True]
+                if len(contained_period) > 0:
+                    first_contained = min(contained_period) + 1
+                else:
+                    first_contained = self.max_t + 1
 
-            if len(contained_period) > 0:
-                first_contained = min(contained_period) + 1
-            else:
-                first_contained = self.max_t + 1
-
-            self.problem_data.wildfire.update(
-                {t: {'contained': False if t < first_contained else True}
-                 for t in self.T})
+                self.problem_data.wildfire.update(
+                    {t: {'contained': False if t < first_contained else True}
+                     for t in self.T})
         else:
             log.warning(
                 config.gurobi.status_info[m.model.Status]['description'])
@@ -121,21 +123,30 @@ class InputModel(object):
 
 
 # model -----------------------------------------------------------------------
-def model(data):
+def model(data, relaxed=False):
     """Wildfire suppression model.
     data (:obj:`firedecomp.model.InputModel`): problem data.
     """
     m = gurobipy.Model("wildfire_supression")
 
+    if relaxed is True:
+        vtype = gurobipy.GRB.CONTINUOUS
+        lb = 0
+        ub = 1
+    else:
+        vtype = gurobipy.GRB.BINARY
+        lb = 0
+        ub = 1
+
     # Variables
     # =========
     # Resources
     # ---------
-    s = m.addVars(data.I, data.T, vtype=gurobipy.GRB.BINARY, name="start")
-    tr = m.addVars(data.I, data.T, vtype=gurobipy.GRB.BINARY, name="travel")
-    r = m.addVars(data.I, data.T, vtype=gurobipy.GRB.BINARY, name="rest")
-    er = m.addVars(data.I, data.T, vtype=gurobipy.GRB.BINARY, name="end_rest")
-    e = m.addVars(data.I, data.T, vtype=gurobipy.GRB.BINARY, name="end")
+    s = m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="start")
+    tr = m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="travel")
+    r = m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="rest")
+    er = m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="end_rest")
+    e = m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="end")
 
     # Auxiliar variables
     u = {
@@ -172,9 +183,9 @@ def model(data):
 
     # Wildfire
     # --------
-    y = m.addVars(data.T + [data.min_t-1], vtype=gurobipy.GRB.BINARY,
+    y = m.addVars(data.T + [data.min_t-1], vtype=vtype, lb=lb, ub=ub,
                   name="contention")
-    mu = m.addVars(data.G, data.T, vtype=gurobipy.GRB.CONTINUOUS,
+    mu = m.addVars(data.G, data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
                    name="missing_resources")
 
     # Objective
@@ -259,10 +270,10 @@ def model(data):
             r[i, t1]
             for t1 in data.T_int.get_names(p_min=t-data.RP[i]+1, p_max=t)]) >=
          data.RP[i]*er[i, t]
-         if t >= data.RP[i] else
+         if t >= data.min_t - 1 + data.RP[i] else
          data.CRP[i]*s[i, data.min_t] +
          sum([r[i, t1] for t1 in data.T_int.get_names(p_max=t)]) >=
-         t * er[i, t]
+         data.RP[i]*er[i, t]
          for i in data.I for t in data.T),
         name='Breaks_3')
 
