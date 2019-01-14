@@ -187,7 +187,7 @@ def resource_example(random=False, res_type='brigade', seed=None):
                 rest = 0
 
         total_work = work
-        performance = r.random_num(2, 10, zero=-1)
+        performance = r.random_num(2/6, 10/6, zero=-1) * 6
         fix_cost = r.random_num(0, 1000)
         variable_cost = r.random_num(200, 500)
         time_between_rests = 10
@@ -215,7 +215,7 @@ def resource_example(random=False, res_type='brigade', seed=None):
                 rest = 0
 
         total_work = work
-        performance = r.random_num(4, 15, zero=-1)
+        performance = r.random_num(4/6, 15/6, zero=-1) * 6
         fix_cost = r.random_num(0, 1000)
         variable_cost = r.random_num(500, 1000)
         time_between_rests = 10
@@ -247,7 +247,7 @@ def resource_example(random=False, res_type='brigade', seed=None):
                 rest = 0
 
         total_work = 160*np.random.choice([0, 1, 2]) + work
-        performance = r.random_num(4, 15, zero=-1)
+        performance = r.random_num(4/6, 15/6, zero=-1) * 6
         fix_cost = r.random_num(0, 1000)
         variable_cost = r.random_num(1000, 3000)
         time_between_rests = 10
