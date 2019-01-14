@@ -18,7 +18,6 @@ class Master(object):
             raise ValueError("Time unit of the problem is not a period.")
 
         self.problem_data = problem_data
-        self.data = Expando()
         self.variables = Expando()
         self.constraints = Expando()
         self.results = Expando()
@@ -27,17 +26,23 @@ class Master(object):
         self.obj_resources_variable = None
         self.obj_wildfire = None
         self.obj_law = None
-        self.obj_zeta = None
 
-        self.data = self.problem_data.data
+        self.__start_info__ = {}
+        self.__build_model__()
+
+    def update_model(self):
         self.__build_model__()
 
     def __build_model__(self):
+        self.__build_data__()
         self.model = gurobipy.Model("Master")
         self.__build_variables__()
         self.__build_objective__()
         self.__build_constraints__()
         self.model.update()
+
+    def __build_data__(self):
+        self.data = self.problem_data.period_data
 
     def __build_variables__(self):
         """Build variables."""
@@ -71,13 +76,13 @@ class Master(object):
 
         self.variables.u = {
             (i, t):
-                self.variables.s.sum(i, data.T_int.get_names(p_max=t))
-                - self.variables.e.sum(i, data.T_int.get_names(p_max=t - 1))
+                self.variables.s.sum(i, data.T_int(p_max=t))
+                - self.variables.e.sum(i, data.T_int(p_max=t - 1))
             for i in data.I for t in data.T}
 
         self.variables.l = {
             t: sum([data.PR[i, t1]*self.variables.w[i, t1]
-                    for i in data.I for t1 in data.T_int.get_names(p_max=t)])
+                    for i in data.I for t1 in data.T_int(p_max=t)])
             for t in data.T}
 
         # Wildfire
@@ -90,10 +95,6 @@ class Master(object):
         self.variables.mu = self.model.addVars(
             data.G, data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
             name="missing_resources")
-
-        # Subproblem Objective
-        # --------------------
-        self.variables.zeta = m.addVar(lb=0, name='zeta')
 
     def get_S_set(self):
         shared_variables = ["start"]
@@ -110,7 +111,6 @@ class Master(object):
         u = self.variables.u
         y = self.variables.y
 
-        zeta = self.variables.zeta
         mu = self.variables.mu
 
         self.variables.fix_cost_resources = sum(
@@ -121,14 +121,12 @@ class Master(object):
             [data.NVC[t] * y[t - 1] for t in data.T])
         self.variables.law_cost = sum(
             [data.Mp * mu[g, t] for g in data.G for t in data.T])
-        self.variables.sub_obj = zeta
 
         self.objective = m.setObjective(
             self.variables.fix_cost_resources +
             self.variables.variable_cost_resources +
             self.variables.wildfire_cost +
-            self.variables.law_cost +
-            self.variables.sub_obj,
+            self.variables.law_cost,
             gurobipy.GRB.MINIMIZE)
 
     def __build_wildfire_containment_1__(self):
@@ -151,8 +149,7 @@ class Master(object):
         PER = data.PER
 
         expr_lhs = {
-            t: sum([PER[t1] for t1 in data.T_int.get_names(p_max=t)])*y[t - 1] -
-            l[t]
+            t: sum([PER[t1] for t1 in data.T_int(p_max=t)])*y[t - 1] - l[t]
             for t in data.T}
 
         expr_rhs = {t: data.M * y[t] for t in data.T}
@@ -167,7 +164,7 @@ class Master(object):
         s = self.variables.s
         self.constraints.start_activity_1 = self.model.addConstrs(
             (w[i, t] <=
-             sum([s[i, t1] for t1 in data.T_int.get_names(p_max=t-data.A[i])])
+             sum([s[i, t1] for t1 in data.T_int(p_max=t-data.A[i])])
              for i in data.I for t in data.T),
             name='start_activity_1')
 
@@ -178,8 +175,7 @@ class Master(object):
         self.constraints.start_activity_2 = self.model.addConstrs(
             (s[i, data.min_t] +
              sum([(data.max_t + 1)*s[i, t]
-                  for t in data.T_int.get_names(p_min=data.min_t+1)]) <=
-             data.max_t*z[i]
+                  for t in data.T_int(p_min=data.min_t+1)]) <= data.max_t*z[i]
              for i in data.I if data.ITW[i] == True),
             name='start_activity_2')
 
@@ -204,10 +200,7 @@ class Master(object):
         expr_lhs = {(i, t): w[i, t] for i in data.I for t in data.T}
 
         expr_rhs = {
-            (i, t): sum([e[i, t1]
-                         for t1 in data.T_int.get_names(
-                            p_min=t + data.TRP[i])
-                         ])
+            (i, t): sum([e[i, t1] for t1 in data.T_int(p_min=t + data.TRP[i])])
             for i in data.I for t in data.T}
 
         self.constraints.end_activity = self.model.addConstrs(
@@ -308,10 +301,13 @@ class Master(object):
         """Build constraints."""
         # Benders constraints
         # -------------------
-        self.constraints.opt_int = {}
         self.constraints.opt_start_int = {}
         self.constraints.content_feas_int = {}
         self.constraints.feas_int = {}
+
+        # Start info
+        # ----------
+        self.__build_opt_start_init_cuts__()
 
         # Wildfire Containment
         # --------------------
@@ -341,28 +337,24 @@ class Master(object):
         self.__build_logical_2__()
         self.__build_logical_4__()
 
-    def add_opt_int_cut(self, vars_coeffs, rhs):
-        m = self.model
-
-        cut_num = len(self.constraints.opt_int)
-        self.constraints.opt_int[cut_num] = m.addConstr(
-            sum(coeff*m.getVarByName(var)
-                for var, coeff in vars_coeffs.items())
-            + self.variables.zeta >= rhs,
-            name='opt_int[{}]'.format(cut_num)
-        )
-        m.update()
+    def __build_opt_start_init_cuts__(self):
+        for it, v in self.__start_info__.items():
+            work = v['work']
+            max_t = int(max(self.problem_data.get_names("wildfire")))
+            coeffs = {'start[{},{}]'.format(it[0], it[1]): - max_t}
+            coeffs.update({"work[{},{}]".format(k[0], k[1]): - 1
+                           for k, v in work.items() if v == 0})
+            rhs = - max_t
+            self.add_opt_start_int_cut(coeffs, rhs)
 
     def add_opt_start_int_cut(self, vars_coeffs, rhs):
         m = self.model
-
         cut_num = len(self.constraints.opt_start_int)
-        self.constraints.opt_start_int[cut_num] = m.addConstr(
-            sum(coeff*m.getVarByName(var)
-                for var, coeff in vars_coeffs.items())
-            + self.variables.zeta >= rhs,
-            name='opt_int[{}]'.format(cut_num)
-        )
+        lhs = sum(
+            coeff*m.getVarByName(var) for var, coeff in vars_coeffs.items()
+            if m.getVarByName(var) is not None)
+        self.constraints.opt_start_int[cut_num] = \
+            m.addConstr(lhs >= rhs, name='start_opt_int[{}]'.format(cut_num))
         m.update()
 
     def add_feas_int_cut(self, vars_coeffs, rhs):
@@ -371,7 +363,8 @@ class Master(object):
         cut_num = len(self.constraints.feas_int)
         self.constraints.feas_int[cut_num] = m.addConstr(
             sum(coeff*m.getVarByName(var)
-                for var, coeff in vars_coeffs.items()) >= rhs,
+                for var, coeff in vars_coeffs.items()
+                if m.getVarByName(var) is not None) >= rhs,
             name='feas_int[{}]'.format(cut_num)
         )
         m.update()
@@ -382,13 +375,14 @@ class Master(object):
         cut_num = len(self.constraints.content_feas_int)
         self.constraints.content_feas_int[cut_num] = m.addConstr(
             sum(coeff*m.getVarByName(var)
-                for var, coeff in vars_coeffs.items()) >= rhs,
+                for var, coeff in vars_coeffs.items()
+                if m.getVarByName(var) is not None) >= rhs,
             name='content_feas_int[{}]'.format(cut_num)
         )
         m.update()
 
     def get_obj(self, resources_fix=True, resources_variable=True,
-                wildfire=True, law=True, zeta=True):
+                wildfire=True, law=True):
         """Get objective function value."""
         obj_val = 0
         if resources_fix:
@@ -402,9 +396,6 @@ class Master(object):
 
         if law:
             obj_val += self.obj_law
-
-        if zeta:
-            obj_val += self.obj_zeta
 
         return obj_val
 
@@ -430,13 +421,13 @@ class Master(object):
 
         # Todo: check what status number return a solution
         if m.Status != 3:
+            orig_data = self.problem_data.data
             self.obj_resources_fix = self.variables.fix_cost_resources.\
                 getValue()
             self.obj_resources_variable = self.variables.\
                 variable_cost_resources.getValue()
             self.obj_wildfire = self.variables.wildfire_cost.getValue()
             self.obj_law = self.variables.law_cost.getValue()
-            self.obj_zeta = self.variables.sub_obj.x
             self.solution = {v.VarName: v.x for v in self.model.getVars()}
 
             # Load variables values
@@ -444,52 +435,75 @@ class Master(object):
                 {i: {'select': variables.z[i].getValue() == 1}
                  for i in self.data.I})
 
-            self.problem_data.resources_wildfire.update(
-                {(i, t): {
-                    'start': variables.s[i, t].x == 1
-                }
-                 for i in self.data.I for t in self.data.T})
-
+            s = {(i, t): variables.s[i, t].x == 1
+                 if t <= self.data.max_t else False
+                 for i in self.data.I for t in orig_data.T}
             u = {(i, t): self.variables.u[i, t].getValue() == 1
-                 for i in self.data.I for t in self.data.T}
+                 if t <= self.data.max_t else False
+                 for i in self.data.I for t in orig_data.T}
             e = {(i, t): self.variables.e[i, t].x == 1
-                 for i in self.data.I for t in self.data.T}
+                 if t <= self.data.max_t else False
+                 for i in self.data.I for t in orig_data.T}
             w = {(i, t): self.variables.w[i, t].x == 1
-                 for i in self.data.I for t in self.data.T}
-            tr = {(i, t): u[i, t] - w[i, t] == 1
-                  for i in self.data.I for t in self.data.T}
-            r = {(i, t): False
-                 for i in self.data.I for t in self.data.T}
+                 if t <= self.data.max_t else False
+                 for i in self.data.I for t in orig_data.T}
+            start = {k[0]: k[1] for k, v in s.items() if v is True}
+            r = {(i, t): False for i in self.data.I for t in orig_data.T}
+            r.update({
+                (i, t): self.__start_info__[i, start[i]]['rest'][i, t]*u[i, t]
+                == 1
+                if (i, start[i]) in self.__start_info__ else
+                False
+                for i in self.data.I for t in orig_data.T if i in start})
+
+            er = {
+                (i, t): True
+                if (r[i, t] is True) and (r[i, t + 1] is not True)
+                else False
+                for i in self.data.I for t in orig_data.T_int(
+                    p_max=orig_data.max_t - 1)
+            }
+            er.update({
+                (i, orig_data.max_t): True
+                if r[i, orig_data.max_t] is True else False
+                for i in self.data.I})
+            tr = {
+                 (i, t): u[i, t] - w[i, t] - r[i, t] == 1
+                 for i in self.data.I for t in orig_data.T
+            }
 
             self.problem_data.resources_wildfire.update(
                 {(i, t): {
+                    'start': s[i, t],
                     'use': u[i, t],
                     'end': e[i, t],
                     'work': w[i, t],
                     'travel': tr[i, t],
-                    'rest': r[i, t]
+                    'rest': r[i, t],
+                    'end_rest': er[i, t]
                 }
-                 for i in self.data.I for t in self.data.T})
+                 for i in self.data.I for t in orig_data.T})
 
             self.problem_data.groups_wildfire.update(
                 {(g, t): {'num_left_resources': self.variables.mu[g, t].x}
-                 for g in self.data.G for t in self.data.T})
+                 if t <= self.data.max_t else {'num_left_resources': 0}
+                 for g in self.data.G for t in orig_data.T})
 
-            contained = {t: self.variables.y[t].x == 0 for t in self.data.T}
+            contained = {t: self.variables.y[t].x == 0
+                         if t <= self.data.max_t else True
+                         for t in orig_data.T}
             contained_period = [t for t, v in contained.items()
                                 if v is True]
 
             if len(contained_period) > 0:
                 first_contained = min(contained_period) + 1
             else:
-                first_contained = self.max_t + 1
+                first_contained = orig_data.max_t + 1
 
             self.problem_data.wildfire.update(
                 {t: {'contained': False if t < first_contained else True}
-                 for t in self.data.T})
-
+                 for t in orig_data.T})
         else:
-            # log.warning(config.gurobi.status_info[m.Status]['description'])
             pass
         return m.Status
 # --------------------------------------------------------------------------- #

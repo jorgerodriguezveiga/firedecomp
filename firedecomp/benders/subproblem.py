@@ -26,44 +26,43 @@ class Subproblem(object):
         self.min_res_penalty = min_res_penalty
         self.relaxed = relaxed
         self.slack = slack
-        self.data = Expando()
         self.variables = Expando()
         self.constraints = Expando()
         self.results = Expando()
         self.dual = None
 
-        self.data = self.problem_data.data
+        self.start = self.__default_dict__()
+        self.work = self.__default_dict__()
+        self.rest = self.__default_dict__()
+        self.travel = self.__default_dict__()
+
         self.__build_model__()
 
+    def __default_dict__(self):
+        return {(i, t): 0 for i in self.problem_data.period_data.I
+                for t in self.problem_data.period_data.T}
+
+    def update_model(self, start, work, rest, travel):
+        self.start = self.__default_dict__()
+        self.start.update(start)
+        self.work = self.__default_dict__()
+        self.work.update(work)
+        self.rest = self.__default_dict__()
+        self.rest.update(rest)
+        self.travel = self.__default_dict__()
+        self.travel.update(travel)
+        self.__update_model__()
+
     def __build_model__(self):
+        self.__build_data__()
         self.model = gurobipy.Model("Subproblem")
-        self.__update_data__()
         self.__build_variables__()
         self.__build_objective__()
         self.__build_constraints__()
         self.model.update()
 
-    def __update_data__(self):
-        problem_data = self.problem_data
-        self.data.s_fix = {
-            k: 1 if v is True else 0 for k, v in
-            problem_data.resources_wildfire.get_info("start").items()}
-        self.data.mu_prime_fix = {
-            g: max(
-                0,
-                min([self.data.nMin[g, t] for t in self.data.T]) -
-                sum([self.data.s_fix[i, t]
-                     for i in self.data.Ig[g] for t in self.data.T]))
-            for g in self.data.G}
-
-        self.__update_work__()
-
-    def __update_work__(self):
-        """Establish work, travel and rest periods."""
-        info = utils.get_start_info(self.data, self.data.s_fix)
-        self.data.work = info['work']
-        self.data.rest = info['rest']
-        self.data.travel = info['travel']
+    def __build_data__(self):
+        self.data = self.problem_data.period_data
 
     def __build_variables__(self):
         """Build variables."""
@@ -76,7 +75,7 @@ class Subproblem(object):
         # Wildfire
         # --------
         self.variables.mu = self.model.addVars(
-            data.G, data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
+            data.G, self.data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
             name="missing_resources")
 
         # Other variables
@@ -94,47 +93,49 @@ class Subproblem(object):
         lb = 0
         ub = 1
 
-        s_fix = data.s_fix
-
         self.variables.s = self.model.addVars(
-            data.I, data.T, vtype=vtype, lb=s_fix, ub=s_fix, name="start")
-        self.variables.z = {i: sum([s_fix[i, t] for t in data.T])
-                            for i in data.I}
+            data.I, self.data.T, vtype=vtype, lb=self.start,
+            ub=self.start, name="start")
+        self.variables.z = {
+            i: sum([self.start[i, t] for t in self.data.T])
+            for i in data.I}
 
-        start = {i: min([t for t in data.T if s_fix[i, t] == 1]+[data.max_t])
-                 for i in data.I}
+        start = {
+            i: min([t for t in self.data.T if self.start[i, t] == 1] +
+                   [data.max_t])
+            for i in data.I}
 
         tr_ub = {
             (i, t): 0
-            if (t < start[i]) or (self.data.rest[i, t] == 1) else 1
-            for i in data.I for t in data.T}
+            if (t < start[i]) or (self.rest[i, t] == 1) else 1
+            for i in data.I for t in self.data.T}
 
         self.variables.tr = self.model.addVars(
-            data.I, data.T, vtype=vtype, lb=lb, ub=tr_ub, name="travel")
+            data.I, self.data.T, vtype=vtype, lb=lb, ub=tr_ub, name="travel")
 #
         # Resources
         # ---------
-        e_ub = {(i, t): sum(s_fix[i, t1] for t1 in data.T)
-                for i in data.I for t in data.T}
+        e_ub = {(i, t): sum(self.start[i, t1] for t1 in self.data.T)
+                for i in data.I for t in self.data.T}
         self.variables.e = self.model.addVars(
-            data.I, data.T, vtype=vtype, lb=lb, ub=e_ub, name="end")
+            data.I, self.data.T, vtype=vtype, lb=lb, ub=e_ub, name="end")
 
         # Auxiliar variables
         self.variables.u = {
             (i, t):
-                self.variables.s.sum(i, data.T_int.get_names(p_max=t))
-                - self.variables.e.sum(i, data.T_int.get_names(p_max=t - 1))
-            for i in data.I for t in data.T}
+                self.variables.s.sum(i, data.T_int(p_max=t))
+                - self.variables.e.sum(i, data.T_int(p_max=t - 1))
+            for i in data.I for t in self.data.T}
 
         self.variables.w = {
             (i, t):
-                data.work[i, t]*(
+                self.work[i, t]*(
                         self.variables.u[i, t] - self.variables.tr[i, t])
-            for i in data.I for t in data.T}
+            for i in data.I for t in self.data.T}
 
         # Wildfire
         self.variables.y = self.model.addVars(
-            data.T + [data.min_t - 1], vtype=vtype, lb=lb, ub=ub,
+            self.data.T + [data.min_t - 1], vtype=vtype, lb=lb, ub=ub,
             name="contention")
         self.variables.y[data.min_t - 1].lb = 1
 
@@ -155,11 +156,11 @@ class Subproblem(object):
         self.variables.fix_cost_resources = sum(
             [data.P[i] * z[i] for i in data.I])
         self.variables.variable_cost_resources = sum(
-            [data.C[i] * u[i, t] for i in data.I for t in data.T])
+            [data.C[i] * u[i, t] for i in data.I for t in self.data.T])
         self.variables.wildfire_cost = sum(
-            [data.NVC[t] * y[t - 1] for t in data.T])
+            [data.NVC[t] * y[t - 1] for t in self.data.T])
         self.variables.law_cost = sum(
-            [data.Mp * mu[g, t] for g in data.G for t in data.T])
+            [data.Mp * mu[g, t] for g in data.G for t in self.data.T])
 
         self.variables.subproblem_objective = \
             self.variables.fix_cost_resources + \
@@ -183,9 +184,10 @@ class Subproblem(object):
         w = self.variables.w
 
         expr_lhs = \
-            sum([data.PER[t] * y[t - 1] for t in data.T])
+            sum([data.PER[t] * y[t - 1] for t in self.data.T])
         expr_rhs = \
-            sum([data.PR[i, t] * w[i, t] for i in data.I for t in data.T])
+            sum([data.PR[i, t] * w[i, t] for i in data.I
+                 for t in self.data.T])
 
         if self.slack:
             expr_rhs += self.variables.slack
@@ -202,19 +204,15 @@ class Subproblem(object):
         PR = data.PR
 
         expr_lhs = {
-            t: sum([PER[t1] for t1 in data.T_int.get_names(p_max=t)])*y[t - 1] -
+            t: sum([PER[t1] for t1 in data.T_int(p_max=t)])*y[t - 1] -
             sum([PR[i, t1]*w[i, t1]
-                 for i in data.I for t1 in data.T_int.get_names(p_max=t)])
-            for t in data.T}
+                 for i in data.I for t1 in data.T_int(p_max=t)])
+            for t in self.data.T}
 
-        expr_rhs = {t: data.M * y[t] for t in data.T}
-
-        # if self.slack:
-        #    expr_rhs = {
-        #         k: v + self.variables.slack for k, v in expr_rhs.items()}
+        expr_rhs = {t: data.M * y[t] for t in self.data.T}
 
         self.constraints.wildfire_containment_2 = self.model.addConstrs(
-            (expr_lhs[t] <= expr_rhs[t] for t in data.T),
+            (expr_lhs[t] <= expr_rhs[t] for t in self.data.T),
             name='wildfire_containment_2')
 
     def __build_end_activity__(self):
@@ -226,21 +224,19 @@ class Subproblem(object):
         tr = self.variables.tr
         e = self.variables.e
 
-        expr_lhs = {(i, t): data.TRP[i]*e[i, t] for i in data.I for t in data.T}
+        expr_lhs = {(i, t): data.TRP[i]*e[i, t] for i in data.I
+                    for t in self.data.T}
 
         expr_rhs = {
             (i, t): sum([tr[i, t1]
-                         for t1 in data.T_int.get_names(
+                         for t1 in data.T_int(
                             p_min=t - data.TRP[i] + 1,  p_max=t)
                          ])
-            for i in data.I for t in data.T}
-
-        # if self.slack:
-        #     expr_rhs = {
-        #         k: v + self.variables.slack for k, v in expr_rhs.items()}
+            for i in data.I for t in self.data.T}
 
         self.constraints.end_activity = self.model.addConstrs(
-            (expr_lhs[i, t] <= expr_rhs[i, t] for i in data.I for t in data.T),
+            (expr_lhs[i, t] <= expr_rhs[i, t] for i in data.I
+             for t in self.data.T),
             name='end_activity')
 
     def __build_max_usage_periods__(self):
@@ -248,12 +244,9 @@ class Subproblem(object):
 
         u = self.variables.u
 
-        expr_lhs = {i: sum([u[i, t] for t in data.T]) for i in data.I}
+        expr_lhs = {i: sum([u[i, t] for t in self.data.T])
+                    for i in data.I}
         expr_rhs = {i: data.UP[i] - data.CUP[i] for i in data.I}
-
-        # if self.slack:
-        #     expr_rhs = {
-        #         k: v + self.variables.slack for k, v in expr_rhs.items()}
 
         self.constraints.max_usage_periods = self.model.addConstrs(
             (expr_lhs[i] <= expr_rhs[i]
@@ -269,18 +262,14 @@ class Subproblem(object):
 
         expr_lhs = {
             (g, t): data.nMin[g, t] * y[t - 1] - mu[g, t]
-            for g in data.G for t in data.T}
+            for g in data.G for t in self.data.T}
         expr_rhs = {
             (g, t): sum([w[i, t] for i in data.Ig[g]])
-            for g in data.G for t in data.T}
-
-        # if self.slack:
-        #     expr_rhs = {
-        #         k: v + self.variables.slack for k, v in expr_rhs.items()}
+            for g in data.G for t in self.data.T}
 
         self.constraints.non_negligence_1 = self.model.addConstrs(
             (expr_lhs[g, t] <= expr_rhs[g, t]
-             for g in data.G for t in data.T),
+             for g in data.G for t in self.data.T),
             name='non_negligence_1')
 
     def __build_non_negligence_2__(self):
@@ -291,18 +280,14 @@ class Subproblem(object):
 
         expr_lhs = {
             (g, t): sum([w[i, t] for i in data.Ig[g]])
-            for g in data.G for t in data.T}
+            for g in data.G for t in self.data.T}
         expr_rhs = {
             (g, t): data.nMax[g, t] * y[t - 1]
-            for g in data.G for t in data.T}
-
-        # if self.slack:
-        #     expr_rhs = {
-        #         k: v + self.variables.slack for k, v in expr_rhs.items()}
+            for g in data.G for t in self.data.T}
 
         self.constraints.non_negligence_2 = self.model.addConstrs(
             (expr_lhs[g, t] <= expr_rhs[g, t]
-             for g in data.G for t in data.T),
+             for g in data.G for t in self.data.T),
             name='non_negligence_2')
 
     def __build_logical_1__(self):
@@ -311,12 +296,10 @@ class Subproblem(object):
         s = self.variables.s
         e = self.variables.e
 
-        expr_lhs = {i: sum([t*s[i, t] for t in data.T]) for i in data.I}
-        expr_rhs = {i: sum([t*e[i, t] for t in data.T]) for i in data.I}
-
-        # if self.slack:
-        #     expr_rhs = {
-        #         k: v + self.variables.slack for k, v in expr_rhs.items()}
+        expr_lhs = {i: sum([t*s[i, t] for t in self.data.T])
+                    for i in data.I}
+        expr_rhs = {i: sum([t*e[i, t] for t in self.data.T])
+                    for i in data.I}
 
         self.constraints.logical_1 = self.model.addConstrs(
             (expr_lhs[i] <= expr_rhs[i]
@@ -331,11 +314,8 @@ class Subproblem(object):
         e = self.variables.e
 
         expr_lhs = {i: z[i] for i in data.I}
-        expr_rhs = {i: sum([e[i, t] for t in data.T]) for i in data.I}
-
-        # if self.slack:
-        #     expr_rhs = {
-        #         k: v + self.variables.slack for k, v in expr_rhs.items()}
+        expr_rhs = {i: sum([e[i, t] for t in self.data.T])
+                    for i in data.I}
 
         self.constraints.logical_2 = self.model.addConstrs(
             (expr_lhs[i] <= expr_rhs[i]
@@ -351,18 +331,14 @@ class Subproblem(object):
 
         expr_lhs = {
             (i, t): tr[i, t]
-            for i in data.I for t in data.T}
+            for i in data.I for t in self.data.T}
         expr_rhs = {
             (i, t): u[i, t]
-            for i in data.I for t in data.T}
-
-        # if self.slack:
-        #     expr_rhs = {
-        #         k: v + self.variables.slack for k, v in expr_rhs.items()}
+            for i in data.I for t in self.data.T}
 
         self.constraints.logical_3 = self.model.addConstrs(
             (expr_lhs[i, t] <= expr_rhs[i, t]
-             for i in data.I for t in data.T),
+             for i in data.I for t in self.data.T),
             name='logical_3')
 
     def __build_logical_4__(self):
@@ -373,11 +349,8 @@ class Subproblem(object):
 
         expr_lhs = {i: z[i] for i in data.I}
 
-        expr_rhs = {i: sum([w[i, t] for t in data.T]) for i in data.I}
-
-        # if self.slack:
-        #     expr_rhs = {
-        #         k: v + self.variables.slack for k, v in expr_rhs.items()}
+        expr_rhs = {i: sum([w[i, t] for t in self.data.T])
+                    for i in data.I}
 
         self.constraints.logical_4 = self.model.addConstrs(
             (expr_lhs[i] <= expr_rhs[i]
@@ -466,23 +439,31 @@ class Subproblem(object):
                                        for c in self.model.getConstrs()})
 
             if self.slack is not True:
+                orig_data = self.problem_data.data
                 u = {(i, t): self.variables.u[i, t].getValue() == 1
-                     for i in self.data.I for t in self.data.T}
+                     if t <= self.data.max_t else False
+                     for i in self.data.I for t in orig_data.T}
+                w = {(i, t): self.variables.w[i, t].getValue() == 1
+                     if t <= self.data.max_t else False
+                     for i in self.data.I for t in orig_data.T}
                 travel = {
                     (i, t): max(self.variables.tr[i, t].x,
-                                self.data.travel[i, t]*u[i, t]) == 1
-                    for i in self.data.I for t in self.data.T}
+                                self.travel[i, t]*u[i, t]) == 1
+                    if t <= self.data.max_t else False
+                    for i in self.data.I for t in orig_data.T}
                 rest = {
-                    (i, t): self.data.rest[i, t]*u[i, t] == 1
-                    for i in self.data.I for t in self.data.T}
+                    (i, t): self.rest[i, t]*u[i, t] == 1
+                    if t <= self.data.max_t else False
+                    for i in self.data.I for t in orig_data.T}
                 end_rest = {
                     (i, t): True
-                    if (rest[i, t] == 1) and (rest[i, t+1] == 0) else False
-                    for i in self.data.I for t in self.data.T_int.get_names(
-                            p_max=self.data.max_t-1)}
+                    if (rest[i, t] is True) and (rest[i, t+1] is not True)
+                    else False
+                    for i in self.data.I for t in orig_data.T_int(
+                            p_max=orig_data.max_t-1)}
                 end_rest.update({
-                    (i, self.data.max_t): True
-                    if rest[i, self.data.max_t] == 1 else False
+                    (i, orig_data.max_t): True
+                    if rest[i, orig_data.max_t] is True else False
                     for i in self.data.I})
 
                 self.problem_data.resources_wildfire.update(
@@ -491,28 +472,32 @@ class Subproblem(object):
                         'rest': rest[i, t],
                         'end_rest': end_rest,
                         'use': u[i, t],
-                        'work': self.variables.w[i, t].getValue() == 1
+                        'work': w[i, t]
                     }
-                     for i in self.data.I for t in self.data.T})
+                     for i in self.data.I for t in orig_data.T})
 
                 self.problem_data.groups_wildfire.update(
                     {(g, t): {'num_left_resources': self.variables.mu[g, t].x}
-                     for g in self.data.G for t in self.data.T})
+                     if t <= self.data.max_t else
+                             {'num_left_resources': 0}
+                     for g in self.data.G for t in orig_data.T})
 
-                contained = {t: self.variables.y[t].x == 0 for t in self.data.T}
+                contained = {
+                    t: self.variables.y[t].x == 0
+                    if t <= self.data.max_t else True
+                    for t in orig_data.T}
                 contained_period = [t for t, v in contained.items()
                                     if v is True]
 
                 if len(contained_period) > 0:
                     first_contained = min(contained_period) + 1
                 else:
-                    first_contained = self.max_t + 1
+                    first_contained = orig_data.max_t + 1
 
                 self.problem_data.wildfire.update(
                     {t: {'contained': False if t < first_contained else True}
-                     for t in self.data.T})
+                     for t in orig_data.T})
         else:
-            # log.warning(config.gurobi.status_info[m.Status]['description'])
             pass
         return m.Status
 # --------------------------------------------------------------------------- #
