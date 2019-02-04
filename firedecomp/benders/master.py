@@ -27,7 +27,7 @@ class Master(object):
         self.obj_wildfire = None
         self.obj_law = None
 
-        self.__start_info__ = {}
+        self.__start_info__={}
         self.__build_model__()
 
     def update_model(self):

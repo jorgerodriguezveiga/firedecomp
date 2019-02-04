@@ -3,6 +3,7 @@
 # Package modules
 from firedecomp.original import model
 from firedecomp.benders import benders
+from firedecomp.LR import LR
 from firedecomp import config
 from firedecomp import plot
 
@@ -138,18 +139,18 @@ class Problem(object):
         self.data = Data(self)
 
     def solve(self, method='original',
-              solver_options=None, benders_options=None,
+              solver_options=None, method_options=None,
               min_res_penalty=1000000,
               log_level=None):
         """Solve mathematical model.
 
         Args:
             method (:obj:`str`): method to solve the mathematical problem.
-                Options: ``'original'``, ``'benders'``. Defaults to
-                ``'original'``.
+                Options: ``'original'``, ``'benders'``,  ``'LR'``.
+                Defaults to ``'original'``.
             solver_options (:obj:`dict`): gurobi options. Default ``None``.
                 Example: ``{'TimeLimit': 10}``.
-            benders_options (:obj:`dict`): benders method options. Default
+            method_options (:obj:`dict`): benders method options. Default
                 ``None``. If None:
                 ``{'max_iters': 100, 'min_res_penalty':1000000, 'gap':0.01}``.
             min_res_penalty (:obj:`float`): positive value that penalize the
@@ -177,12 +178,26 @@ class Problem(object):
                 'solver_options_master': None,
                 'solver_options_subproblem': None,
             }
-            if isinstance(benders_options, dict):
-                default_benders_options.update(benders_options)
+            if isinstance(method_options, dict):
+                default_benders_options.update(method_options)
             benders_problem = benders.Benders(
                 self, **default_benders_options, log_level=log_level)
             self.solve_status = benders_problem.solve()
             return benders_problem
+        elif method == 'LR':
+            if log_level is None:
+                log_level = 'LR'
+
+            default_LR_options = {
+                'min_res_penalty': 1000000,
+                'gap': 0.01,
+            }
+            if isinstance(method_options, dict):
+                default_LR_options.update(method_options)
+            LR_problem = LR.LagrangianRelaxation(
+                self, **default_LR_options, log_level=log_level)
+            self.solve_status = LR_problem.solve()
+            return LR_problem
         else:
             raise ValueError(
                 "Incorrect method '{}'. Options allowed: {}".format(
