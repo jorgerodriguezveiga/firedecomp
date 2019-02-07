@@ -43,12 +43,10 @@ class LagrangianRelaxation(object):
 
         # LR info
         self.obj = float("inf")
-        self.RPP_obj = float("inf")
         self.obj_down = float("-inf")
         self.max_iters = max_iters
         self.max_time = max_time
         self.v = 1
-        self.DPP_sol = []
         self.option_decomp = option_decomp
 
         self.lambda1 = [1, 1, 1, 1]
@@ -69,40 +67,39 @@ class LagrangianRelaxation(object):
         self.a = 1
         self.b = 0.1
 
-# Create Relaxed Primal problem
-        problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
+# Create Relaxed Primal Problem
+        self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
+        self.RPP_sol = float("inf")
+
+# Create Decomposite Primal Problem
         if (option_decomp == 'R'):
             self.NR = problem_data.get_resources().size()
         elif (option_decomp == 'G'):
             self.NR = len(problem_data.get_names("groups"))
         else:
             self.NR = problem_data.get_resources().size()
-        default_LR_options = {
-            'min_res_penalty': 1000000,
-            'gap': 0.01,
-        }
 
-#        problem_RPP.solve(default_LR_options)
-        problem_DPP = []
+        self.problem_DPP = []
         for i in range(0,self.NR):
-            #print("\n\n\n\n")
-            #print("###############  DPP"+str(i))
-            #print("\n\n\n\n")
-            problem_DPP.append(DPP.DecomposedPrimalProblem(problem_data,
-                                                self.lambda1, i, option_decomp))
-            #problem_DPP[i].solve(default_LR_options)
+            self.problem_DPP.append(DPP.DecomposedPrimalProblem(problem_data,
+                                            self.lambda1, i, option_decomp))
+            self.DPP_sol.append(float("inf"))
+
+
 
 # subgradient CLASS  ----------------------------------------------------------
     def subgradient(self):
         # solution, lambda, mi
         # update lambda and mi
-        self.DPP_sol = -1 *  self.DPP_sol
+        num = 0
+        for i in self.NR:
+            num = num + (-1) *  self.DPP_sol[i]
         for i in self.NR:
             aux = aux + self.DPP_sol[i]**2
         module = math.sqrt(aux)
         self.lambda1 = (self.lambda1
                         + (1/(self.a+self.b*self.v))
-                        * sum(self.DPP_sol) / module)
+                        * num / module)
         return self.lambda1
 
 # convergence checking CLASS  --------------------------------------------------
@@ -119,11 +116,13 @@ class LagrangianRelaxation(object):
     def solve(self, max_iters=10):
 
         termination_criteria = bool(False)
-        DPP_sol_model = []
+
         while (termination_criteria == False):
-            for i in self.NR:
-                DPP_sol_model[i] = problem_DLP[i].solve()
-                self.DPP_sol[i] = DPP_sol_model[i].get_model().getObjective();
+            # (1) solve DPP problems
+            for i in range(0,self.NR):
+                DPP_sol_model[i] = self.problem_DPP[i].solve()
+                self.DPP_sol[i] = DPP_sol_model[i].get_objfunction()
+            # (2) calculate new values of lambda
             subgradient()
             termination_criteria = convergence_checking(max_iters)
             self.v = self.v + 1

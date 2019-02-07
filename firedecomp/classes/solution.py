@@ -49,6 +49,14 @@ class Solution(object):
             :obj:`pynanos.model.Variables`: variables object.
         """
         return self.variables
+
+    def get_objfunction(self):
+        """Return the fitness value of solution load in the gurobipy model.
+
+        Return:
+            :obj:`double`: double float value.
+        """
+        return self.model.getObjective().getValue()
 # --------------------------------------------------------------------------- #
 
 
