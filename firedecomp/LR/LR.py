@@ -1,3 +1,4 @@
+"""Module with lagrangian decomposition methods."""
 # Python packages
 
 # Package modules
@@ -6,6 +7,7 @@ from firedecomp import LR
 from firedecomp import original
 from firedecomp import logging
 from firedecomp.LR import RPP
+from firedecomp.LR import DPP
 import math
 
 
@@ -67,9 +69,22 @@ class LagrangianRelaxation(object):
 
 # Create Relaxed Primal problem
         problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
-        #self.NR = problem.resources
-        #for i in NR:
-        #   problem_DPP = DPP.RelaxedPrimalProblem(problem_data, self.lambda1, i);
+#        self.NR = problem_data.get_resources().size()
+        self.NR = len(problem_data.get_names("groups"))
+        default_LR_options = {
+            'min_res_penalty': 1000000,
+            'gap': 0.01,
+        }
+
+#        problem_RPP.solve(default_LR_options)
+        problem_DPP = []
+        for i in range(0,self.NR):
+            print("\n\n\n\n")
+            print("###############  DPP"+str(i))
+            print("\n\n\n\n")            
+            problem_DPP.append(DPP.DecomposedPrimalProblem(problem_data,
+                                                self.lambda1, i))
+            problem_DPP[i].solve(default_LR_options)
 
 # subgradient CLASS  ----------------------------------------------------------
     def subgradient(self):
@@ -79,9 +94,9 @@ class LagrangianRelaxation(object):
         for i in self.NR:
             aux = aux + self.DPP_sol[i]**2
         module = math.sqrt(aux)
-        self.lambda1 = self.lambda1 +
-            (1/(self.a+self.b*self.v)) *
-            sum(self.DPP_sol) / module
+        self.lambda1 = (self.lambda1
+                        + (1/(self.a+self.b*self.v))
+                        * sum(self.DPP_sol) / module)
         return self.lambda1
 
 # convergence checking CLASS  --------------------------------------------------

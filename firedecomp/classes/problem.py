@@ -3,7 +3,7 @@
 # Package modules
 from firedecomp.original import model
 from firedecomp.benders import benders
-from firedecomp.LR import LR
+#from firedecomp.LR import LR
 from firedecomp import config
 from firedecomp import plot
 
@@ -44,6 +44,9 @@ class Problem(object):
 
         self.__build_data__()
         self.__build_period_data__()
+
+    def get_resources(self):
+        return self.resources
 
     def update_units(self, period_unit=True, inplace=True):
         """Update problem units.
