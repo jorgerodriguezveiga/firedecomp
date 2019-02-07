@@ -225,18 +225,6 @@ class RelaxedPrimalProblem(model.InputModel):
 # --------------------
         self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
 
-        self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) <=
-                    sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]),
-                    name='wildfire_containment_1')
-
-        self.m.addConstrs(
-            (self.M * self.y[t] >=
-             sum([self.PER[t1]
-                for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1] -
-             sum([self.PR[i, t1]*self.w[i, t1]
-                for i in self.I for t1 in self.T_int.get_names(p_max=t)])
-             for t in self.T), name='wildfire_containment_2')
-
 # Start of activity
 # -----------------
         self.m.addConstrs(

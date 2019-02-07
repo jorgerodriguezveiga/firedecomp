@@ -21,6 +21,7 @@ class LagrangianRelaxation(object):
         max_iters=10,
         max_time=60,
         log_level="LR",
+        option_decomp='G',
     ):
         """Initialize the Lagrangian Relaxation object.
 
@@ -48,6 +49,7 @@ class LagrangianRelaxation(object):
         self.max_time = max_time
         self.v = 1
         self.DPP_sol = []
+        self.option_decomp = option_decomp
 
         self.lambda1 = [1, 1, 1, 1]
 #        self.mi1 = []
@@ -69,8 +71,12 @@ class LagrangianRelaxation(object):
 
 # Create Relaxed Primal problem
         problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
-#        self.NR = problem_data.get_resources().size()
-        self.NR = len(problem_data.get_names("groups"))
+        if (option_decomp == 'R'):
+            self.NR = problem_data.get_resources().size()
+        elif (option_decomp == 'G'):
+            self.NR = len(problem_data.get_names("groups"))
+        else:
+            self.NR = problem_data.get_resources().size()
         default_LR_options = {
             'min_res_penalty': 1000000,
             'gap': 0.01,
@@ -79,12 +85,12 @@ class LagrangianRelaxation(object):
 #        problem_RPP.solve(default_LR_options)
         problem_DPP = []
         for i in range(0,self.NR):
-            print("\n\n\n\n")
-            print("###############  DPP"+str(i))
-            print("\n\n\n\n")            
+            #print("\n\n\n\n")
+            #print("###############  DPP"+str(i))
+            #print("\n\n\n\n")
             problem_DPP.append(DPP.DecomposedPrimalProblem(problem_data,
-                                                self.lambda1, i))
-            problem_DPP[i].solve(default_LR_options)
+                                                self.lambda1, i, option_decomp))
+            #problem_DPP[i].solve(default_LR_options)
 
 # subgradient CLASS  ----------------------------------------------------------
     def subgradient(self):
