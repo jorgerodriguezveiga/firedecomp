@@ -10,8 +10,9 @@ from firedecomp.classes import solution
 from firedecomp import config
 from firedecomp.original import model
 
-##########################################################################################
-# CLASS RelaxedPrimalProblem
+###############################################################################
+# CLASS RelaxedPrimalProblem()
+###############################################################################
 class RelaxedPrimalProblem(model.InputModel):
     def __init__(self, problem_data, lambda1, relaxed=False,
         min_res_penalty=1000000):
@@ -34,8 +35,9 @@ class RelaxedPrimalProblem(model.InputModel):
         self.model = self.__get_model__()
 
 
-##########################################################################################
-# PRIVATE METHOD: __extract_data_problem__
+################################################################################
+# PRIVATE METHOD: __extract_data_problem__()
+################################################################################
     def __extract_data_problem__(self):
         """ Extract data from problem class to RPP class.
         """
@@ -44,8 +46,9 @@ class RelaxedPrimalProblem(model.InputModel):
         # PARAMETERS
         self.__extract_parameters_data_problem__()
 
-##########################################################################################
-# PRIVATE METHOD: __extract_set_data_problem__
+################################################################################
+# PRIVATE METHOD: __extract_set_data_problem__()
+################################################################################
     def __extract_set_data_problem__(self):
         """ Extract SET fields from data problem
         """
@@ -58,8 +61,9 @@ class RelaxedPrimalProblem(model.InputModel):
             for k, v in self.problem_data.groups.get_info('resources').items()}
         self.T_int = self.problem_data.wildfire
 
-##########################################################################################
-# PRIVATE METHOD: __extract_parameters_data_problem__
+################################################################################
+# PRIVATE METHOD: __extract_parameters_data_problem__()
+################################################################################
     def __extract_parameters_data_problem__(self):
         """ Extract PARAMETERS fields from data problem
         """
@@ -83,9 +87,10 @@ class RelaxedPrimalProblem(model.InputModel):
         self.nMin = self.problem_data.groups_wildfire.get_info("min_res_groups")
         self.nMax = self.problem_data.groups_wildfire.get_info("max_res_groups")
 
-##########################################################################################
+################################################################################
 # PRIVATE METHOD: __get_model__ ()
-# OVERWRITE model.__get_model__()
+# OVERWRITE --> model.__get_model__()
+################################################################################
     def __get_model__(self, relaxed=False):
         """Create gurobi API model.
             Args:
@@ -112,6 +117,7 @@ class RelaxedPrimalProblem(model.InputModel):
 
 ##########################################################################################
 # PRIVATE METHOD: __create_vars__
+################################################################################
     def __create_vars__(self):
         """Create vars in gurobi model class
 
@@ -181,8 +187,9 @@ class RelaxedPrimalProblem(model.InputModel):
         self.mu = self.m.addVars(self.G, self.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
                       name="missing_resources")
 
-##########################################################################################
-# PRIVATE METHOD: __create_objfunc__
+################################################################################
+# PRIVATE METHOD: __create_objfunc__()
+################################################################################
     def __create_objfunc__(self):
 
 # Wildfire Containment (2) and (3)
@@ -218,8 +225,9 @@ class RelaxedPrimalProblem(model.InputModel):
                        self.lambda1[3] * Constr4
                        , gurobipy.GRB.MINIMIZE)
 
-##########################################################################################
-# PRIVATE METHOD: __create_constraints__
+################################################################################
+# PRIVATE METHOD: __create_constraints__()
+################################################################################
     def __create_constraints__(self):
 # Wildfire Containment
 # --------------------
@@ -311,8 +319,9 @@ class RelaxedPrimalProblem(model.InputModel):
             name='logical_4')
 
 
-##########################################################################################
+################################################################################
 # METHOD: UPDATE LAMBDA1
+################################################################################
     def update_lambda1(self, lambda1):
         """Update lambda in RPP model
             Args:

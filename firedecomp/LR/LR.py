@@ -11,7 +11,9 @@ from firedecomp.LR import DPP
 import math
 
 
-# LagrangianRelaxation CLASS  --------------------------------------------------
+###############################################################################
+# CLASS LagrangianRelaxation()
+###############################################################################
 class LagrangianRelaxation(object):
     def __init__(
         self,
@@ -22,6 +24,7 @@ class LagrangianRelaxation(object):
         max_time=60,
         log_level="LR",
         option_decomp='G',
+        solver_options=None,
     ):
         """Initialize the Lagrangian Relaxation object.
 
@@ -38,71 +41,69 @@ class LagrangianRelaxation(object):
         """
         if problem_data.period_unit is False:
             raise ValueError("Time unit of the problem is not a period.")
-
         self.problem_data = problem_data
-
-        # LR info
+        # OBJECTIVE FUNCTION
         self.obj = float("inf")
-        self.obj_down = float("-inf")
+        self.L_obj_up = float("inf")
+        self.L_obj_down = float("-inf")
+        self.gap = float("inf")
+        # OPTIONS LR
         self.max_iters = max_iters
         self.max_time = max_time
         self.v = 1
-        self.option_decomp = option_decomp
-
-        self.lambda1 = [1, 1, 1, 1]
-#        self.mi1 = []
-
-# previous data
-        self.lambda1_prev = [0, 0, 0, 0]
-#        self.mi1_prev = []
+        self.lambda1 = [1.0, 1.0, 1.0, 1.0]
+        self.lambda1_prev = [0.0, 0.0, 0.0, 0.0]
         self.RPP_obj_prev = float("inf")
-
-# Chargue models
+        self.option_decomp = option_decomp
+        # Gurobi options
+        self.solver_options = solver_options
+        # Chargue models
         self.current_solution = []
-
-# Log level
+        # Log level
         self.__log__(log_level)
-
-# subgradient
+        # subgradient
         self.a = 1
         self.b = 0.1
-
-# Create Relaxed Primal Problem
+        # Create Relaxed Primal Problem
         self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
         self.RPP_sol = float("inf")
-
-# Create Decomposite Primal Problem
+        # Create Decomposite Primal Problem
         if (option_decomp == 'R'):
             self.NR = problem_data.get_resources().size()
         elif (option_decomp == 'G'):
             self.NR = len(problem_data.get_names("groups"))
         else:
             self.NR = problem_data.get_resources().size()
-
         self.problem_DPP = []
+        self.DPP_sol = []
         for i in range(0,self.NR):
             self.problem_DPP.append(DPP.DecomposedPrimalProblem(problem_data,
                                             self.lambda1, i, option_decomp))
             self.DPP_sol.append(float("inf"))
 
-
-
-# subgradient CLASS  ----------------------------------------------------------
+###############################################################################
+# PUBLIC METHOD subgradient()
+###############################################################################
     def subgradient(self):
         # solution, lambda, mi
         # update lambda and mi
         num = 0
-        for i in self.NR:
+        aux = 0
+        for i in range(0,self.NR):
             num = num + (-1) *  self.DPP_sol[i]
-        for i in self.NR:
+        for i in range(0,self.NR):
             aux = aux + self.DPP_sol[i]**2
         module = math.sqrt(aux)
-        self.lambda1 = (self.lambda1
+        l = (self.lambda1
                         + (1/(self.a+self.b*self.v))
                         * num / module)
+        for i in range(0,self.NR):
+            self.lambda1[i] = l
         return self.lambda1
 
-# convergence checking CLASS  --------------------------------------------------
+###############################################################################
+# PUBLIC METHOD convergence_checking()
+###############################################################################
     def convergence_checking(self, max_iters):
         stop = bool(False)
         # check convergence
@@ -112,27 +113,48 @@ class LagrangianRelaxation(object):
 
         return stop
 
-# solve CLASS  -----------------------------------------------------------------
+###############################################################################
+# PUBLIC METHOD solve()
+###############################################################################
     def solve(self, max_iters=10):
 
         termination_criteria = bool(False)
 
+
         while (termination_criteria == False):
-            # (1) solve DPP problems
+            # (1) Solve DPP problems
             for i in range(0,self.NR):
-                DPP_sol_model[i] = self.problem_DPP[i].solve()
-                self.DPP_sol[i] = DPP_sol_model[i].get_objfunction()
-            # (2) calculate new values of lambda
-            subgradient()
+                model = self.problem_DPP[i].solve(self.solver_options)
+                self.DPP_sol[i] = model.get_objfunction()
+                #print(self.DPP_sol[i])
+                #print("\n\n")
+                #print(model.get_variables().get_names())
+                #print(model.get_variables().get_variables().get_element('s'))
+                #print("\n\n")
+            # (2) Calculate new values of lambda and update
+            self.lambda1_prev = self.lambda1
+            self.subgradient()
+            # (3) Check termination criteria
             termination_criteria = convergence_checking(max_iters)
             self.v = self.v + 1
-            for i in self.NR:
-                problem_DLP[i].update_lambda1(problem_DLP[i], )
+
+            # Update lambda in RPP and DPP
+            self.problem_RPP.update_lambda1(self.lambda1)
+            for i in range(0,self.NR):
+                self.problem_DPP[i].update_lambda1(self.lambda1)
+            # Update solution in RPP and original model
+            self.L_obj_up = self.__set_solution_in_RPP__()
+            if (self.L_obj_up > self.L_obj_down):
+                self.L_obj_down = self.L_obj_up 
+            self.__set_solution_in_original_model__()
+            # Show iteration results
             log.info("Iteration # mi lambda f(x) L(x,mi,lambda)")
 
         return 1
 
-# LOG CLASS  -------------------------------------------------------------------
+###############################################################################
+# PRIVATE METHOD __log__()
+###############################################################################
     def __log__(self, level="LR"):
         log.addLevelName(80, "LR")
         log.Logger.LR = logging.LR
@@ -162,4 +184,17 @@ class LagrangianRelaxation(object):
                 logger.addHandler(ch)
 
         self.log = logger
-# --------------------------------------------------------------------------- #
+        return 1
+###############################################################################
+# PRIVATE METHOD __set_solution_in_RPP__()
+###############################################################################
+    def __set_solution_in_RPP__(self, solutions):
+
+        return 1
+
+###############################################################################
+# PRIVATE METHOD __log__()
+###############################################################################
+    def __set_solution_in_original_model__(self, solutions):
+
+        return 1

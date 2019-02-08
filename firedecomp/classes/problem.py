@@ -194,6 +194,9 @@ class Problem(object):
             default_LR_options = {
                 'min_res_penalty': 1000000,
                 'gap': 0.01,
+                'max_iters': 100,
+                'max_time': 60,
+                'solver_options': None,
             }
             if isinstance(method_options, dict):
                 default_LR_options.update(method_options)
