@@ -1,5 +1,8 @@
 """Module with general classes definition."""
 
+# Python packages
+import copy
+
 
 # Element ---------------------------------------------------------------------
 class Element(object):
@@ -13,20 +16,11 @@ class Element(object):
         """
         self.name = name
 
-    def copy(self):
-        obj = type(self).__new__(self.__class__)
-        for k, v in self.__dict__.items():
-            if isinstance(v, list):
-                obj.__dict__[k] = [e.copy() if 'copy' in dir(e) else e
-                                   for e in v]
-            elif isinstance(v, dict):
-                obj.__dict__[k] = {i: e.copy() if 'copy' in dir(e) else e
-                                   for i, e in v.items()}
-            elif 'copy' in dir(v):
-                obj.__dict__[k] = v.copy()
-            else:
-                obj.__dict__[k] = v
-        return obj
+    def copy(self, deep=False):
+        if deep:
+            return copy.deepcopy(self)
+        else:
+            return copy.copy(self)
 
     def get_index(self):
         """Return index."""
@@ -101,20 +95,11 @@ class Set(object):
     def size(self):
         return len(self.elements)
 
-    def copy(self):
-        obj = type(self).__new__(self.__class__)
-        for k, v in self.__dict__.items():
-            if isinstance(v, list):
-                obj.__dict__[k] = [e.copy() if 'copy' in dir(e) else e
-                                   for e in v]
-            elif isinstance(v, dict):
-                obj.__dict__[k] = {i: e.copy() if 'copy' in dir(e) else e
-                                   for i, e in v.items()}
-            elif 'copy' in dir(v):
-                obj.__dict__[k] = v.copy()
-            else:
-                obj.__dict__[k] = v
-        return obj
+    def copy(self, deep=True):
+        if deep:
+            return copy.deepcopy(self)
+        else:
+            return copy.copy(self)
 
     def update(self, dictionary):
         """Update object attributes.
