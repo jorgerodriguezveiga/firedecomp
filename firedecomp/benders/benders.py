@@ -234,12 +234,10 @@ class Benders(object):
         self.log.benders(sep)
 
         new_obj = float('inf')
-        periods = list(set(
-            [
-                p for p in np.arange(
-                    self.start_period, data.max_t+1, self.step_period)
-            ] + [data.max_t]
-        ))
+        periods = [
+            p
+            for p in np.arange(self.start_period, data.max_t, self.step_period)
+        ] + [data.max_t]
 
         for period in periods:
             self.best_obj_period = new_obj
