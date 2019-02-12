@@ -33,6 +33,7 @@ class RelaxedPrimalProblem(model.InputModel):
 
         # Create gurobi model
         self.model = self.__get_model__()
+        self.solution = self.model
 
 
 ################################################################################
@@ -45,6 +46,8 @@ class RelaxedPrimalProblem(model.InputModel):
         self.__extract_set_data_problem__()
         # PARAMETERS
         self.__extract_parameters_data_problem__()
+        # SENSE
+        self.__sense_opt__()
 
 ################################################################################
 # PRIVATE METHOD: __extract_set_data_problem__()
@@ -88,6 +91,12 @@ class RelaxedPrimalProblem(model.InputModel):
         self.nMax = self.problem_data.groups_wildfire.get_info("max_res_groups")
 
 ################################################################################
+# PRIVATE METHOD: __sense_opt__()
+################################################################################
+    def __sense_opt__(self):
+        self.sense_opt= gurobipy.GRB.MINIMIZE
+
+################################################################################
 # PRIVATE METHOD: __get_model__ ()
 # OVERWRITE --> model.__get_model__()
 ################################################################################
@@ -98,6 +107,7 @@ class RelaxedPrimalProblem(model.InputModel):
                               Default ``False``.
             Example: ``{'TimeLimit': 10}``.
         """
+
         self.__create_gurobi_model__()
         self.__create_vars__()
         self.__create_objfunc__()
@@ -115,7 +125,7 @@ class RelaxedPrimalProblem(model.InputModel):
         """
         self.m = gurobipy.Model("Relaxed_Primal_Problem_LR")
 
-##########################################################################################
+################################################################################
 # PRIVATE METHOD: __create_vars__
 ################################################################################
     def __create_vars__(self):
@@ -145,6 +155,19 @@ class RelaxedPrimalProblem(model.InputModel):
         self.e = self.m.addVars(self.I,self.T,vtype=vtype, lb=lb, ub=ub, name="end")
 
         # (2) Auxiliar variables
+        self.__create_auxiliar_vars__()
+
+        # (3) Wildfire
+        # --------
+        self.y = self.m.addVars(self.T + [self.min_t-1], vtype=vtype, lb=lb, ub=ub,
+                      name="contention")
+        self.mu = self.m.addVars(self.G, self.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
+                      name="missing_resources")
+
+################################################################################
+# PRIVATE METHOD: create_auxiliar_vars
+################################################################################
+    def __create_auxiliar_vars__(self):
         self.u = {
             (i, t):
                 self.s.sum(i, self.T_int.get_names(p_max=t))
@@ -180,13 +203,6 @@ class RelaxedPrimalProblem(model.InputModel):
                 for i in self.I for t in self.T
                 if self.ITW[i] or self.IOW[i]})
 
-        # (3) Wildfire
-        # --------
-        self.y = self.m.addVars(self.T + [self.min_t-1], vtype=vtype, lb=lb, ub=ub,
-                      name="contention")
-        self.mu = self.m.addVars(self.G, self.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
-                      name="missing_resources")
-
 ################################################################################
 # PRIVATE METHOD: __create_objfunc__()
 ################################################################################
@@ -213,7 +229,7 @@ class RelaxedPrimalProblem(model.InputModel):
 # Objective
 # =========
         sum1 = sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T])
-        sum2 = sum([self.P[i] * self.z[i] for i in self.I])
+        sum2 = sum([self.P[i]*self.z[i] for i in self.I])
         sum3 = sum([self.NVC[t] * self.y[t-1] for t in self.T])
         sum4 = sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T])
 
@@ -222,8 +238,8 @@ class RelaxedPrimalProblem(model.InputModel):
                        self.lambda1[0] * Constr1 +
                        self.lambda1[1] * Constr2 +
                        self.lambda1[2] * Constr3 +
-                       self.lambda1[3] * Constr4
-                       , gurobipy.GRB.MINIMIZE)
+                       self.lambda1[3] * Constr4,
+                       self.sense_opt)
 
 ################################################################################
 # PRIVATE METHOD: __create_constraints__()
@@ -333,5 +349,77 @@ class RelaxedPrimalProblem(model.InputModel):
         self.__create_constraints__()
         self.m.update()
         self.model = solution.Solution(
-            m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
+            self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
             w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
+
+################################################################################
+# METHOD: __set_solution_in_RPP__
+################################################################################
+    def __set_solution_in_RPP__(self, decomp_solutions, option_decomp, lambda1,
+                                                solver_options, groups=None):
+
+        # extract lambdas
+        self.lambdas1 = lambda1
+        self.__create_vars__()
+        # extract solutions
+        if (option_decomp == 'R'):
+            counter = 0
+            for sol_i in self.I:
+                for t in self.T:
+                    # fix variables
+                    self.fix_vars(self.s, 's', decomp_solutions[counter], sol_i, t)
+                    self.fix_vars(self.tr, 'tr', decomp_solutions[counter], sol_i, t)
+                    self.fix_vars(self.r, 'r', decomp_solutions[counter], sol_i, t)
+                    self.fix_vars(self.er, 'er', decomp_solutions[counter], sol_i, t)
+                    self.fix_vars(self.e, 'e', decomp_solutions[counter], sol_i, t)
+                    self.fix_vars(self.mu, 'mu', decomp_solutions[counter], groups[counter], t)
+                counter = counter + 1
+            self.__create_auxiliar_vars__()
+#            counter = 0
+#            TMU = self.T + [self.min_t-1]
+#            for sol_i in self.I:
+#                for t in TMU:
+#                    self.y[t]  = decomp_solutions[sol_i].get_model().getVarByName("contention[" + str(t) + "]")
+#           ----
+
+        elif (option_decomp == 'G'):
+            for solution_i in decomp_solutions:
+                for t in self.T:
+                    self.s[i,t]  = decomp_solutions[0].get_variables().get_variable('s')[i,t].X
+        else:
+            print("Error[0] Use 'G' to divide by groups, or 'R' to divide by resources ")
+            sys.exit()
+        self.__create_objfunc__()
+        self.__create_constraints__()
+        self.m.update()
+        self.solution = self.solve_solution(solver_options)
+
+        return self.solution.get_objfunction()
+
+################################################################################
+# METHOD: SOLVE
+################################################################################
+    def solve(self, solver_options):
+        solution = super().solve(solver_options)
+        self.solution = solution
+        return solution
+
+################################################################################
+# METHOD: SOLVE SOLUTION
+################################################################################
+    def solve_solution(self, solver_options):
+        original_model = self.model.m.copy()
+        self.model.m = self.solution.m.copy()
+        self.model.m.update()
+        self.solution = super().solve(solver_options)
+        self.model.m = original_model.copy()
+        self.model.m.update()
+        return solution
+
+################################################################################
+# METHOD: fix_vars
+################################################################################
+    def fix_vars(self, var, varstr, solution, sol_i, t):
+        value = solution.get_variables().get_variable(varstr)[sol_i,t].X
+        var[sol_i,t].setAttr(gurobipy.GRB.Attr.UB, value)
+        var[sol_i,t].setAttr(gurobipy.GRB.Attr.LB, value)

@@ -12,9 +12,10 @@ from firedecomp.LR import RPP
 
 # Subproblem ------------------------------------------------------------------
 class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
-    def __init__(self, problem_data, lambda1, resource_i, option_decomp='G',
-        relaxed=False, min_res_penalty=1000000):
+    def __init__(self, problem_data, lambda1, resource_i, string_i,
+        option_decomp='G', relaxed=False, min_res_penalty=1000000):
         self.resource_i= resource_i
+        self.string_i = string_i
         self.option_decomp = option_decomp
         super().__init__(problem_data, lambda1, relaxed, min_res_penalty)
 

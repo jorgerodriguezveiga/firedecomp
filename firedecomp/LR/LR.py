@@ -51,8 +51,6 @@ class LagrangianRelaxation(object):
         self.max_iters = max_iters
         self.max_time = max_time
         self.v = 1
-        self.lambda1 = [1.0, 1.0, 1.0, 1.0]
-        self.lambda1_prev = [0.0, 0.0, 0.0, 0.0]
         self.RPP_obj_prev = float("inf")
         self.option_decomp = option_decomp
         # Gurobi options
@@ -64,22 +62,35 @@ class LagrangianRelaxation(object):
         # subgradient
         self.a = 1
         self.b = 0.1
+        # Create lambda
+        self.NL = 4
+        self.lambda1 = []
+        self.lambda1_prev = []
+        for i in range(0,self.NL):
+            self.lambda1.append(1.0)
+            self.lambda1_prev.append(0.0)
         # Create Relaxed Primal Problem
         self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
         self.RPP_sol = float("inf")
         # Create Decomposite Primal Problem
-        if (option_decomp == 'R'):
-            self.NR = problem_data.get_resources().size()
-        elif (option_decomp == 'G'):
-            self.NR = len(problem_data.get_names("groups"))
+        if (self.option_decomp == 'R'):
+            self.N = len(self.problem_RPP.I)
+            self.groupR = []
+        elif (self.option_decomp == 'G'):
+            self.N = len(self.problem_RPP.G)
         else:
-            self.NR = problem_data.get_resources().size()
+            print("Error[0] Use 'G' to divide by groups, or 'R' to divide by resources ")
+            sys.exit()
         self.problem_DPP = []
-        self.DPP_sol = []
-        for i in range(0,self.NR):
+        self.DPP_sol_obj = []
+        for i in range(0,self.N):
+            string_i = self.problem_data.get_names("resources")[i]
             self.problem_DPP.append(DPP.DecomposedPrimalProblem(problem_data,
-                                            self.lambda1, i, option_decomp))
-            self.DPP_sol.append(float("inf"))
+                                self.lambda1, i, string_i, self.option_decomp))
+            self.DPP_sol_obj.append(float("inf"))
+            if (self.option_decomp == 'R'):
+                self.groupR.append(self.problem_DPP[i].G[0])
+
 
 ###############################################################################
 # PUBLIC METHOD subgradient()
@@ -89,26 +100,24 @@ class LagrangianRelaxation(object):
         # update lambda and mi
         num = 0
         aux = 0
-        for i in range(0,self.NR):
-            num = num + (-1) *  self.DPP_sol[i]
-        for i in range(0,self.NR):
-            aux = aux + self.DPP_sol[i]**2
+        for i in range(0,self.N):
+            num = num + (-1) *  self.DPP_sol_obj[i]
+        for i in range(0,self.N):
+            aux = aux + self.DPP_sol_obj[i]**2
         module = math.sqrt(aux)
-        l = (self.lambda1
-                        + (1/(self.a+self.b*self.v))
-                        * num / module)
-        for i in range(0,self.NR):
-            self.lambda1[i] = l
+        l = (1/(self.a+self.b*self.v)) * (num / module)
+        for i in range(0,self.NL):
+            self.lambda1[i] = self.lambda1[i] + l
         return self.lambda1
 
 ###############################################################################
 # PUBLIC METHOD convergence_checking()
 ###############################################################################
-    def convergence_checking(self, max_iters):
+    def convergence_checking(self):
         stop = bool(False)
         # check convergence
 
-        if (self.v >= max_iters):
+        if (self.v >= self.max_iters):
             stop = bool(True)
 
         return stop
@@ -123,30 +132,33 @@ class LagrangianRelaxation(object):
 
         while (termination_criteria == False):
             # (1) Solve DPP problems
-            for i in range(0,self.NR):
-                model = self.problem_DPP[i].solve(self.solver_options)
-                self.DPP_sol[i] = model.get_objfunction()
-                #print(self.DPP_sol[i])
-                #print("\n\n")
-                #print(model.get_variables().get_names())
-                #print(model.get_variables().get_variables().get_element('s'))
-                #print("\n\n")
+            self.DPP_sol = []
+            for i in range(0,self.N):
+                self.DPP_sol.append(self.problem_DPP[i].solve(self.solver_options))
+                self.DPP_sol_obj[i] = self.DPP_sol[i].get_objfunction()
             # (2) Calculate new values of lambda and update
             self.lambda1_prev = self.lambda1
             self.subgradient()
             # (3) Check termination criteria
-            termination_criteria = convergence_checking(max_iters)
+            termination_criteria = self.convergence_checking()
             self.v = self.v + 1
+
+            # Update solution in RPP.solution problem
+            self.L_obj_up = self.problem_RPP.__set_solution_in_RPP__(self.DPP_sol,
+                            self.option_decomp, self.lambda1, self.solver_options, self.groupR)
+            if (self.L_obj_up > self.L_obj_down):
+                self.L_obj_down = self.L_obj_up
+            self.__set_solution_in_original_model__()
 
             # Update lambda in RPP and DPP
             self.problem_RPP.update_lambda1(self.lambda1)
             for i in range(0,self.NR):
                 self.problem_DPP[i].update_lambda1(self.lambda1)
-            # Update solution in RPP and original model
-            self.L_obj_up = self.__set_solution_in_RPP__()
-            if (self.L_obj_up > self.L_obj_down):
-                self.L_obj_down = self.L_obj_up 
-            self.__set_solution_in_original_model__()
+
+            # Extract Upper Bound
+            RDP.RelaxedDualProblem(problem_data, self.lambda1, solution=DPP_sol);
+            self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1, primal=self.problem_RPP);
+
             # Show iteration results
             log.info("Iteration # mi lambda f(x) L(x,mi,lambda)")
 
@@ -184,12 +196,6 @@ class LagrangianRelaxation(object):
                 logger.addHandler(ch)
 
         self.log = logger
-        return 1
-###############################################################################
-# PRIVATE METHOD __set_solution_in_RPP__()
-###############################################################################
-    def __set_solution_in_RPP__(self, solutions):
-
         return 1
 
 ###############################################################################
