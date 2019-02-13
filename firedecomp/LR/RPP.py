@@ -33,7 +33,6 @@ class RelaxedPrimalProblem(model.InputModel):
 
         # Create gurobi model
         self.model = self.__get_model__()
-        self.solution = self.model
 
 
 ################################################################################
@@ -145,7 +144,6 @@ class RelaxedPrimalProblem(model.InputModel):
             ub = 1
 
         # VARIABLES
-
         # (1) Resources
         # ---------
         self.s = self.m.addVars(self.I,self.T,vtype=vtype, lb=lb, ub=ub, name="start")
@@ -375,12 +373,11 @@ class RelaxedPrimalProblem(model.InputModel):
                     self.fix_vars(self.mu, 'mu', decomp_solutions[counter], groups[counter], t)
                 counter = counter + 1
             self.__create_auxiliar_vars__()
-#            counter = 0
-#            TMU = self.T + [self.min_t-1]
-#            for sol_i in self.I:
-#                for t in TMU:
-#                    self.y[t]  = decomp_solutions[sol_i].get_model().getVarByName("contention[" + str(t) + "]")
-#           ----
+            counter = 0
+            TMU = self.T + [self.min_t-1]
+            for sol_i in self.I:
+                for t in TMU:
+                    self.fix_vars_v(self.y, 'y', decomp_solutions[counter], t)
 
         elif (option_decomp == 'G'):
             for solution_i in decomp_solutions:
@@ -392,29 +389,9 @@ class RelaxedPrimalProblem(model.InputModel):
         self.__create_objfunc__()
         self.__create_constraints__()
         self.m.update()
-        self.solution = self.solve_solution(solver_options)
-
-        return self.solution.get_objfunction()
-
-################################################################################
-# METHOD: SOLVE
-################################################################################
-    def solve(self, solver_options):
-        solution = super().solve(solver_options)
-        self.solution = solution
-        return solution
-
-################################################################################
-# METHOD: SOLVE SOLUTION
-################################################################################
-    def solve_solution(self, solver_options):
-        original_model = self.model.m.copy()
-        self.model.m = self.solution.m.copy()
-        self.model.m.update()
-        self.solution = super().solve(solver_options)
-        self.model.m = original_model.copy()
-        self.model.m.update()
-        return solution
+        self.model = solution.Solution(
+            self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
+            w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
 
 ################################################################################
 # METHOD: fix_vars
@@ -423,3 +400,13 @@ class RelaxedPrimalProblem(model.InputModel):
         value = solution.get_variables().get_variable(varstr)[sol_i,t].X
         var[sol_i,t].setAttr(gurobipy.GRB.Attr.UB, value)
         var[sol_i,t].setAttr(gurobipy.GRB.Attr.LB, value)
+        var[sol_i,t].start=value
+
+################################################################################
+# METHOD: fix_vars
+################################################################################
+    def fix_vars_v(self, var, varstr, solution, t):
+        value = solution.get_variables().get_variable(varstr)[t].X
+        var[t].setAttr(gurobipy.GRB.Attr.UB, value)
+        var[t].setAttr(gurobipy.GRB.Attr.LB, value)
+        var[t].start=value

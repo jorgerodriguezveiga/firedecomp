@@ -8,6 +8,7 @@ from firedecomp import original
 from firedecomp import logging
 from firedecomp.LR import RPP
 from firedecomp.LR import DPP
+from firedecomp.LR import RDP
 import math
 
 
@@ -45,7 +46,9 @@ class LagrangianRelaxation(object):
         # OBJECTIVE FUNCTION
         self.obj = float("inf")
         self.L_obj_up = float("inf")
+        self.L_obj_up_prev = float("inf")
         self.L_obj_down = float("-inf")
+        self.L_obj_down_prev = float("-inf")
         self.gap = float("inf")
         # OPTIONS LR
         self.max_iters = max_iters
@@ -98,16 +101,22 @@ class LagrangianRelaxation(object):
     def subgradient(self):
         # solution, lambda, mi
         # update lambda and mi
-        num = 0
-        aux = 0
-        for i in range(0,self.N):
-            num = num + (-1) *  self.DPP_sol_obj[i]
-        for i in range(0,self.N):
-            aux = aux + self.DPP_sol_obj[i]**2
-        module = math.sqrt(aux)
-        l = (1/(self.a+self.b*self.v)) * (num / module)
-        for i in range(0,self.NL):
-            self.lambda1[i] = self.lambda1[i] + l
+        #num = 0
+        #aux = 0
+        #for i in range(0,self.N):
+        #    num = num + (-1) *  self.DPP_sol_obj[i]
+        #for i in range(0,self.N):
+        #    aux = aux + (-1) * self.DPP_sol_obj[i]**2
+        #module = math.sqrt(aux)
+        #l = (1/(self.a+self.b*self.v)) * (num / module)
+        #for i in range(0,self.NL):
+        #    self.lambda1[i] = self.lambda1[i] + l
+
+        self.lambda1[0] = self.lambda1[0] + 0.1
+        self.lambda1[1] = self.lambda1[1] + 0.1
+        self.lambda1[2] = self.lambda1[2] + 0.1
+        self.lambda1[3] = self.lambda1[3] + 0.1
+
         return self.lambda1
 
 ###############################################################################
@@ -129,7 +138,6 @@ class LagrangianRelaxation(object):
 
         termination_criteria = bool(False)
 
-
         while (termination_criteria == False):
             # (1) Solve DPP problems
             self.DPP_sol = []
@@ -137,30 +145,37 @@ class LagrangianRelaxation(object):
                 self.DPP_sol.append(self.problem_DPP[i].solve(self.solver_options))
                 self.DPP_sol_obj[i] = self.DPP_sol[i].get_objfunction()
             # (2) Calculate new values of lambda and update
-            self.lambda1_prev = self.lambda1
+            self.lambda1_prev = self.lambda1.copy()
             self.subgradient()
             # (3) Check termination criteria
             termination_criteria = self.convergence_checking()
             self.v = self.v + 1
 
             # Update solution in RPP.solution problem
-            self.L_obj_up = self.problem_RPP.__set_solution_in_RPP__(self.DPP_sol,
-                            self.option_decomp, self.lambda1, self.solver_options, self.groupR)
-            if (self.L_obj_up > self.L_obj_down):
-                self.L_obj_down = self.L_obj_up
-            self.__set_solution_in_original_model__()
+            self.problem_RPP.__set_solution_in_RPP__(self.DPP_sol,
+                        self.option_decomp, self.lambda1, self.solver_options,
+                        self.groupR)
+            self.RPP_sol = self.problem_RPP.solve(self.solver_options)
+            self.L_obj_down = self.RPP_sol.get_objfunction()
+            if (self.L_obj_down > self.L_obj_down_prev):
+                self.L_obj_down_prev = self.L_obj_down
+
+            # Extract Upper Bound
+
+
+            # Dual gap
+            #RDP.RelaxedDualProblem(self.problem_data, self.lambda1,
+            #            primal=self.problem_RPP, solution=self.RPP_sol,
+            #            option_decomp=self.option_decomp);
 
             # Update lambda in RPP and DPP
             self.problem_RPP.update_lambda1(self.lambda1)
-            for i in range(0,self.NR):
+            for i in range(0,self.N):
                 self.problem_DPP[i].update_lambda1(self.lambda1)
-
-            # Extract Upper Bound
-            RDP.RelaxedDualProblem(problem_data, self.lambda1, solution=DPP_sol);
-            self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1, primal=self.problem_RPP);
 
             # Show iteration results
             log.info("Iteration # mi lambda f(x) L(x,mi,lambda)")
+            print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1_prev)+" LowerBound: "+str(self.L_obj_down)+" Duality Gap\n")
 
         return 1
 
