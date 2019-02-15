@@ -5,6 +5,7 @@ from firedecomp.original import model
 from firedecomp.benders import benders
 from firedecomp import config
 from firedecomp import plot
+import firedecomp.branchprice.model_original as scip_model
 
 
 # Problem ---------------------------------------------------------------------
@@ -165,6 +166,14 @@ class Problem(object):
                 self, min_res_penalty=min_res_penalty)
             solution = self.original_model.solve(solver_options=solver_options)
             self.solve_status = solution.model.Status
+            return solution
+        if method == 'scip_original':
+            if log_level is None:
+                log_level = 'WARNING'
+            self.original_model = scip_model.InputModel(
+                self, min_res_penalty=min_res_penalty)
+            solution = self.original_model.solve(solver_options=solver_options)
+            self.solve_status = solution.model.getStatus()
             return solution
         elif method == 'benders':
             if log_level is None:
