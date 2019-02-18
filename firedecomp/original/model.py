@@ -59,7 +59,7 @@ class InputModel(object):
     def __get_model__(self):
         return model(self, relaxed=self.relaxed)
 
-    def solve(self, solver_options):
+    def solve(self, solver_options=None):
         """Solve mathematical model.
 
         Args:
@@ -74,6 +74,7 @@ class InputModel(object):
         # set gurobi options
         if isinstance(solver_options, dict):
             for k, v in solver_options.items():
+                print(k, v)
                 m.model.setParam(k, v)
 
         m.model.optimize()
@@ -82,9 +83,8 @@ class InputModel(object):
         if m.model.Status != 3:
             if self.relaxed is not True:
                 # Load variables values
-                self.problem_data.resources.update(
-                    {i: {'select': m.variables.z[i].getValue() == 1}
-                     for i in self.I})
+                self.problem_data.resources.update_select(
+                    {i: m.variables.z[i].getValue() == 1 for i in self.I})
 
                 self.problem_data.resources_wildfire.update(
                     {(i, t): {
@@ -171,8 +171,13 @@ def model(data, relaxed=False):
         (i, t):
             (t+data.CWP[i]-data.CRP[i]) * s[i, data.min_t]
             + sum([
-                (t + 1 - t1 + data.WP[i]) * s[i, t1]
-                for t1 in data.T_int.get_names(p_min=data.min_t+1, p_max=t)])
+                2*data.WP[i]*s[i, t1]
+                for t1 in data.T_int.get_names(
+                    p_min=data.min_t + 1, p_max=data.RP[i]+data.TRP[i])])
+            + sum([
+                (t + 1 - t1) * s[i, t1]
+                for t1 in data.T_int.get_names(
+                    p_min=data.RP[i]+data.TRP[i]+1, p_max=t)])
             - sum([
                 (t - t1) * e[i, t1]
                 + r[i, t1]
@@ -188,13 +193,21 @@ def model(data, relaxed=False):
     mu = m.addVars(data.G, data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
                    name="missing_resources")
 
+    slack_cont1 = m.addVar(vtype=gurobipy.GRB.CONTINUOUS, lb=0,
+                      name="slack_containment_1")
+
+    slack_cont2 = m.addVars(data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
+                            name="slack_containment_2")
+
     # Objective
     # =========
     m.setObjective(sum([data.C[i]*u[i, t] for i in data.I for t in data.T]) +
                    sum([data.P[i] * z[i] for i in data.I]) +
                    sum([data.NVC[t] * y[t-1] for t in data.T]) +
                    sum([data.Mp*mu[g, t] for g in data.G for t in data.T]) +
-                   0.001*y[data.max_t]
+                   0.001*y[data.max_t] +
+                   1000000000000 * slack_cont1 +
+                   sum([1000000000000 * slack_cont2[t] for t in data.T])
                    , gurobipy.GRB.MINIMIZE)
 
     # Constraints
@@ -205,11 +218,11 @@ def model(data, relaxed=False):
     m.addConstr(y[data.min_t-1] == 1, name='start_no_contained')
 
     m.addConstr(sum([data.PER[t]*y[t-1] for t in data.T]) <=
-                sum([data.PR[i, t]*w[i, t] for i in data.I for t in data.T]),
+                slack_cont1 + sum([data.PR[i, t]*w[i, t] for i in data.I for t in data.T]),
                 name='wildfire_containment_1')
 
     m.addConstrs(
-        (data.M*y[t] >=
+        (data.M*y[t] + slack_cont2[t] >=
          sum([data.PER[t1] for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
          sum([data.PR[i, t1]*w[i, t1]
               for i in data.I for t1 in data.T_int.get_names(p_max=t)])
