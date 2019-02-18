@@ -61,5 +61,8 @@ setup(
     install_requires=requirements(),
     include_package_data=True,
     license=license(),
-    dependency_links=dependency_links
+    dependency_links=dependency_links,
+    entry_points={
+        'console_scripts': [
+            'firedecomp_simulations=firedecomp.simulations:main']}
 )
