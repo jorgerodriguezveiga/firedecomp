@@ -2,6 +2,7 @@
 
 # Package modules
 from firedecomp.classes import general as gc
+from firedecomp.classes import resources_wildfire as rw
 
 
 # Resource --------------------------------------------------------------------
@@ -63,6 +64,16 @@ class Resource(gc.Element):
         self.necessary_rest_time = necessary_rest_time
         self.max_work_daily = max_work_daily
         self.select = select
+        self.__resource_period__ = rw.ResourcesWildfire([])
+
+    def get_total_performance(self):
+        return sum(v.get_performance() for v in self.__resource_period__)
+
+    def update_select(self, value):
+        if isinstance(value, bool):
+            self.select = value
+        else:
+            raise TypeError("Value must be bool.")
 
     def update_units(self, time, period_unit, inplace=True):
         """Update resource attributes units.
@@ -137,4 +148,8 @@ class Resources(gc.Set):
         """
         for e in self:
             e.update_units(time=time, period_unit=period_unit, inplace=inplace)
+
+    def update_select(self, values):
+        for r, v in values.items():
+            self[r].update_select(v)
 # --------------------------------------------------------------------------- #
