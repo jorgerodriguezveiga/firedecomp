@@ -171,13 +171,8 @@ def model(data, relaxed=False):
         (i, t):
             (t+data.CWP[i]-data.CRP[i]) * s[i, data.min_t]
             + sum([
-                2*data.WP[i]*s[i, t1]
-                for t1 in data.T_int.get_names(
-                    p_min=data.min_t + 1, p_max=data.RP[i]+data.TRP[i])])
-            + sum([
-                (t + 1 - t1) * s[i, t1]
-                for t1 in data.T_int.get_names(
-                    p_min=data.RP[i]+data.TRP[i]+1, p_max=t)])
+                (t + 1 - t1 + data.WP[i]) * s[i, t1]
+                for t1 in data.T_int.get_names(p_min=data.min_t + 1)])
             - sum([
                 (t - t1) * e[i, t1]
                 + r[i, t1]
@@ -185,6 +180,25 @@ def model(data, relaxed=False):
                 for t1 in data.T_int.get_names(p_max=t)])
         for i in data.I for t in data.T
         if data.ITW[i] or data.IOW[i]})
+
+    # cr.update({
+    #     (i, t):
+    #         (t+data.CWP[i]-data.CRP[i]) * s[i, data.min_t]
+    #         + sum([
+    #             2*data.WP[i]*s[i, t1]
+    #             for t1 in data.T_int.get_names(
+    #                 p_min=data.min_t + 1, p_max=data.RP[i]+data.TRP[i])])
+    #         + sum([
+    #             (t + 1 - t1) * s[i, t1]
+    #             for t1 in data.T_int.get_names(
+    #                 p_min=data.RP[i]+data.TRP[i]+1, p_max=t)])
+    #         - sum([
+    #             (t - t1) * e[i, t1]
+    #             + r[i, t1]
+    #             + data.WP[i] * er[i, t1]
+    #             for t1 in data.T_int.get_names(p_max=t)])
+    #     for i in data.I for t in data.T
+    #     if data.ITW[i] or data.IOW[i]})
 
     # Wildfire
     # --------
