@@ -106,13 +106,13 @@ def get_start_resource_info(data, i, start_period):
     rest = {(i, t): 0 for t in data.T}
     travel = {(i, t): 0 for t in data.T}
 
-    if (data.ITW[i] is not True) and (data.IOW[i] is not True):
-        work_count = 1
-    else:
+    if (data.ITW[i] == True) or (data.IOW[i] == True):
         if start_period == data.min_t:
             work_count = data.CWP[i] - data.CRP[i] + 1
         else:
             work_count = data.WP[i] + 1
+    else:
+        work_count = 1
 
     start = False
     travel_count = 1
