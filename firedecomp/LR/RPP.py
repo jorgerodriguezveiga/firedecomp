@@ -231,8 +231,9 @@ class RelaxedPrimalProblem(model.InputModel):
         sum3 = sum([self.NVC[t] * self.y[t-1] for t in self.T])
         sum4 = sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T])
 
-        self.m.setObjective( sum1 + sum2 + sum3 + sum4 +
-                       0.001*self.y[self.max_t] +
+        self.function_obj = sum1 + sum2 + sum3 + sum4 + 0.001*self.y[self.max_t]
+
+        self.m.setObjective( self.function_obj +
                        self.lambda1[0] * Constr1 +
                        self.lambda1[1] * Constr2 +
                        self.lambda1[2] * Constr3 +

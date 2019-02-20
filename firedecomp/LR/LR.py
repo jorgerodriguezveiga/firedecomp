@@ -57,6 +57,13 @@ class LagrangianRelaxation(object):
         self.RPP_obj_prev = float("inf")
         self.option_decomp = option_decomp
         # Gurobi options
+        if solver_options == None:
+            solver_options = {
+                #'MIPGap': 0.0,
+                #'MIPGapAbs': 0.0,
+                'OutputFlag': 0,
+                'LogFile': log_level,
+            }
         self.solver_options = solver_options
         # Chargue models
         self.current_solution = []
@@ -170,12 +177,11 @@ class LagrangianRelaxation(object):
             for i in range(0,self.N):
                 self.problem_DPP[i].update_lambda1(self.lambda1)
 
+
             # Show iteration results
             #self.problem_data.original_model.insert_soludion(self.DPP_sol,
             #            self.option_decomp, self.lambda1, self.solver_options,
             #            self.groupR)
-
-
             log.info("Iteration # mi lambda f(x) L(x,mi,lambda)")
             print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1_prev)+" LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +"\n")
 
@@ -226,9 +232,7 @@ class LagrangianRelaxation(object):
         self.problem_DPP = []
         self.DPP_sol_obj = []
         for i in range(0,self.N):
-            string_i = self.problem_data.get_names("resources")[i]
             self.problem_DPP.append(DPP.DecomposedPrimalProblem(self.problem_data,
-                                self.lambda1, i, string_i, self.option_decomp))
+                                self.lambda1, i, self.option_decomp))
             self.DPP_sol_obj.append(float("inf"))
-            if (self.option_decomp == 'R'):
-                self.groupR.append(self.problem_DPP[i].G[0])
+            self.groupR.append(self.problem_DPP[i].G[0])

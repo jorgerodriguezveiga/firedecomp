@@ -12,11 +12,21 @@ from firedecomp.LR import RPP
 
 # Subproblem ------------------------------------------------------------------
 class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
-    def __init__(self, problem_data, lambda1, resource_i, string_i,
-        option_decomp='G', relaxed=False, min_res_penalty=1000000):
+    def __init__(self, problem_data, lambda1, resource_i, relaxed=False,
+                 min_res_penalty=1000000):
+        """Initialize the DecomposedPrimalProblem.
+
+        Args:
+            problem_data (:obj:`Problem`): problem data.
+            lambda1  (:obj:`list`): list of numeric values of lambdas (integers)
+            resource_i (:obj:`int`): index resource
+            option_decomp (:obj:`str`): maximum number of iterations. Defaults to
+                Defaults to 0.01.
+            relaxed (:obj:`float`):  Defaults to 0.01.
+            min_res_penalty (:obj:`int`): .
+                Default to 1000000
+        """
         self.resource_i= resource_i
-        self.string_i = string_i
-        self.option_decomp = option_decomp
         super().__init__(problem_data, lambda1, relaxed, min_res_penalty)
 
 ##########################################################################################
@@ -26,12 +36,7 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         """ Extract SET fields from data problem
         """
 
-        if   (self.option_decomp == 'G'):
-            self.__extract_set_data_problem_by_groups__(relaxed)
-        elif (self.option_decomp == 'R'):
-            self.__extract_set_data_problem_by_resources__(relaxed)
-        else:
-            self.__extract_set_data_problem_by_groups__(relaxed)
+        self.__extract_set_data_problem_by_resources__(relaxed)
 
 ##########################################################################################
 # PRIVATE METHOD: __extract_set_data_problem_by_groups__ ()
@@ -74,10 +79,6 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         self.Ig = {
             k: [e.name for e in v]
             for k, v in dic_group.items()}
-
-        #print(self.I)
-        #print(self.G)
-        #print(self.Ig)
 
         self.T_int = self.problem_data.wildfire
 
