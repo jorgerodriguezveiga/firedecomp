@@ -21,7 +21,7 @@ class LagrangianRelaxation(object):
         problem_data,
         min_res_penalty=1000000,
         gap=0.01,
-        max_iters=10,
+        max_iters=100,
         max_time=60,
         log_level="LR",
         option_decomp='G',
@@ -70,7 +70,7 @@ class LagrangianRelaxation(object):
         self.lambda1 = []
         self.lambda1_prev = []
         for i in range(0,self.NL):
-            self.lambda1.append(1.0)
+            self.lambda1.append(0.1)
             self.lambda1_prev.append(0.0)
         # Create Relaxed Primal Problem
         self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
@@ -84,15 +84,6 @@ class LagrangianRelaxation(object):
         else:
             print("Error[0] Use 'G' to divide by groups, or 'R' to divide by resources ")
             sys.exit()
-        self.problem_DPP = []
-        self.DPP_sol_obj = []
-        for i in range(0,self.N):
-            string_i = self.problem_data.get_names("resources")[i]
-            self.problem_DPP.append(DPP.DecomposedPrimalProblem(problem_data,
-                                self.lambda1, i, string_i, self.option_decomp))
-            self.DPP_sol_obj.append(float("inf"))
-            if (self.option_decomp == 'R'):
-                self.groupR.append(self.problem_DPP[i].G[0])
 
 
 ###############################################################################
@@ -112,10 +103,11 @@ class LagrangianRelaxation(object):
         #for i in range(0,self.NL):
         #    self.lambda1[i] = self.lambda1[i] + l
 
-        self.lambda1[0] = self.lambda1[0] + 0.1
-        self.lambda1[1] = self.lambda1[1] + 0.1
-        self.lambda1[2] = self.lambda1[2] + 0.1
-        self.lambda1[3] = self.lambda1[3] + 0.1
+        const=1
+        self.lambda1[0] = self.lambda1[0] + const
+        self.lambda1[1] = self.lambda1[1] + const
+        self.lambda1[2] = self.lambda1[2] + const
+        self.lambda1[3] = self.lambda1[3] + const
 
         return self.lambda1
 
@@ -125,7 +117,6 @@ class LagrangianRelaxation(object):
     def convergence_checking(self):
         stop = bool(False)
         # check convergence
-
         if (self.v >= self.max_iters):
             stop = bool(True)
 
@@ -139,6 +130,9 @@ class LagrangianRelaxation(object):
         termination_criteria = bool(False)
 
         while (termination_criteria == False):
+            # (0) Initialize DPP
+            self.initialize_DPP()
+
             # (1) Solve DPP problems
             self.DPP_sol = []
             for i in range(0,self.N):
@@ -152,11 +146,14 @@ class LagrangianRelaxation(object):
             self.v = self.v + 1
 
             # Update solution in RPP.solution problem
-            self.problem_RPP.__set_solution_in_RPP__(self.DPP_sol,
-                        self.option_decomp, self.lambda1, self.solver_options,
-                        self.groupR)
-            self.RPP_sol = self.problem_RPP.solve(self.solver_options)
-            self.L_obj_down = self.RPP_sol.get_objfunction()
+            #self.problem_RPP.__set_solution_in_RPP__(self.DPP_sol,
+            #            self.option_decomp, self.lambda1, self.solver_options,
+            #            self.groupR)
+            #self.RPP_sol = self.problem_RPP.solve(self.solver_options)
+            self.L_obj_down = 0
+            for i in range(0,self.N):
+                self.L_obj_down  = self.L_obj_down  + self.DPP_sol_obj[i]
+
             if (self.L_obj_down > self.L_obj_down_prev):
                 self.L_obj_down_prev = self.L_obj_down
 
@@ -174,8 +171,13 @@ class LagrangianRelaxation(object):
                 self.problem_DPP[i].update_lambda1(self.lambda1)
 
             # Show iteration results
+            #self.problem_data.original_model.insert_soludion(self.DPP_sol,
+            #            self.option_decomp, self.lambda1, self.solver_options,
+            #            self.groupR)
+
+
             log.info("Iteration # mi lambda f(x) L(x,mi,lambda)")
-            print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1_prev)+" LowerBound: "+str(self.L_obj_down)+" Duality Gap\n")
+            print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1_prev)+" LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +"\n")
 
         return 1
 
@@ -219,3 +221,14 @@ class LagrangianRelaxation(object):
     def __set_solution_in_original_model__(self, solutions):
 
         return 1
+
+    def initialize_DPP(self):
+        self.problem_DPP = []
+        self.DPP_sol_obj = []
+        for i in range(0,self.N):
+            string_i = self.problem_data.get_names("resources")[i]
+            self.problem_DPP.append(DPP.DecomposedPrimalProblem(self.problem_data,
+                                self.lambda1, i, string_i, self.option_decomp))
+            self.DPP_sol_obj.append(float("inf"))
+            if (self.option_decomp == 'R'):
+                self.groupR.append(self.problem_DPP[i].G[0])

@@ -210,18 +210,18 @@ class RelaxedPrimalProblem(model.InputModel):
         Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T])
                     - sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]))
 
-        Constr2 = sum(self.M*self.y[t] - sum([self.PER[t1] for t1 in
-                  self.T_int.get_names(p_max=t)])*self.y[t-1] +
-                  sum([self.PR[i, t1]*self.w[i, t1]
-                  for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+        Constr2 = sum(self.M*self.y[t] - sum(self.PER[t1]*self.y[t-1]  for t1 in
+                  self.T_int.get_names(p_max=t))+
+                  sum(self.PR[i, t1]*self.w[i, t1]
+                  for i in self.I for t1 in self.T_int.get_names(p_max=t))
                   for t in self.T)
 # Non-Negligence of Fronts (14) and (15)
-        Constr3 = sum(-(sum([self.w[i, t]
-                    for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1]) + self.mu[g, t]
+        Constr3 = sum(-(sum(self.w[i, t]
+                    for i in self.Ig[g])) + (self.nMin[g, t]*self.y[t-1]) - self.mu[g, t]
                     for g in self.G for t in self.T)
 
-        Constr4 = sum(sum([self.w[i, t]
-                    for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
+        Constr4 = sum(sum(self.w[i, t]
+                    for i in self.Ig[g]) - self.nMax[g, t]*self.y[t-1]
                     for g in self.G for t in self.T)
 
 # Objective

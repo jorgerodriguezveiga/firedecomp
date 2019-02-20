@@ -75,6 +75,10 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
             k: [e.name for e in v]
             for k, v in dic_group.items()}
 
+        #print(self.I)
+        #print(self.G)
+        #print(self.Ig)
+
         self.T_int = self.problem_data.wildfire
 
 ##########################################################################################

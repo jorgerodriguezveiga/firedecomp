@@ -162,14 +162,20 @@ class Problem(object):
             log_level (:obj:`str`): logging level. Defaults to ``None``.
         """
         self.update_units()
+        self.time = None
+        self.solve_time = None
+        start_time = time.time()
         if method == 'original':
             if log_level is None:
                 log_level = 'WARNING'
-            self.original_model = model.InputModel(
+            self.original_model = _model.InputModel(
                 self, min_res_penalty=min_res_penalty)
             solution = self.original_model.solve(solver_options=solver_options)
             self.solve_status = solution.model.Status
-            return solution
+            self.mipgap = solution.model.mipgap
+            self.constrvio = solution.model.constrvio
+            self.solve_time = solution.model.runtime
+            model = solution
         elif method == 'benders':
             if log_level is None:
                 log_level = 'benders'
@@ -181,34 +187,40 @@ class Problem(object):
                 'solver_options_master': None,
                 'solver_options_subproblem': None,
             }
-            if isinstance(method_options, dict):
-                default_benders_options.update(method_options)
-            benders_problem = benders.Benders(
+            if isinstance(benders_options, dict):
+                default_benders_options.update(benders_options)
+            self.benders_model = benders.Benders(
                 self, **default_benders_options, log_level=log_level)
-            self.solve_status = benders_problem.solve()
-            return benders_problem
+            self.solve_status = self.benders_model.solve()
+            self.mipgap = self.benders_model.master.model.mipgap
+            self.constrvio = self.benders_model.master.model.constrvio
+            self.solve_time = self.benders_model.runtime
+            model = self.benders_model
         elif method == 'LR':
             if log_level is None:
                 log_level = 'LR'
 
             default_LR_options = {
                 'min_res_penalty': 1000000,
-                'gap': 0.01,
+                'gap': 0.0,
                 'max_iters': 100,
-                'max_time': 60,
-                'solver_options': None,
+                'max_time': 60
             }
             if isinstance(method_options, dict):
                 default_LR_options.update(method_options)
             LR_problem = LR.LagrangianRelaxation(
                 self, **default_LR_options, log_level=log_level)
             self.solve_status = LR_problem.solve()
-            return LR_problem
+            model = LR_problem
         else:
             raise ValueError(
                 "Incorrect method '{}'. Options allowed: {}".format(
                     method, ["original"]
                 ))
+
+        self.time = time.time() - start_time
+
+        return model
 
     def plot(self, info='scheduling'):
         """Plot solution.
