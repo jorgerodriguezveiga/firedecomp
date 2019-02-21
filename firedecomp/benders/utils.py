@@ -121,7 +121,7 @@ def get_start_resource_info(data, i, start_period):
             start = True
 
         if start:
-            if t == data.max_t:
+            if t >= data.max_t - data.TRP[i] + 1:
                 work_count += 1
                 travel_count += 1
                 travel[i, t] = 1
@@ -142,18 +142,15 @@ def get_start_resource_info(data, i, start_period):
                     work[i, t] = 1
             elif work_count <= data.WP[i]:
                 work_count += 1
-                travel_count += 1
                 travel[i, t] = 1
             elif work_count <= data.WP[i] + data.RP[i]:
                 work_count += 1
                 rest[i, t] = 1
-            elif work_count < data.WP[i] + data.RP[i]:
+            elif work_count < data.WP[i] + data.RP[i] + data.TRP[i]:
                 work_count += 1
-                travel_count += 1
                 travel[i, t] = 1
             else:
-                work_count = 0
-                travel_count += 1
+                work_count = 1 + data.TRP[i]
                 travel[i, t] = 1
         else:
             pass
