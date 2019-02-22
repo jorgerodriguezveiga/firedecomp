@@ -19,6 +19,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Fixed ###
 
 
+1.1.0 - 2019-02-22
+------------------
+
+### Added ###
+- Add options to solve the original feasible model adding slack variables to wildfire containment constraints.
+
+### Changed ###
+- Round to 3 digits model information to avoid numerical problems.
+
+### Removed ###
+
+### Fixed ###
+- Fix error computing rests periods.
+
+
 1.0.0 - 2019-02-18
 ------------------
 
