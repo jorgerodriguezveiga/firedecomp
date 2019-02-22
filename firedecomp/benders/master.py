@@ -247,6 +247,25 @@ class Master(object):
              for g in data.G for t in data.T),
             name='non_negligence_1')
 
+    def __build_non_negligence_2__(self):
+        data = self.data
+
+        y = self.variables.y
+        w = self.variables.w
+
+        expr_lhs = {
+            (g, t): sum([w[i, t] for i in data.Ig[g]])
+            for g in data.G for t in data.T}
+
+        expr_rhs = {
+            (g, t): data.nMax[g, t] * y[t - 1]
+            for g in data.G for t in data.T}
+
+        self.constraints.non_negligence_2 = self.model.addConstrs(
+            (expr_lhs[g, t] <= expr_rhs[g, t]
+             for g in data.G for t in data.T),
+            name='non_negligence_2')
+
     def __build_logical_1__(self):
         data = self.data
 
@@ -330,6 +349,7 @@ class Master(object):
         # Non-Negligence of Fronts
         # ------------------------
         self.__build_non_negligence_1__()
+        self.__build_non_negligence_2__()
 
         # Logical constraints
         # ------------------------

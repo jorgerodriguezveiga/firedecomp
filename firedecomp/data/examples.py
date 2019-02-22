@@ -13,6 +13,7 @@ from firedecomp.classes.resources_wildfire import ResourcePeriod, \
 from firedecomp.classes.groups_wildfire import GroupPeriod, GroupsWildfire
 from firedecomp.classes.problem import Problem
 from . import random as r
+from ..benders import utils
 
 
 # INPUT =======================================================================
@@ -90,7 +91,8 @@ def small_example():
 
 # input_example ---------------------------------------------------------------
 def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
-                  num_periods=20, ini_perimeter=20, random=False, seed=None):
+                  num_periods=20, contention_factor=10,
+                  random=False, seed=None):
     """Input example."""
     if seed is not None:
         np.random.seed(seed)
@@ -122,20 +124,63 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
     groups = Groups([brigades_grp, aircraft_grp, machines_grp])
 
     wildfire = wildfire_example(
-        num_periods=num_periods, ini_perimeter=ini_perimeter, random=random,
+        num_periods=num_periods, ini_perimeter=20, random=random,
         seed=seed)
 
     res_wild = ResourcesWildfire([ResourcePeriod(i, p, resources_efficiency=1)
                                   for i in resources for p in wildfire])
 
+    group_bounds = {
+        g: (
+            max(1, r.random_num(min(1, g.size()), g.size()/4, zero=0)),
+            min(5, r.random_num(g.size() * 3 / 4, g.size(), zero=0))
+        )
+        for g in groups}
+
     grp_wild = GroupsWildfire([
-        GroupPeriod(g, p,
-                    min_res_groups=min(1, g.size()), max_res_groups=g.size())
-        if g.name == "brigades" else
-        GroupPeriod(g, p, min_res_groups=0, max_res_groups=g.size())
+        GroupPeriod(
+            g, p,
+            min_res_groups=group_bounds[g][0],
+            max_res_groups=group_bounds[g][1])
         for g in groups for p in wildfire])
 
-    return Problem(resources, wildfire, groups, grp_wild, res_wild)
+    problem_data = Problem(resources, wildfire, groups, grp_wild, res_wild)
+    data = problem_data.data
+
+    info = utils.get_start_info(
+        data=data,
+        start_dict={(i, t): 1 if t == 1 else 0
+                    for i, t in res_wild.get_names()})
+
+    sum_work_periods = {
+        i: sum([info['work'][i, t]*data.PR[i, t] for t in data.T
+                if t <= data.WP[i] - data.CUP[i]])
+        for i in data.I}
+
+    max_res_groups = {g: min([data.nMax[g, t] for t in data.T])
+                      for g in data.G}
+    max_performance = 0
+    for g in data.G:
+        max_performance += sum(np.sort([
+            sum_work_periods[i]
+            for i in data.Ig[g]])[:max_res_groups[g]])
+
+    def get_perimeter(period, periods, ini_perim, end_perim):
+        step = max(1, (end_perim - ini_perim)/periods)
+        return round(ini_perim + step * (period - 1), 2)
+
+    for p in problem_data.wildfire:
+        p.perimeter = get_perimeter(
+            p.get_index(), num_periods,
+            contention_factor*max_performance/num_periods,
+            max_performance)
+
+    problem_data.wildfire.compute_increments()
+
+    problem_data.__build_data__()
+    problem_data.__build_period_data__()
+
+    return problem_data
 # --------------------------------------------------------------------------- #
 
 

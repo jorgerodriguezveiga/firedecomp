@@ -82,6 +82,7 @@ class Benders(object):
         self.period_status = 1
         self.iter = 0
         self.time = 0
+        self.runtime = 0
         self.__start_time__ = time.time()
 
         self.best_sol = None
@@ -199,6 +200,7 @@ class Benders(object):
 
     def solve(self):
         self.status = 1
+        self.runtime = 0
         self.__start_time__ = time.time()
         data = self.problem_data.data
 
@@ -234,24 +236,30 @@ class Benders(object):
         self.log.benders(sep)
 
         new_obj = float('inf')
-        periods = list(set(
-            [
-                p for p in np.arange(
-                    self.start_period, data.max_t+1, self.step_period)
-            ] + [data.max_t]
-        ))
+        periods = [
+            p
+            for p in np.arange(self.start_period, data.max_t, self.step_period)
+        ] + [data.max_t]
 
         for period in periods:
+            self.log.info("Period: {}".format(period))
             self.best_obj_period = new_obj
             status = self.solve_periods(max_period=int(period))
             if status == 2:
                 new_obj = self.problem_data.get_cost()
-                if abs(self.best_obj_period - new_obj) <= 1e-5:
+                if abs(self.best_obj_period - new_obj) <= self.mip_gap_obj:
                     self.log.benders("\nConvergence.")
                     self.status = 2
                     break
                 else:
-                    self.log.benders(sep)
+                    if period == data.max_t:
+                        self.status = 2
+                    else:
+                        self.log.benders(sep)
+                        self.status = 1
+            else:
+                self.log.benders("")
+                self.status = status
 
         return self.status
 
@@ -291,6 +299,7 @@ class Benders(object):
             self.log.debug("\t[MASTER]:")
             master_status = master.solve(
                 solver_options=self.solver_options_master)
+            self.runtime += master.model.runtime
 
             if master_status == 3:
                 self.log.debug("\t - Not optimal solution.")
@@ -316,6 +325,7 @@ class Benders(object):
                 self.log.debug("\t[SUBPROBLEM]:")
                 sub_status = subproblem.solve(
                     solver_options=self.solver_options_subproblem)
+                self.runtime += subproblem.model.runtime
 
                 if sub_status == 2:
                     self.log.debug("\t - Optimal")
@@ -337,6 +347,7 @@ class Benders(object):
                     self.log.debug("\t[SLACK SUBPROBLEM]:")
                     sub_infeas_status = subproblem_infeas.solve(
                         solver_options=self.solver_options_subproblem)
+                    self.runtime += sub_infeas_status.model.runtime
 
                     if sub_infeas_status == 2:
                         self.log.debug("\t - Optimal")
@@ -355,6 +366,7 @@ class Benders(object):
                 self.log.debug("\t[SUBPROBLEM]:")
                 sub_infeas_status = subproblem_infeas.solve(
                     solver_options=self.solver_options_subproblem)
+                self.runtime += subproblem_infeas.model.runtime
 
                 if sub_infeas_status == 2:
                     if subproblem_infeas.model.getObjective().getValue() == 0:

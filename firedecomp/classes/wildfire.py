@@ -2,6 +2,7 @@
 
 # Package modules
 from firedecomp.classes import general as gc
+from firedecomp.classes import resources_wildfire as rw
 
 
 # Period ----------------------------------------------------------------------
@@ -31,6 +32,10 @@ class Period(gc.Element):
         self.cost = cost
         self.increment_cost = None
         self.contained = contained
+        self.__resource_period__ = rw.ResourcesWildfire([])
+
+    def get_increment_perimeter(self):
+        return self.increment_perimeter * (not self.contained)
 # --------------------------------------------------------------------------- #
 
 
@@ -134,4 +139,8 @@ class Wildfire(gc.Set):
 
             cost_prev = p.cost
             perimeter_prev = p.perimeter
+
+    def get_contention_perimeter(self):
+        """Compute total perimeter before the wildfire is contained."""
+        return sum([p.get_increment_perimeter() for p in self])
 # --------------------------------------------------------------------------- #

@@ -1,7 +1,10 @@
 """Module to define input class."""
 
+# Python package
+import time
+
 # Package modules
-from firedecomp.original import model
+from firedecomp.original import model as _model
 from firedecomp.benders import benders
 from firedecomp import config
 from firedecomp import plot
@@ -40,6 +43,10 @@ class Problem(object):
         self.branch_price_model = None
         self.lagrangian_model = None
         self.solve_status = None
+        self.mipgap = None
+        self.constrvio = None
+        self.time = None
+        self.solve_time = None
 
         self.__build_data__()
         self.__build_period_data__()
@@ -74,9 +81,36 @@ class Problem(object):
         if inplace is not True:
             return problem
 
+    def check_feasibility(self):
+        """Check problem feasibility.
+
+        Todo: Check problem feasibility.
+        """
+        pass
+
+    def get_slack_wildfire_containment_1(self):
+        """Get slack of the wildfire containment 1 constraints.
+        """
+        self.update_units()
+        return self.resources_wildfire.get_performance() - \
+            self.wildfire.get_contention_perimeter()
+
+    def get_slack_wildfire_containment_2(self):
+        """Get slack of the wildfire containment 2 constraints.
+        """
+        period_performance = {
+            p.get_index():
+                p.__resource_period__.get_performance() -
+                p.get_increment_perimeter()
+            for p in self.wildfire}
+        cum = 0
+        for k, v in period_performance.items():
+            cum += v
+            period_performance[k] = cum
+        return period_performance
+
     def get_cost(self, resources=True, wildfire=True,
-                 resources_penalty=True, per_period=False,
-                 min_res_penalty=1000000):
+                 resources_penalty=True, per_period=False):
         """Return objective function value."""
         cost = {t: 0 for t in self.wildfire.get_names()}
         if resources:
@@ -94,7 +128,7 @@ class Problem(object):
                     for k, c in cost.items()}
 
         if resources_penalty:
-            cost = {k: c + sum([min_res_penalty * gp.num_left_resources
+            cost = {k: c + sum([self.min_res_penalty * gp.num_left_resources
                                 for gp in self.groups_wildfire
                                 if gp.get_index()[1] <= k])
                     for k, c in cost.items()}
@@ -158,14 +192,20 @@ class Problem(object):
             log_level (:obj:`str`): logging level. Defaults to ``None``.
         """
         self.update_units()
+        self.time = None
+        self.solve_time = None
+        start_time = time.time()
         if method == 'original':
             if log_level is None:
                 log_level = 'WARNING'
-            self.original_model = model.InputModel(
+            self.original_model = _model.InputModel(
                 self, min_res_penalty=min_res_penalty)
             solution = self.original_model.solve(solver_options=solver_options)
             self.solve_status = solution.model.Status
-            return solution
+            self.mipgap = solution.model.mipgap
+            self.constrvio = solution.model.constrvio
+            self.solve_time = solution.model.runtime
+            model = solution
         elif method == 'benders':
             if log_level is None:
                 log_level = 'benders'
@@ -179,15 +219,47 @@ class Problem(object):
             }
             if isinstance(benders_options, dict):
                 default_benders_options.update(benders_options)
-            benders_problem = benders.Benders(
+            self.benders_model = benders.Benders(
                 self, **default_benders_options, log_level=log_level)
-            self.solve_status = benders_problem.solve()
-            return benders_problem
+            self.solve_status = self.benders_model.solve()
+            self.mipgap = self.benders_model.master.model.mipgap
+            self.constrvio = self.benders_model.master.model.constrvio
+            self.solve_time = self.benders_model.runtime
+            model = self.benders_model
         else:
             raise ValueError(
                 "Incorrect method '{}'. Options allowed: {}".format(
                     method, ["original"]
                 ))
+
+        self.time = time.time() - start_time
+
+        return model
+
+    def get_solution_info(self):
+        """Get solution information."""
+        res_cost = self.get_cost(
+                resources=True, wildfire=False, resources_penalty=False)
+        wildfire_cost = self.get_cost(
+                resources=False, wildfire=True, resources_penalty=False)
+        res_penalty = self.get_cost(
+                resources=False, wildfire=False, resources_penalty=True)
+        objfun = res_cost + wildfire_cost + res_penalty
+        return {
+            'obj_fun': objfun,
+            'res_cost': res_cost,
+            'wildfire_cost': wildfire_cost,
+            'resources_penalty': res_penalty,
+            'mipgap': self.mipgap,
+            'mipgapabs': self.mipgap*objfun,
+            'constrvio': self.constrvio,
+            'status': self.solve_status,
+            'solve_time': self.solve_time,
+            'elapsed_time': self.time,
+            'selected_resources': sum([r.select for r in self.resources]),
+            'contention_period': sum([p.contained is False
+                                      for p in self.wildfire])
+        }
 
     def plot(self, info='scheduling'):
         """Plot solution.

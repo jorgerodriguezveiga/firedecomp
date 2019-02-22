@@ -4,7 +4,7 @@
 import numpy as np
 import plotly.graph_objs as go
 import plotly
-plotly.offline.init_notebook_mode()
+# plotly.offline.init_notebook_mode()
 
 
 # plot_contention -------------------------------------------------------------

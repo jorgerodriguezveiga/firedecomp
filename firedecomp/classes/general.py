@@ -1,5 +1,8 @@
 """Module with general classes definition."""
 
+# Python packages
+import copy
+
 
 # Element ---------------------------------------------------------------------
 class Element(object):
@@ -13,20 +16,11 @@ class Element(object):
         """
         self.name = name
 
-    def copy(self):
-        obj = type(self).__new__(self.__class__)
-        for k, v in self.__dict__.items():
-            if isinstance(v, list):
-                obj.__dict__[k] = [e.copy() if 'copy' in dir(e) else e
-                                   for e in v]
-            elif isinstance(v, dict):
-                obj.__dict__[k] = {i: e.copy() if 'copy' in dir(e) else e
-                                   for i, e in v.items()}
-            elif 'copy' in dir(v):
-                obj.__dict__[k] = v.copy()
-            else:
-                obj.__dict__[k] = v
-        return obj
+    def copy(self, deep=False):
+        if deep:
+            return copy.deepcopy(self)
+        else:
+            return copy.copy(self)
 
     def get_index(self):
         """Return index."""
@@ -40,6 +34,12 @@ class Element(object):
                 update.
         """
         self.__dict__.update(dictionary)
+
+    # def __setattr__(self, key, value):
+    #     if key.startswith("__"):
+    #         raise AttributeError(
+    #             "Not allow assignment to protected member '{}'".format(key))
+    #     self.__dict__[key] = value
 
     def __repr__(self):
         index = self.name
@@ -62,12 +62,11 @@ class Set(object):
             elements (:obj:`list`): list of elements.
         """
         self.__index__ = self.__check_names__(elements)
-        self.elements = elements
 
     @staticmethod
     def __check_names__(elements):
         """Check resource names."""
-        indices = {e.get_index(): i for i, e in enumerate(elements)}
+        indices = {e.get_index(): e for e in elements}
         if len(elements) == len(indices):
             return indices
         else:
@@ -85,7 +84,7 @@ class Set(object):
         if len(e) == 1:
             e = e[0]
         if e in self.get_names():
-            return self.elements[self.__index__[e]]
+            return self.__index__[e]
         else:
             raise ValueError("Unknown element name: '{}'".format(e))
 
@@ -95,26 +94,17 @@ class Set(object):
         Args:
             attr (:obj:`str`): attribute name.
         """
-        return {e.get_index(): getattr(e, attr)
-                for e in self.elements}
+        return {k: getattr(e, attr)
+                for k, e in self.__index__.items()}
 
     def size(self):
-        return len(self.elements)
+        return len(self.__index__)
 
-    def copy(self):
-        obj = type(self).__new__(self.__class__)
-        for k, v in self.__dict__.items():
-            if isinstance(v, list):
-                obj.__dict__[k] = [e.copy() if 'copy' in dir(e) else e
-                                   for e in v]
-            elif isinstance(v, dict):
-                obj.__dict__[k] = {i: e.copy() if 'copy' in dir(e) else e
-                                   for i, e in v.items()}
-            elif 'copy' in dir(v):
-                obj.__dict__[k] = v.copy()
-            else:
-                obj.__dict__[k] = v
-        return obj
+    def copy(self, deep=True):
+        if deep:
+            return copy.deepcopy(self)
+        else:
+            return copy.copy(self)
 
     def update(self, dictionary):
         """Update object attributes.
@@ -126,12 +116,21 @@ class Set(object):
         for e, v in dictionary.items():
             self.get_element(e).__dict__.update(v)
 
+    # def __setattr__(self, key, value):
+    #     if key.startswith("__"):
+    #         raise AttributeError(
+    #             "Not allow assignment to protected member '{}'".format(key))
+    #     self.__dict__[key] = value
+
     def __iter__(self):
-        return (e for e in self.elements)
+        return (e for e in self.__index__.values())
 
     def __getitem__(self, element):
         return self.get_element(element)
 
+    def __setitem__(self, key, value):
+        self.__index__[key] = value
+
     def __repr__(self):
-        return self.elements.__repr__()
+        return [e for e in self].__repr__()
 # --------------------------------------------------------------------------- #

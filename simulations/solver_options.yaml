@@ -1,0 +1,18 @@
+original:
+  solver_options:
+    MIPGapAbs: 0
+    MIPGap: 0
+    OutputFlag: 1
+    LogToConsole: 1
+benders:
+  mip_gap_obj: 0.01
+  compute_feas_cuts: False
+  n_start_info: 20
+  max_iters: 100
+  start_period: 20
+  step_period: 6
+  solver_options_master:
+    MIPGapAbs: 0
+    MIPGap: 0
+    OutputFlag: 0
+    LogToConsole: 0

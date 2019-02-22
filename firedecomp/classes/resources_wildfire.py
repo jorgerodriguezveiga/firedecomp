@@ -39,16 +39,26 @@ class ResourcePeriod(gc.Element):
         super(ResourcePeriod, self).__init__(
             name=(resource.get_index(), period.get_index()))
         self.resource = resource
+        self.resource.__resource_period__.add(self)
         self.period = period
+        self.period.__resource_period__.add(self)
         self.resources_efficiency = resources_efficiency
         self.resource_performance = resources_efficiency*resource.performance
-        self.start = start
-        self.travel = travel
-        self.rest = rest
-        self.end_rest = end_rest
-        self.end = end
-        self.use = use
-        self.work = work
+
+        self.start = None
+        self.travel = None
+        self.rest = None
+        self.end_rest = None
+        self.end = None
+        self.use = None
+        self.work = None
+
+        self.update_status(
+            start=start, travel=travel, rest=rest, end_rest=end_rest, end=end,
+            use=use, work=work)
+
+    def get_performance(self):
+        return self.resource_performance * self.work
 
     def update_units(self, time, period_unit, inplace=True):
         """Update resource attributes units.
@@ -70,10 +80,34 @@ class ResourcePeriod(gc.Element):
         else:
             prop_time_hour = time/60
 
-        self.resource_performance = self.resource_performance/prop_time_hour
+        self.resource_performance = round(
+            self.resource_performance/prop_time_hour, 3)
 
         if inplace is not True:
             return resource_period
+
+    def update_status(self, start=False, travel=False, rest=False,
+                      end_rest=False, end=False, use=False, work=False):
+        """Update resource status."""
+        if use is True:
+            if sum([travel, rest, work]) != 1:
+                raise ValueError(
+                    "Travel, rest or work cant be True at same time.")
+
+        if end_rest is True and rest is False:
+            raise ValueError("If end_rest is True, rest must be True also")
+
+        if start is True or end is True:
+            if use is False:
+                raise ValueError("When the resource starts or ends it must be "
+                                 "used.")
+        self.start = start
+        self.travel = travel
+        self.rest = rest
+        self.end_rest = end_rest
+        self.end = end
+        self.use = use
+        self.work = work
 # --------------------------------------------------------------------------- #
 
 
@@ -104,4 +138,16 @@ class ResourcesWildfire(gc.Set):
         """
         for e in self:
             e.update_units(time=time, period_unit=period_unit, inplace=inplace)
+
+    def get_performance(self):
+        """Get total resources performance in the wildfire."""
+        return sum([rp.get_performance() for rp in self])
+
+    def add(self, element):
+        new_id = element.get_index()
+        if new_id not in self.get_names():
+            self.__index__[new_id] = element
+
+    def remove(self, index):
+        del self.__index__[index]
 # --------------------------------------------------------------------------- #
