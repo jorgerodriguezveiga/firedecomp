@@ -80,7 +80,8 @@ class ResourcePeriod(gc.Element):
         else:
             prop_time_hour = time/60
 
-        self.resource_performance = self.resource_performance/prop_time_hour
+        self.resource_performance = round(
+            self.resource_performance/prop_time_hour, 3)
 
         if inplace is not True:
             return resource_period

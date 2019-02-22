@@ -97,16 +97,18 @@ class Resource(gc.Element):
             prop_time_min = time
             prop_time_hour = time/60
 
-        resource.arrival = self.arrival*prop_time_min
-        resource.work = self.work*prop_time_min
-        resource.rest = self.rest*prop_time_min
-        resource.total_work = self.total_work*prop_time_min
-        resource.performance = self.performance/prop_time_hour
-        resource.variable_cost = self.variable_cost/prop_time_hour
-        resource.time_between_rests = self.time_between_rests*prop_time_min
-        resource.max_work_time = self.max_work_time*prop_time_min
-        resource.necessary_rest_time = self.necessary_rest_time*prop_time_min
-        resource.max_work_daily = self.max_work_daily*prop_time_min
+        resource.arrival = round(self.arrival*prop_time_min, 3)
+        resource.work = round(self.work*prop_time_min, 3)
+        resource.rest = round(self.rest*prop_time_min, 3)
+        resource.total_work = round(self.total_work*prop_time_min, 3)
+        resource.performance = round(self.performance/prop_time_hour, 3)
+        resource.variable_cost = round(self.variable_cost/prop_time_hour, 3)
+        resource.time_between_rests = round(
+            self.time_between_rests*prop_time_min, 3)
+        resource.max_work_time = round(self.max_work_time*prop_time_min, 3)
+        resource.necessary_rest_time = round(
+            self.necessary_rest_time*prop_time_min, 3)
+        resource.max_work_daily = round(self.max_work_daily*prop_time_min, 3)
 
         if inplace is not True:
             return resource
