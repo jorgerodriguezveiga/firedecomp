@@ -123,9 +123,17 @@ class InputModel(object):
 
 
 # model -----------------------------------------------------------------------
-def model(data, relaxed=False):
+def model(data, relaxed=False, slack_containment=False,
+          slack_penalty=1000000000000):
     """Wildfire suppression model.
-    data (:obj:`firedecomp.model.InputModel`): problem data.
+
+    Args:
+        data (:obj:`firedecomp.model.InputModel`): problem data.
+        relaxed (:obj:`bool`): if True variables will be continuous. Defaults
+            to False.
+        slack_containment (:obj:`bool`): if True add slack variable to wildfire
+            containment constraints. Defaults to False.
+        slack_penalty (:obj:`float`): slack containment penalty.
     """
     m = gurobipy.Model("wildfire_supression")
 
@@ -172,7 +180,7 @@ def model(data, relaxed=False):
             (t+data.CWP[i]-data.CRP[i]) * s[i, data.min_t]
             + sum([
                 (t + 1 - t1 + data.WP[i]) * s[i, t1]
-                for t1 in data.T_int.get_names(p_min=data.min_t + 1)])
+                for t1 in data.T_int.get_names(p_min=data.min_t + 1, p_max=t)])
             - sum([
                 (t - t1) * e[i, t1]
                 + r[i, t1]
@@ -181,25 +189,6 @@ def model(data, relaxed=False):
         for i in data.I for t in data.T
         if data.ITW[i] or data.IOW[i]})
 
-    # cr.update({
-    #     (i, t):
-    #         (t+data.CWP[i]-data.CRP[i]) * s[i, data.min_t]
-    #         + sum([
-    #             2*data.WP[i]*s[i, t1]
-    #             for t1 in data.T_int.get_names(
-    #                 p_min=data.min_t + 1, p_max=data.RP[i]+data.TRP[i])])
-    #         + sum([
-    #             (t + 1 - t1) * s[i, t1]
-    #             for t1 in data.T_int.get_names(
-    #                 p_min=data.RP[i]+data.TRP[i]+1, p_max=t)])
-    #         - sum([
-    #             (t - t1) * e[i, t1]
-    #             + r[i, t1]
-    #             + data.WP[i] * er[i, t1]
-    #             for t1 in data.T_int.get_names(p_max=t)])
-    #     for i in data.I for t in data.T
-    #     if data.ITW[i] or data.IOW[i]})
-
     # Wildfire
     # --------
     y = m.addVars(data.T + [data.min_t-1], vtype=vtype, lb=lb, ub=ub,
@@ -207,14 +196,27 @@ def model(data, relaxed=False):
     mu = m.addVars(data.G, data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
                    name="missing_resources")
 
-    slack_cont1 = m.addVar(vtype=gurobipy.GRB.CONTINUOUS, lb=0,
-                      name="slack_containment_1")
+    if slack_containment:
+        slack_cont1 = m.addVar(vtype=gurobipy.GRB.CONTINUOUS, lb=0,
+                               name="slack_containment_1")
 
-    slack_cont2 = m.addVars(data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
-                            name="slack_containment_2")
+        slack_cont2 = m.addVars(data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
+                                name="slack_containment_2")
 
     # Objective
     # =========
+    obj_expression = \
+        sum([data.C[i]*u[i, t] for i in data.I for t in data.T]) + \
+        sum([data.P[i] * z[i] for i in data.I]) + \
+        sum([data.NVC[t] * y[t-1] for t in data.T]) + \
+        sum([data.Mp*mu[g, t] for g in data.G for t in data.T]) + \
+        0.001*y[data.max_t]
+
+    if slack_containment:
+        obj_expression += \
+            slack_penalty * slack_cont1 + \
+            sum([slack_penalty * slack_cont2[t] for t in data.T])
+
     m.setObjective(sum([data.C[i]*u[i, t] for i in data.I for t in data.T]) +
                    sum([data.P[i] * z[i] for i in data.I]) +
                    sum([data.NVC[t] * y[t-1] for t in data.T]) +
@@ -231,17 +233,36 @@ def model(data, relaxed=False):
     # --------------------
     m.addConstr(y[data.min_t-1] == 1, name='start_no_contained')
 
-    m.addConstr(sum([data.PER[t]*y[t-1] for t in data.T]) <=
-                slack_cont1 + sum([data.PR[i, t]*w[i, t] for i in data.I for t in data.T]),
-                name='wildfire_containment_1')
+    if slack_containment:
+        wildfire_containment_1_expr = \
+            sum([data.PER[t] * y[t - 1] for t in data.T]) <= \
+            sum([data.PR[i, t] * w[i, t] for i in data.I for t in data.T]) + \
+            slack_cont1
+    else:
+        wildfire_containment_1_expr = \
+            sum([data.PER[t] * y[t - 1] for t in data.T]) <= \
+            sum([data.PR[i, t] * w[i, t] for i in data.I for t in data.T])
 
-    m.addConstrs(
-        (data.M*y[t] + slack_cont2[t] >=
-         sum([data.PER[t1] for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
-         sum([data.PR[i, t1]*w[i, t1]
-              for i in data.I for t1 in data.T_int.get_names(p_max=t)])
-         for t in data.T),
-        name='wildfire_containment_2')
+    m.addConstr(wildfire_containment_1_expr, name='wildfire_containment_1')
+
+    if slack_containment:
+        wildfire_containment_1_expr = (
+            data.M*y[t] + slack_cont2[t] >=
+            sum([data.PER[t1]
+                 for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
+            sum([data.PR[i, t1]*w[i, t1]
+                 for i in data.I for t1 in data.T_int.get_names(p_max=t)])
+            for t in data.T)
+    else:
+        wildfire_containment_1_expr = (
+            data.M*y[t] >=
+            sum([data.PER[t1]
+                 for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
+            sum([data.PR[i, t1]*w[i, t1]
+                 for i in data.I for t1 in data.T_int.get_names(p_max=t)])
+            for t in data.T)
+
+    m.addConstrs(wildfire_containment_1_expr, name='wildfire_containment_2')
 
     # Start of activity
     # -----------------
