@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added ###
 - Add options to solve the original feasible model adding slack variables to wildfire containment constraints.
+- Add simulations folder.
 
 ### Changed ###
 - Round to 3 digits model information to avoid numerical problems.
