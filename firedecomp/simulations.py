@@ -24,7 +24,8 @@ def simulations(
         num_periods=None,
         modes=None,
         solver_options=None,
-        solution_file='solution.csv'
+        solution_file='solution.csv',
+        append_results=False
 ):
     """Solve simulations.
 
@@ -45,6 +46,8 @@ def simulations(
         solver_options (:obj:`dict`): solver options. If None default options.
         solution_file (:obj:`str`): filename (.csv) with transferring results.
             Defaults to ``'solution.csv'``.
+        append_results (:obj:`str`): if ``True`` append results to the previous
+            ones.
     """
     if num_simulations is None:
         num_simulations = 10
@@ -68,7 +71,11 @@ def simulations(
         num_brigades, num_aircraft, num_machines, num_periods)
 
     header = True
-    mode = 'w'
+
+    if append_results:
+        mode = 'a'
+    else:
+        mode = 'w'
 
     for brigades, aircraft, machines, periods in comb:
         log.info("#####################################")
@@ -117,12 +124,14 @@ def simulations(
                     if 'benders' in solver_options:
                         benders_options = solver_options['benders']
 
+                print(1)
                 instance.solve(
                     method=m,
                     solver_options=original_options,
                     benders_options=benders_options,
                     min_res_penalty=1000000,
                     log_level=None)
+                print(2)
 
                 solution_dict.update(instance.get_solution_info())
 
@@ -234,6 +243,14 @@ def parse_args():
     )
 
     parser.add_argument(
+        "-ar",
+        "--append_results",
+        action="store_true",
+        help="Append results to the previous ones.",
+        required=False
+    )
+
+    parser.add_argument(
         "-v",
         "--verbose",
         action="count", default=0,
@@ -315,6 +332,7 @@ def main():
     print_solver_options = args.print_solver_options
     out_directory = args.out_directory
     solution_file = args.solution_file
+    append_results = args.append_results
     verbose = args.verbose
     version = args.version
 
@@ -368,7 +386,8 @@ def main():
         num_periods=num_periods,
         modes=modes,
         solver_options=solver_options,
-        solution_file=solution_file_path
+        solution_file=solution_file_path,
+        append_results=append_results
     )
 # --------------------------------------------------------------------------- #
 
