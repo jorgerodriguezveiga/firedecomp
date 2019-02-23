@@ -56,6 +56,9 @@ class Benders(object):
                 options for the subproblem. If ``None`` no options. Defaults to
                 ``None``.
             log_level (:obj:`str`): logging level. Defaults to ``'benders'``.
+
+            ToDo: add max_cpu_time.
+            ToDo: add initial solution to the solver when te period is increase.
         """
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
@@ -199,6 +202,7 @@ class Benders(object):
         self.master.add_feas_int_cut(coeffs, rhs)
 
     def solve(self):
+        """Solve the problem."""
         self.status = 1
         self.runtime = 0
         self.__start_time__ = time.time()
@@ -241,10 +245,16 @@ class Benders(object):
             for p in np.arange(self.start_period, data.max_t, self.step_period)
         ] + [data.max_t]
 
+        warm_start = False
+
         for period in periods:
             self.log.info("Period: {}".format(period))
             self.best_obj_period = new_obj
-            status = self.solve_periods(max_period=int(period))
+            if self.best_obj_period < float('inf'):
+                self.master.max_obj = self.best_obj_period
+            status = self.solve_periods(max_period=int(period),
+                                        warm_start=warm_start)
+            warm_start = True
             if status == 2:
                 new_obj = self.problem_data.get_cost()
                 if abs(self.best_obj_period - new_obj) <= self.mip_gap_obj:
@@ -263,7 +273,7 @@ class Benders(object):
 
         return self.status
 
-    def solve_periods(self, max_period=None):
+    def solve_periods(self, max_period=None, warm_start=False):
 
         self.period_status = 1
         if max_period is None:
@@ -273,6 +283,8 @@ class Benders(object):
         self.master.update_model()
 
         master = self.master
+        if warm_start:
+            self.master.use_warm_start()
         subproblem = self.subproblem
         subproblem_infeas = self.subproblem_infeas
 

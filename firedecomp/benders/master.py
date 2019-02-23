@@ -26,6 +26,7 @@ class Master(object):
         self.obj_resources_variable = None
         self.obj_wildfire = None
         self.obj_law = None
+        self.max_obj = None
 
         self.__start_info__ = {}
         self.__build_model__()
@@ -95,6 +96,21 @@ class Master(object):
         self.variables.mu = self.model.addVars(
             data.G, data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
             name="missing_resources")
+
+    def use_warm_start(self):
+        res_wild = self.problem_data.resources_wildfire
+        wild = self.problem_data.wildfire
+        grp_wild = self.problem_data.groups_wildfire
+
+        for t in self.data.T:
+            self.variables.y[t].start = int(not wild[t].contained)
+            for i in self.data.I:
+                self.variables.s[i, t].start = int(res_wild[i, t].start)
+                self.variables.e[i, t].start = int(res_wild[i, t].end)
+                self.variables.w[i, t].start = int(res_wild[i, t].work)
+            for g in self.data.G:
+                self.variables.mu[g, t].start = \
+                    grp_wild[g, t].num_left_resources
 
     def get_S_set(self):
         shared_variables = ["start"]
@@ -323,6 +339,11 @@ class Master(object):
         self.constraints.opt_start_int = {}
         self.constraints.content_feas_int = {}
         self.constraints.feas_int = {}
+        self.constraints.max_obj = None
+
+        # Max obj
+        # -------
+        self.__build_max_obj_cut__()
 
         # Start info
         # ----------
@@ -356,6 +377,35 @@ class Master(object):
         self.__build_logical_1__()
         self.__build_logical_2__()
         self.__build_logical_4__()
+
+    def __build_max_obj_cut__(self):
+        if self.max_obj is not None:
+            m = self.model
+            data = self.data
+            z = self.variables.z
+            u = self.variables.u
+            y = self.variables.y
+
+            mu = self.variables.mu
+
+            self.variables.fix_cost_resources = sum(
+                [data.P[i] * z[i] for i in data.I])
+            self.variables.variable_cost_resources = sum(
+                [data.C[i] * u[i, t] for i in data.I for t in data.T])
+            self.variables.wildfire_cost = sum(
+                [data.NVC[t] * y[t - 1] for t in data.T])
+            self.variables.law_cost = sum(
+                [data.Mp * mu[g, t] for g in data.G for t in data.T])
+
+            lhs = self.max_obj
+            rhs = \
+                self.variables.fix_cost_resources + \
+                self.variables.variable_cost_resources + \
+                self.variables.wildfire_cost + \
+                self.variables.law_cost
+
+            self.constraints.max_obj = m.addConstr(lhs >= rhs, name='max_obj')
+            m.update()
 
     def __build_opt_start_init_cuts__(self):
         for it, v in self.__start_info__.items():
