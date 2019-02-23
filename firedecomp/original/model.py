@@ -217,14 +217,7 @@ def model(data, relaxed=False, slack_containment=False,
             slack_penalty * slack_cont1 + \
             sum([slack_penalty * slack_cont2[t] for t in data.T])
 
-    m.setObjective(sum([data.C[i]*u[i, t] for i in data.I for t in data.T]) +
-                   sum([data.P[i] * z[i] for i in data.I]) +
-                   sum([data.NVC[t] * y[t-1] for t in data.T]) +
-                   sum([data.Mp*mu[g, t] for g in data.G for t in data.T]) +
-                   0.001*y[data.max_t] +
-                   1000000000000 * slack_cont1 +
-                   sum([1000000000000 * slack_cont2[t] for t in data.T])
-                   , gurobipy.GRB.MINIMIZE)
+    m.setObjective(obj_expression, gurobipy.GRB.MINIMIZE)
 
     # Constraints
     # ===========
