@@ -84,17 +84,18 @@ class InputModel(object):
             if self.relaxed is not True:
                 # Load variables values
                 self.problem_data.resources.update_select(
-                    {i: m.variables.z[i].getValue() == 1 for i in self.I})
+                    {i: round(m.variables.z[i].getValue()) == 1
+                     for i in self.I})
 
                 self.problem_data.resources_wildfire.update(
                     {(i, t): {
-                        'start': m.variables.s[i, t].x == 1,
-                        'travel': m.variables.tr[i, t].x == 1,
-                        'rest': m.variables.r[i, t].x == 1,
-                        'end_rest': m.variables.er[i, t].x == 1,
-                        'end': m.variables.e[i, t].x == 1,
-                        'use': m.variables.u[i, t].getValue() == 1,
-                        'work': m.variables.w[i, t].getValue() == 1
+                        'start': round(m.variables.s[i, t].x) == 1,
+                        'travel': round(m.variables.tr[i, t].x) == 1,
+                        'rest': round(m.variables.r[i, t].x) == 1,
+                        'end_rest': round(m.variables.er[i, t].x) == 1,
+                        'end': round(m.variables.e[i, t].x) == 1,
+                        'use': round(m.variables.u[i, t].getValue()) == 1,
+                        'work': round(m.variables.w[i, t].getValue()) == 1
                     }
                      for i in self.I for t in self.T})
 
@@ -102,7 +103,7 @@ class InputModel(object):
                     {(g, t): {'num_left_resources': m.variables.mu[g, t].x}
                      for g in self.G for t in self.T})
 
-                contained = {t: m.variables.y[t].x == 0 for t in self.T}
+                contained = {t: round(m.variables.y[t].x) == 0 for t in self.T}
                 contained_period = [t for t, v in contained.items()
                                     if v is True]
 

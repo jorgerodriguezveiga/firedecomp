@@ -452,25 +452,26 @@ class Master(object):
 
             # Load variables values
             self.problem_data.resources.update(
-                {i: {'select': variables.z[i].getValue() == 1}
+                {i: {'select': round(variables.z[i].getValue()) == 1}
                  for i in self.data.I})
 
-            s = {(i, t): variables.s[i, t].x == 1
+            s = {(i, t): round(variables.s[i, t].x) == 1
                  if t <= self.data.max_t else False
                  for i in self.data.I for t in orig_data.T}
-            u = {(i, t): self.variables.u[i, t].getValue() == 1
+            u = {(i, t): round(self.variables.u[i, t].getValue()) == 1
                  if t <= self.data.max_t else False
                  for i in self.data.I for t in orig_data.T}
-            e = {(i, t): self.variables.e[i, t].x == 1
+            e = {(i, t): round(self.variables.e[i, t].x) == 1
                  if t <= self.data.max_t else False
                  for i in self.data.I for t in orig_data.T}
-            w = {(i, t): self.variables.w[i, t].x == 1
+            w = {(i, t): round(self.variables.w[i, t].x) == 1
                  if t <= self.data.max_t else False
                  for i in self.data.I for t in orig_data.T}
             start = {k[0]: k[1] for k, v in s.items() if v is True}
             r = {(i, t): False for i in self.data.I for t in orig_data.T}
             r.update({
-                (i, t): self.__start_info__[i, start[i]]['rest'][i, t]*u[i, t]
+                (i, t): round(
+                    self.__start_info__[i, start[i]]['rest'][i, t]*u[i, t])
                 == 1
                 if (i, start[i]) in self.__start_info__ else
                 False
