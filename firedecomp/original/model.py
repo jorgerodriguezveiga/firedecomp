@@ -79,8 +79,8 @@ class InputModel(object):
 
         m.model.optimize()
 
-        # Todo: check what status number return a solution
-        if m.model.Status != 3:
+        # Check if exist a solution
+        if m.model.SolCount >= 1 and m.model.Status != 3:
             if self.relaxed is not True:
                 # Load variables values
                 self.problem_data.resources.update_select(
@@ -116,6 +116,7 @@ class InputModel(object):
                     {t: {'contained': False if t < first_contained else True}
                      for t in self.T})
         else:
+            log.warning("No solutions found.")
             log.warning(
                 config.gurobi.status_info[m.model.Status]['description'])
 

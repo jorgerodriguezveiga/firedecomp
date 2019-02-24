@@ -203,7 +203,10 @@ class Problem(object):
             solution = self.original_model.solve(solver_options=solver_options)
             self.solve_status = solution.model.Status
             self.mipgap = solution.model.mipgap
-            self.constrvio = solution.model.constrvio
+            if solution.model.SolCount >= 1:
+                self.constrvio = solution.model.constrvio
+            else:
+                self.constrvio = None
             self.solve_time = solution.model.runtime
             model = solution
         elif method == 'benders':
@@ -223,7 +226,10 @@ class Problem(object):
                 self, **default_benders_options, log_level=log_level)
             self.solve_status = self.benders_model.solve()
             self.mipgap = self.benders_model.master.model.mipgap
-            self.constrvio = self.benders_model.master.model.constrvio
+            if self.benders_model.master.model.SolCount >= 1:
+                self.constrvio = self.benders_model.master.model.constrvio
+            else:
+                self.constrvio = float('inf')
             self.solve_time = self.benders_model.runtime
             model = self.benders_model
         else:
