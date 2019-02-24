@@ -56,9 +56,6 @@ class Benders(object):
                 options for the subproblem. If ``None`` no options. Defaults to
                 ``None``.
             log_level (:obj:`str`): logging level. Defaults to ``'benders'``.
-
-            ToDo: add max_cpu_time.
-            ToDo: add initial solution to the solver when te period is increase.
         """
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
@@ -207,6 +204,8 @@ class Benders(object):
         self.runtime = 0
         self.__start_time__ = time.time()
         data = self.problem_data.data
+        if 'TimeLimit' not in self.solver_options_master:
+            self.solver_options_master['TimeLimit'] = max(1, self.max_time)
 
         if self.compute_feas_cuts:
             header = utils.format_benders([
@@ -252,6 +251,11 @@ class Benders(object):
             self.best_obj_period = new_obj
             if self.best_obj_period < float('inf'):
                 self.master.max_obj = self.best_obj_period
+
+            self.solver_options_master['TimeLimit'] = \
+                max(min(self.solver_options_master['TimeLimit'],
+                        self.max_time - (time.time() - self.__start_time__)),
+                    0)
             status = self.solve_periods(max_period=int(period),
                                         warm_start=warm_start)
             warm_start = True

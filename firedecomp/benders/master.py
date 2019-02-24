@@ -489,8 +489,8 @@ class Master(object):
 
         m.optimize()
 
-        # Todo: check what status number return a solution
-        if m.Status != 3:
+        # Check if exist a solution
+        if m.SolCount >= 1 and m.Status != 3:
             orig_data = self.problem_data.data
             self.obj_resources_fix = self.variables.fix_cost_resources.\
                 getValue()
