@@ -90,3 +90,40 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         """
         self.m = gurobipy.Model("Decomposed_Primal_Problem_LR_"+
                                  str(self.resource_i))
+
+################################################################################
+# METHOD: return_function_obj()
+################################################################################
+    def return_function_obj(self, solution):
+
+
+        self.s = solution.get_variables().get_variable('s')
+        self.tr = solution.get_variables().get_variable('tr')
+        self.r = solution.get_variables().get_variable('r')
+        self.er = solution.get_variables().get_variable('er')
+        self.e = solution.get_variables().get_variable('e')
+
+        self.__create_auxiliar_vars__()
+
+        self.y = solution.get_variables().get_variable('y')
+        self.mu = solution.get_variables().get_variable('mu')
+        self.m.update()
+        return self.function_obj.getValue()
+
+################################################################################
+# METHOD: return_LR_obj()
+################################################################################
+    def return_LR_obj(self, solution):
+
+        self.s = solution.get_variables().get_variable('s')
+        self.tr = solution.get_variables().get_variable('tr')
+        self.r = solution.get_variables().get_variable('r')
+        self.er = solution.get_variables().get_variable('er')
+        self.e = solution.get_variables().get_variable('e')
+
+        self.__create_auxiliar_vars__()
+
+        self.y = solution.get_variables().get_variable('y')
+        self.mu = solution.get_variables().get_variable('mu')
+        self.m.update()
+        return self.LR_obj.getValue()

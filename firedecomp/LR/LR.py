@@ -142,9 +142,18 @@ class LagrangianRelaxation(object):
 
             # (1) Solve DPP problems
             self.DPP_sol = []
+            self.L_obj_down = 0
+            self.obj = 0
+            self.LR_pen = 0
             for i in range(0,self.N):
                 self.DPP_sol.append(self.problem_DPP[i].solve(self.solver_options))
                 self.DPP_sol_obj[i] = self.DPP_sol[i].get_objfunction()
+                self.L_obj_down  = self.L_obj_down  + self.DPP_sol_obj[i]
+                self.obj = (self.obj +
+                       self.problem_DPP[i].return_function_obj(self.DPP_sol[i]))
+                self.LR_pen = (self.LR_pen +
+                       self.problem_DPP[i].return_LR_obj(self.DPP_sol[i]))
+                #self.obj = self.obj + self.problem_DPP[i].return_function_obj(self.DPP_sol)
             # (2) Calculate new values of lambda and update
             self.lambda1_prev = self.lambda1.copy()
             self.subgradient()
@@ -157,15 +166,11 @@ class LagrangianRelaxation(object):
             #            self.option_decomp, self.lambda1, self.solver_options,
             #            self.groupR)
             #self.RPP_sol = self.problem_RPP.solve(self.solver_options)
-            self.L_obj_down = 0
-            for i in range(0,self.N):
-                self.L_obj_down  = self.L_obj_down  + self.DPP_sol_obj[i]
-
             if (self.L_obj_down > self.L_obj_down_prev):
                 self.L_obj_down_prev = self.L_obj_down
 
             # Extract Upper Bound
-
+            # ToDo
 
             # Dual gap
             #RDP.RelaxedDualProblem(self.problem_data, self.lambda1,
@@ -182,8 +187,10 @@ class LagrangianRelaxation(object):
             #self.problem_data.original_model.insert_soludion(self.DPP_sol,
             #            self.option_decomp, self.lambda1, self.solver_options,
             #            self.groupR)
-            log.info("Iteration # mi lambda f(x) L(x,mi,lambda)")
-            print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1_prev)+" LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +"\n")
+            log.info("Iteration # mi lambda f(x) L(x,mi,lambda) penL")
+            print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1_prev)+
+                    " LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +
+                        " penL:" + str(self.LR_pen) +"\n")
 
         return 1
 
