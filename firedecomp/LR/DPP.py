@@ -105,7 +105,7 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 
         self.__create_auxiliar_vars__()
 
-        #self.y = solution.get_variables().get_variable('y')
+        self.y = solution.get_variables().get_variable('y')
         self.mu = solution.get_variables().get_variable('mu')
         self.m.update()
         return self.function_obj.getValue()
@@ -116,9 +116,15 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 # OVERWRITE RelaxedPrimalProblem.__create_var_y__()
 ################################################################################
     def __create_var_y__(self):
-        self.sizey = self.T + [self.min_t-1]
+        self.sizey = len(self.T + [self.min_t-1])
 
-        self.y = self.list_y
+        self.y = self.m.addVars(self.T + [self.min_t-1], vtype=self.vtype,
+                                    lb=self.lb, ub=self.ub, name="contention")
+
+        for i in range(0,self.sizey):
+            self.y.UB=self.list_y[i]
+            self.y.LB=self.list_y[i]
+            self.y.Start=self.list_y[i]
 
 ################################################################################
 # METHOD: return_LR_obj()
@@ -133,8 +139,7 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 
         self.__create_auxiliar_vars__()
 
-        #self.y = solution.get_variables().get_variable('y')
-        self.y = self.list_y
+        self.y = solution.get_variables().get_variable('y')
         self.mu = solution.get_variables().get_variable('mu')
         self.m.update()
         return self.LR_obj.getValue()

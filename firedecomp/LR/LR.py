@@ -25,7 +25,6 @@ class LagrangianRelaxation(object):
         max_iters=100,
         max_time=60,
         log_level="LR",
-        option_decomp='G',
         solver_options=None,
     ):
         """Initialize the Lagrangian Relaxation object.
@@ -57,7 +56,6 @@ class LagrangianRelaxation(object):
         self.max_time = max_time
         self.v = 1
         self.RPP_obj_prev = float("inf")
-        self.option_decomp = option_decomp
         # Gurobi options
         if solver_options == None:
             solver_options = {
@@ -130,37 +128,46 @@ class LagrangianRelaxation(object):
     def solve(self, max_iters=100):
 
         termination_criteria = bool(False)
+        # (0) Initialize DPP
+        self.problem_DPP = []
+        self.DPP_sol_obj = []
+        for i in range(0,self.y_master_size-1):
+            problem_DPP_row = []
+            self.y_master = dict([ (p, 1) for p in range(0,self.y_master_size)])
+            for p in range(self.y_master_size - (1+i), self.y_master_size):
+                self.y_master[p] = 0
+            for j in range(0,self.N):
+                problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
+                                self.lambda1, j, self.y_master))
+            self.problem_DPP.append(problem_DPP_row)
 
         while (termination_criteria == False):
-            # (0) Initialize DPP
-            self.problem_DPP = []
-            self.DPP_sol_obj = []
-            for i in range(0,self.N):
-                problem_DPP_row = []
-                for j in range(0,self.y_master_size-1):
-                    self.y_master = dict([ (p, 1) for p in range(0,self.y_master_size)])
-                    for p in range(self.y_master_size - (1+j), self.y_master_size):
-                        self.y_master[p] = 0
-                    print(self.y_master)
-                    problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
-                                    self.lambda1, i, self.y_master))
-                self.problem_DPP.append(problem_DPP_row)
             # (1) Solve DPP problems
             self.DPP_sol = []
             self.L_obj_down = 0
             self.obj = 0
             self.LR_pen = 0
-            for i in range(0,self.N):
+            for i in range(0,self.y_master_size-1):
                 DPP_sol_row = []
-                for j in range(0,self.y_master_size-1):
+                fl_value=0
+                f_value=0
+                fp_value=0
+                print("STAR Y "+str(i))
+                print(self.problem_DPP[i][j].list_y)
+                print(self.N)
+                for j in range(0,self.N):
+                    print(i)
                     DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
-                    fl_value = DPP_sol_row[j].get_objfunction()
-                    time.sleep(10)
-                    f_value  = self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
-                    fp_value = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
-                    self.L_obj_down  = self.L_obj_down  + fl_value
-                    self.obj = self.obj + f_value
-                    self.LR_pen = self.LR_pen + fp_value
+                    print(DPP_sol_row[j].get_variables().get_variable("y"))
+                    fl_value = fl_value + DPP_sol_row[j].get_objfunction()
+                    f_value  = f_value + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
+                    fp_value = fp_value + self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
+                print("SOLUTION "+str(i)+"fl_value:"+str(fl_value)+"fvalue:"+str(f_value))
+                if (f_value > 0):
+                    self.L_obj_down  = fl_value
+                    self.obj = f_value
+                    self.LR_pen = fp_value
+
                 self.DPP_sol.append(DPP_sol_row)
 
             # (2) Calculate new values of lambda and update
@@ -189,7 +196,8 @@ class LagrangianRelaxation(object):
             # Update lambda in RPP and DPP
             self.problem_RPP.update_lambda1(self.lambda1)
             for i in range(0,self.N):
-                self.problem_DPP[i].update_lambda1(self.lambda1)
+                for j in range(0,self.y_master_size-1):
+                    self.problem_DPP[i][j].update_lambda1(self.lambda1)
 
 
             # Show iteration results
