@@ -119,10 +119,24 @@ class RelaxedPrimalProblem(model.InputModel):
 
 ##########################################################################################
 # PRIVATE METHOD: __create_model__
+################################################################################
     def __create_gurobi_model__(self):
         """Create gurobi model.
         """
         self.m = gurobipy.Model("Relaxed_Primal_Problem_LR")
+
+################################################################################
+# PRIVATE METHOD: __relaxed_config__
+################################################################################
+    def __relaxed_config__(self):
+        if self.relaxed is True:
+            self.vtype = gurobipy.GRB.CONTINUOUS
+            self.lb = 0
+            self.ub = 1
+        else:
+            self.vtype = gurobipy.GRB.BINARY
+            self.lb = 0
+            self.ub = 1
 
 ################################################################################
 # PRIVATE METHOD: __create_vars__
@@ -134,34 +148,40 @@ class RelaxedPrimalProblem(model.InputModel):
             gurobipy (:obj:`dict`): dictionary with attribute information to
                 update.
         """
-        if self.relaxed is True:
-            vtype = gurobipy.GRB.CONTINUOUS
-            lb = 0
-            ub = 1
-        else:
-            vtype = gurobipy.GRB.BINARY
-            lb = 0
-            ub = 1
+        self.__relaxed_config__()
 
         # VARIABLES
         # (1) Resources
         # ---------
-        self.s = self.m.addVars(self.I,self.T,vtype=vtype, lb=lb, ub=ub, name="start")
-        self.tr = self.m.addVars(self.I,self.T,vtype=vtype, lb=lb, ub=ub, name="travel")
-        self.r = self.m.addVars(self.I,self.T,vtype=vtype, lb=lb, ub=ub, name="rest")
-        self.er = self.m.addVars(self.I,self.T,vtype=vtype, lb=lb, ub=ub, name="end_rest")
-        self.e = self.m.addVars(self.I,self.T,vtype=vtype, lb=lb, ub=ub, name="end")
+        self.s = self.m.addVars(self.I,self.T,vtype=self.vtype, lb=self.lb, ub=self.ub, name="start")
+        self.tr = self.m.addVars(self.I,self.T,vtype=self.vtype, lb=self.lb, ub=self.ub, name="travel")
+        self.r = self.m.addVars(self.I,self.T,vtype=self.vtype, lb=self.lb, ub=self.ub, name="rest")
+        self.er = self.m.addVars(self.I,self.T,vtype=self.vtype, lb=self.lb, ub=self.ub, name="end_rest")
+        self.e = self.m.addVars(self.I,self.T,vtype=self.vtype, lb=self.lb, ub=self.ub, name="end")
 
         # (2) Auxiliar variables
         self.__create_auxiliar_vars__()
 
         # (3) Wildfire
         # --------
-        self.y = self.m.addVars(self.T + [self.min_t-1], vtype=vtype, lb=lb, ub=ub,
-                      name="contention")
+        self.__create_var_y__()
+
         self.mu = self.m.addVars(self.G, self.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
                       name="missing_resources")
 
+################################################################################
+# PRIVATE METHOD: __create_var_y__
+################################################################################
+    def __create_var_y__(self):
+        self.sizey = len(self.T + [self.min_t-1])
+        self.y = self.m.addVars(self.T + [self.min_t-1], vtype=self.vtype, lb=self.lb, ub=self.ub,
+                              name="contention")
+                              
+################################################################################
+#  METHOD: return_sizey
+################################################################################
+    def return_sizey(self):
+        return self.sizey
 
 ################################################################################
 # PRIVATE METHOD: create_auxiliar_vars

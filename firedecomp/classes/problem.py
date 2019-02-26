@@ -1,12 +1,13 @@
 """Module to define input class."""
 
 # Package modules
-from firedecomp.original import model
+from firedecomp.original import model as _model
 from firedecomp.benders import benders
-#from firedecomp.LR import LR
+from firedecomp.LR import LR
+
 from firedecomp import config
 from firedecomp import plot
-
+import time
 
 # Problem ---------------------------------------------------------------------
 class Problem(object):

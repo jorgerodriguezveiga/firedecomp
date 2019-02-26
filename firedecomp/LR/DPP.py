@@ -12,7 +12,7 @@ from firedecomp.LR import RPP
 
 # Subproblem ------------------------------------------------------------------
 class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
-    def __init__(self, problem_data, lambda1, resource_i, relaxed=False,
+    def __init__(self, problem_data, lambda1, resource_i, list_y, relaxed=False,
                  min_res_penalty=1000000):
         """Initialize the DecomposedPrimalProblem.
 
@@ -27,6 +27,7 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
                 Default to 1000000
         """
         self.resource_i= resource_i
+        self.list_y = list_y
         super().__init__(problem_data, lambda1, relaxed, min_res_penalty)
 
 ##########################################################################################
@@ -96,7 +97,6 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 ################################################################################
     def return_function_obj(self, solution):
 
-
         self.s = solution.get_variables().get_variable('s')
         self.tr = solution.get_variables().get_variable('tr')
         self.r = solution.get_variables().get_variable('r')
@@ -105,10 +105,20 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 
         self.__create_auxiliar_vars__()
 
-        self.y = solution.get_variables().get_variable('y')
+        #self.y = solution.get_variables().get_variable('y')
         self.mu = solution.get_variables().get_variable('mu')
         self.m.update()
         return self.function_obj.getValue()
+
+
+################################################################################
+# PRIVATE METHOD: __create_var_y__
+# OVERWRITE RelaxedPrimalProblem.__create_var_y__()
+################################################################################
+    def __create_var_y__(self):
+        self.sizey = self.T + [self.min_t-1]
+
+        self.y = self.list_y
 
 ################################################################################
 # METHOD: return_LR_obj()
@@ -123,7 +133,8 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 
         self.__create_auxiliar_vars__()
 
-        self.y = solution.get_variables().get_variable('y')
+        #self.y = solution.get_variables().get_variable('y')
+        self.y = self.list_y
         self.mu = solution.get_variables().get_variable('mu')
         self.m.update()
         return self.LR_obj.getValue()

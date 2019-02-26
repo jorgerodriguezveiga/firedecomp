@@ -9,6 +9,7 @@ from firedecomp import logging
 from firedecomp.LR import RPP
 from firedecomp.LR import DPP
 from firedecomp.LR import RDP
+import time
 import math
 
 
@@ -40,6 +41,7 @@ class LagrangianRelaxation(object):
                 3600.
             log_level (:obj:`str`): logging level. Defaults to ``'benders'``.
         """
+        # PROBLEM DATA
         if problem_data.period_unit is False:
             raise ValueError("Time unit of the problem is not a period.")
         self.problem_data = problem_data
@@ -62,14 +64,12 @@ class LagrangianRelaxation(object):
                 #'MIPGap': 0.0,
                 #'MIPGapAbs': 0.0,
                 'OutputFlag': 0,
-                'LogFile': log_level,
+                'LogToConsole': 0,
             }
         self.solver_options = solver_options
-        # Chargue models
-        self.current_solution = []
         # Log level
         self.__log__(log_level)
-        # subgradient
+        # Subgradient vars
         self.a = 1
         self.b = 0.1
         # Create lambda
@@ -82,15 +82,10 @@ class LagrangianRelaxation(object):
         # Create Relaxed Primal Problem
         self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
         self.RPP_sol = float("inf")
-        # Create Decomposite Primal Problem
-        if (self.option_decomp == 'R'):
-            self.N = len(self.problem_RPP.I)
-            self.groupR = []
-        elif (self.option_decomp == 'G'):
-            self.N = len(self.problem_RPP.G)
-        else:
-            print("Error[0] Use 'G' to divide by groups, or 'R' to divide by resources ")
-            sys.exit()
+        # Initialize Decomposite Primal Problem Variables
+        self.N = len(self.problem_RPP.I)
+        self.groupR = []
+        self.y_master_size = self.problem_RPP.return_sizey()
 
 
 ###############################################################################
@@ -132,28 +127,42 @@ class LagrangianRelaxation(object):
 ###############################################################################
 # PUBLIC METHOD solve()
 ###############################################################################
-    def solve(self, max_iters=10):
+    def solve(self, max_iters=100):
 
         termination_criteria = bool(False)
 
         while (termination_criteria == False):
             # (0) Initialize DPP
-            self.initialize_DPP()
-
+            self.problem_DPP = []
+            self.DPP_sol_obj = []
+            for i in range(0,self.N):
+                problem_DPP_row = []
+                for j in range(0,self.y_master_size-1):
+                    self.y_master = dict([ (p, 1) for p in range(0,self.y_master_size)])
+                    for p in range(self.y_master_size - (1+j), self.y_master_size):
+                        self.y_master[p] = 0
+                    print(self.y_master)
+                    problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
+                                    self.lambda1, i, self.y_master))
+                self.problem_DPP.append(problem_DPP_row)
             # (1) Solve DPP problems
             self.DPP_sol = []
             self.L_obj_down = 0
             self.obj = 0
             self.LR_pen = 0
             for i in range(0,self.N):
-                self.DPP_sol.append(self.problem_DPP[i].solve(self.solver_options))
-                self.DPP_sol_obj[i] = self.DPP_sol[i].get_objfunction()
-                self.L_obj_down  = self.L_obj_down  + self.DPP_sol_obj[i]
-                self.obj = (self.obj +
-                       self.problem_DPP[i].return_function_obj(self.DPP_sol[i]))
-                self.LR_pen = (self.LR_pen +
-                       self.problem_DPP[i].return_LR_obj(self.DPP_sol[i]))
-                #self.obj = self.obj + self.problem_DPP[i].return_function_obj(self.DPP_sol)
+                DPP_sol_row = []
+                for j in range(0,self.y_master_size-1):
+                    DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
+                    fl_value = DPP_sol_row[j].get_objfunction()
+                    time.sleep(10)
+                    f_value  = self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
+                    fp_value = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
+                    self.L_obj_down  = self.L_obj_down  + fl_value
+                    self.obj = self.obj + f_value
+                    self.LR_pen = self.LR_pen + fp_value
+                self.DPP_sol.append(DPP_sol_row)
+
             # (2) Calculate new values of lambda and update
             self.lambda1_prev = self.lambda1.copy()
             self.subgradient()
@@ -192,6 +201,8 @@ class LagrangianRelaxation(object):
                     " LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +
                         " penL:" + str(self.LR_pen) +"\n")
 
+            #sleep(10)
+
         return 1
 
 ###############################################################################
@@ -227,19 +238,3 @@ class LagrangianRelaxation(object):
 
         self.log = logger
         return 1
-
-###############################################################################
-# PRIVATE METHOD __log__()
-###############################################################################
-    def __set_solution_in_original_model__(self, solutions):
-
-        return 1
-
-    def initialize_DPP(self):
-        self.problem_DPP = []
-        self.DPP_sol_obj = []
-        for i in range(0,self.N):
-            self.problem_DPP.append(DPP.DecomposedPrimalProblem(self.problem_data,
-                                self.lambda1, i, self.option_decomp))
-            self.DPP_sol_obj.append(float("inf"))
-            self.groupR.append(self.problem_DPP[i].G[0])
