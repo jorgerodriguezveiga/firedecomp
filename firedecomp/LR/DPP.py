@@ -122,9 +122,9 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
                                     lb=self.lb, ub=self.ub, name="contention")
 
         for i in range(0,self.sizey):
-            self.y.UB=self.list_y[i]
-            self.y.LB=self.list_y[i]
-            self.y.Start=self.list_y[i]
+            self.y[i].UB=self.list_y[i]
+            self.y[i].LB=self.list_y[i]
+            self.y[i].Start=self.list_y[i]
 
 ################################################################################
 # METHOD: return_LR_obj()
@@ -143,3 +143,10 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         self.mu = solution.get_variables().get_variable('mu')
         self.m.update()
         return self.LR_obj.getValue()
+
+################################################################################
+# METHOD: divResources
+################################################################################
+    def divResources(self):
+        self.divResources = 1/len(self.problem_data.get_names('resources'))
+        print("OLLLLOOOOOO: "+str(self.divResources))

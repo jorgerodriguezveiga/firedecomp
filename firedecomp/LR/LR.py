@@ -59,8 +59,8 @@ class LagrangianRelaxation(object):
         # Gurobi options
         if solver_options == None:
             solver_options = {
-                #'MIPGap': 0.0,
-                #'MIPGapAbs': 0.0,
+                'MIPGap': 0.0,
+                'MIPGapAbs': 0.0,
                 'OutputFlag': 0,
                 'LogToConsole': 0,
             }
@@ -81,6 +81,7 @@ class LagrangianRelaxation(object):
         self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
         self.RPP_sol = float("inf")
         # Initialize Decomposite Primal Problem Variables
+        self.problem_DPP = []
         self.N = len(self.problem_RPP.I)
         self.groupR = []
         self.y_master_size = self.problem_RPP.return_sizey()
@@ -103,7 +104,7 @@ class LagrangianRelaxation(object):
         #for i in range(0,self.NL):
         #    self.lambda1[i] = self.lambda1[i] + l
 
-        const=1
+        const=0.1
         self.lambda1[0] = self.lambda1[0] + const
         self.lambda1[1] = self.lambda1[1] + const
         self.lambda1[2] = self.lambda1[2] + const
@@ -128,77 +129,47 @@ class LagrangianRelaxation(object):
     def solve(self, max_iters=100):
 
         termination_criteria = bool(False)
-        # (0) Initialize DPP
-        self.problem_DPP = []
-        self.DPP_sol_obj = []
-        for i in range(0,self.y_master_size-1):
-            problem_DPP_row = []
-            self.y_master = dict([ (p, 1) for p in range(0,self.y_master_size)])
-            for p in range(self.y_master_size - (1+i), self.y_master_size):
-                self.y_master[p] = 0
-            for j in range(0,self.N):
-                problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
-                                self.lambda1, j, self.y_master))
-            self.problem_DPP.append(problem_DPP_row)
 
         while (termination_criteria == False):
+            # (0) Initialize DPP
+            self.create_DPP_set()
             # (1) Solve DPP problems
             self.DPP_sol = []
             self.L_obj_down = 0
             self.obj = 0
             self.LR_pen = 0
+            best_f_value = float("inf")
             for i in range(0,self.y_master_size-1):
                 DPP_sol_row = []
                 fl_value=0
                 f_value=0
                 fp_value=0
-                print("STAR Y "+str(i))
-                print(self.problem_DPP[i][j].list_y)
-                print(self.N)
                 for j in range(0,self.N):
-                    print(i)
+                    #print(self.problem_DPP[i][j].lambda1)
                     DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
-                    print(DPP_sol_row[j].get_variables().get_variable("y"))
                     fl_value = fl_value + DPP_sol_row[j].get_objfunction()
                     f_value  = f_value + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
                     fp_value = fp_value + self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
-                print("SOLUTION "+str(i)+"fl_value:"+str(fl_value)+"fvalue:"+str(f_value))
-                if (f_value > 0):
+
+                #print("SOLUTION "+str(i)+ " fl_value:"+str(fl_value)+" fvalue:"+str(f_value))
+                if ((f_value > 0) == (best_f_value > f_value)):
                     self.L_obj_down  = fl_value
                     self.obj = f_value
                     self.LR_pen = fp_value
+                    best_f_value = f_value
 
                 self.DPP_sol.append(DPP_sol_row)
 
             # (2) Calculate new values of lambda and update
             self.lambda1_prev = self.lambda1.copy()
             self.subgradient()
+
             # (3) Check termination criteria
             termination_criteria = self.convergence_checking()
             self.v = self.v + 1
 
-            # Update solution in RPP.solution problem
-            #self.problem_RPP.__set_solution_in_RPP__(self.DPP_sol,
-            #            self.option_decomp, self.lambda1, self.solver_options,
-            #            self.groupR)
-            #self.RPP_sol = self.problem_RPP.solve(self.solver_options)
             if (self.L_obj_down > self.L_obj_down_prev):
                 self.L_obj_down_prev = self.L_obj_down
-
-            # Extract Upper Bound
-            # ToDo
-
-            # Dual gap
-            #RDP.RelaxedDualProblem(self.problem_data, self.lambda1,
-            #            primal=self.problem_RPP, solution=self.RPP_sol,
-            #            option_decomp=self.option_decomp);
-
-            # Update lambda in RPP and DPP
-            self.problem_RPP.update_lambda1(self.lambda1)
-            for i in range(0,self.N):
-                for j in range(0,self.y_master_size-1):
-                    self.problem_DPP[i][j].update_lambda1(self.lambda1)
-
 
             # Show iteration results
             #self.problem_data.original_model.insert_soludion(self.DPP_sol,
@@ -209,9 +180,30 @@ class LagrangianRelaxation(object):
                     " LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +
                         " penL:" + str(self.LR_pen) +"\n")
 
-            #sleep(10)
+            self.destroy_DPP_set()
 
         return 1
+
+###############################################################################
+# PRIVATE create_DPP_set()
+###############################################################################
+    def create_DPP_set(self):
+        for i in range(0,self.y_master_size-1):
+            problem_DPP_row = []
+            self.y_master = dict([ (p, 1) for p in range(0,self.y_master_size)])
+            for p in range(self.y_master_size - (1+i), self.y_master_size):
+                self.y_master[p] = 0
+            for j in range(0,self.N):
+                problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
+                                                    self.lambda1, j, self.y_master))
+                self.problem_DPP.append(problem_DPP_row)
+
+###############################################################################
+# PRIVATE destroy_DPP_set()
+###############################################################################
+    def destroy_DPP_set(self):
+        self.problem_DPP = []
+
 
 ###############################################################################
 # PRIVATE METHOD __log__()

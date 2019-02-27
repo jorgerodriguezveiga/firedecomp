@@ -176,7 +176,7 @@ class RelaxedPrimalProblem(model.InputModel):
         self.sizey = len(self.T + [self.min_t-1])
         self.y = self.m.addVars(self.T + [self.min_t-1], vtype=self.vtype, lb=self.lb, ub=self.ub,
                               name="contention")
-                              
+
 ################################################################################
 #  METHOD: return_sizey
 ################################################################################
@@ -226,18 +226,19 @@ class RelaxedPrimalProblem(model.InputModel):
 # PRIVATE METHOD: __create_objfunc__()
 ################################################################################
     def __create_objfunc__(self):
-
+        self.divResources()
 # Wildfire Containment (2) and (3)
         Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T])
-                    - sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]))
+                    - sum([self.PR[i, t]*self.w[i, t]*self.divResources
+                     for i in self.I for t in self.T]))
 
         Constr2 = sum(self.M*self.y[t] - sum(self.PER[t1]*self.y[t-1]  for t1 in
                   self.T_int.get_names(p_max=t))+
-                  sum(self.PR[i, t1]*self.w[i, t1]
+                  sum(self.PR[i, t1]*self.w[i, t1]*self.divResources
                   for i in self.I for t1 in self.T_int.get_names(p_max=t))
                   for t in self.T)
 # Non-Negligence of Fronts (14) and (15)
-        Constr3 = sum(-(sum(self.w[i, t]
+        Constr3 = sum(-(sum(self.w[i, t]*self.divResources
                     for i in self.Ig[g])) + (self.nMin[g, t]*self.y[t-1]) - self.mu[g, t]
                     for g in self.G for t in self.T)
 
@@ -369,7 +370,11 @@ class RelaxedPrimalProblem(model.InputModel):
             self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
             w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
 
-
+################################################################################
+# METHOD: divResources
+################################################################################
+    def divResources(self):
+        self.divResources = 1
 
 ################################################################################
 # METHOD: __set_solution_in_RPP__
