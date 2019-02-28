@@ -204,16 +204,24 @@ def model(data, relaxed=False):
     # --------------------
     m.addConstr(y[data.min_t-1] == 1, name='start_no_contained')
 
-    m.addConstr(sum([data.PER[t]*y[t-1] for t in data.T]) <=
-                sum([data.PR[i, t]*w[i, t] for i in data.I for t in data.T]),
+#    m.addConstr(sum([data.PER[t]*y[t-1] for t in data.T]) <=
+#                sum([data.PR[i, t]*w[i, t] for i in data.I for t in data.T]),
+#                name='wildfire_containment_1')
+    m.addConstr(sum([data.PER[t]*y[t-1] for t in data.T]) -
+                sum([data.PR[i, t]*w[i, t] for i in data.I for t in data.T]) <= 0,
                 name='wildfire_containment_1')
 
+    #m.addConstrs(
+    #    (data.M*y[t] >=
+    #     sum([data.PER[t1] for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
+    #     sum([data.PR[i, t1]*w[i, t1]
+    #          for i in data.I for t1 in data.T_int.get_names(p_max=t)])
+    #     for t in data.T),
+    #    name='wildfire_containment_2')
     m.addConstrs(
-        (data.M*y[t] >=
-         sum([data.PER[t1] for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
-         sum([data.PR[i, t1]*w[i, t1]
-              for i in data.I for t1 in data.T_int.get_names(p_max=t)])
-         for t in data.T),
+        (-1.0*data.M*y[t] + sum([data.PER[t1] for t1 in data.T_int.get_names(p_max=t)])*y[t-1]
+          - sum([data.PR[i, t1]*w[i, t1] for i in data.I for t1 in data.T_int.get_names(p_max=t)])
+          <= 0 for t in data.T),
         name='wildfire_containment_2')
 
     # Start of activity
@@ -296,12 +304,12 @@ def model(data, relaxed=False):
     # Non-Negligence of Fronts
     # ------------------------
     m.addConstrs(
-        (sum([w[i, t] for i in data.Ig[g]]) >= data.nMin[g, t]*y[t-1] - mu[g, t]
-         for g in data.G for t in data.T),
+        ((-1.0*sum([w[i, t] for i in data.Ig[g]])) - (data.nMin[g, t]*y[t-1] + mu[g, t])
+         <= 0 for g in data.G for t in data.T),
         name='non-negligence_1')
 
     m.addConstrs(
-        (sum([w[i, t] for i in data.Ig[g]]) <= data.nMax[g, t]*y[t-1]
+        (sum([w[i, t] for i in data.Ig[g]]) - data.nMax[g, t]*y[t-1] <= 0
          for g in data.G for t in data.T),
         name='non-negligence_2')
 

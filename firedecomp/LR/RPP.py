@@ -10,9 +10,9 @@ from firedecomp.classes import solution
 from firedecomp import config
 from firedecomp.original import model
 
-###############################################################################
+################################################################################
 # CLASS RelaxedPrimalProblem()
-###############################################################################
+################################################################################
 class RelaxedPrimalProblem(model.InputModel):
     def __init__(self, problem_data, lambda1, relaxed=False,
         min_res_penalty=1000000):
@@ -33,7 +33,6 @@ class RelaxedPrimalProblem(model.InputModel):
 
         # Create gurobi model
         self.model = self.__get_model__()
-
 
 ################################################################################
 # PRIVATE METHOD: __extract_data_problem__()
@@ -106,7 +105,6 @@ class RelaxedPrimalProblem(model.InputModel):
                               Default ``False``.
             Example: ``{'TimeLimit': 10}``.
         """
-
         self.__create_gurobi_model__()
         self.__create_vars__()
         self.__create_objfunc__()
@@ -228,29 +226,33 @@ class RelaxedPrimalProblem(model.InputModel):
     def __create_objfunc__(self):
         self.divResources()
 # Wildfire Containment (2) and (3)
-        Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T])
-                    - sum([self.PR[i, t]*self.w[i, t]*self.divResources
+        Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+                    sum([self.PR[i, t]*self.w[i, t]*self.divResources
                      for i in self.I for t in self.T]))
 
-        Constr2 = sum(self.M*self.y[t] - sum(self.PER[t1]*self.y[t-1]  for t1 in
-                  self.T_int.get_names(p_max=t))+
-                  sum(self.PR[i, t1]*self.w[i, t1]*self.divResources
-                  for i in self.I for t1 in self.T_int.get_names(p_max=t))
-                  for t in self.T)
+        Constr2 = sum(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+                    - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+                    for t in self.T)
+
+
 # Non-Negligence of Fronts (14) and (15)
-        Constr3 = sum(-(sum(self.w[i, t]*self.divResources
-                    for i in self.Ig[g])) + (self.nMin[g, t]*self.y[t-1]) - self.mu[g, t]
+        Constr3 = sum((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
                     for g in self.G for t in self.T)
 
-        Constr4 = sum(sum(self.w[i, t]
-                    for i in self.Ig[g]) - self.nMax[g, t]*self.y[t-1]
+        Constr4 = sum(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
                     for g in self.G for t in self.T)
+
+#    m.addConstrs(
+#        (sum([w[i, t] for i in data.Ig[g]]) <= data.nMax[g, t]*y[t-1]
+#         for g in data.G for t in data.T),
+#        name='non-negligence_2')
+
 
 # Objective
 # =========
         sum1 = sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T])
         sum2 = sum([self.P[i]*self.z[i] for i in self.I])
-        sum3 = sum([self.NVC[t] * self.y[t-1] for t in self.T])
+        sum3 = sum([self.NVC[t]*self.y[t-1] for t in self.T])
         sum4 = sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T])
 
         self.function_obj = sum1 + sum2 + sum3 + sum4 + 0.001*self.y[self.max_t]
