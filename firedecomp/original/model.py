@@ -3,7 +3,7 @@
 # Python packages
 import gurobipy
 import logging as log
-
+import time
 # Package modules
 from firedecomp.classes import solution
 from firedecomp import config
@@ -204,20 +204,10 @@ def model(data, relaxed=False):
     # --------------------
     m.addConstr(y[data.min_t-1] == 1, name='start_no_contained')
 
-#    m.addConstr(sum([data.PER[t]*y[t-1] for t in data.T]) <=
-#                sum([data.PR[i, t]*w[i, t] for i in data.I for t in data.T]),
-#                name='wildfire_containment_1')
     m.addConstr(sum([data.PER[t]*y[t-1] for t in data.T]) -
                 sum([data.PR[i, t]*w[i, t] for i in data.I for t in data.T]) <= 0,
                 name='wildfire_containment_1')
 
-    #m.addConstrs(
-    #    (data.M*y[t] >=
-    #     sum([data.PER[t1] for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
-    #     sum([data.PR[i, t1]*w[i, t1]
-    #          for i in data.I for t1 in data.T_int.get_names(p_max=t)])
-    #     for t in data.T),
-    #    name='wildfire_containment_2')
     m.addConstrs(
         (-1.0*data.M*y[t] + sum([data.PER[t1] for t1 in data.T_int.get_names(p_max=t)])*y[t-1]
           - sum([data.PR[i, t1]*w[i, t1] for i in data.I for t1 in data.T_int.get_names(p_max=t)])

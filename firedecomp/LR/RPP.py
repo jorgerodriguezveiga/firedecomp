@@ -229,17 +229,17 @@ class RelaxedPrimalProblem(model.InputModel):
         Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T]) -
                     sum([self.PR[i, t]*self.w[i, t]*self.divResources
                      for i in self.I for t in self.T]))
-
-        Constr2 = sum(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+# SON VARIAS
+        list_Constr2 = list(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
                     - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
                     for t in self.T)
 
 
 # Non-Negligence of Fronts (14) and (15)
-        Constr3 = sum((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
                     for g in self.G for t in self.T)
 
-        Constr4 = sum(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
+        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
                     for g in self.G for t in self.T)
 
 #    m.addConstrs(
@@ -256,10 +256,27 @@ class RelaxedPrimalProblem(model.InputModel):
         sum4 = sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T])
 
         self.function_obj = sum1 + sum2 + sum3 + sum4 + 0.001*self.y[self.max_t]
-        self.LR_obj = (self.lambda1[0] * Constr1 + self.lambda1[1] * Constr2+
-                        self.lambda1[2] * Constr3+ self.lambda1[3] * Constr4)
+
+        self.LR_obj = self.lambda1[0] * Constr1
+        counter=1
+
+        for i in range(counter,counter+len(list_Constr2)):
+            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i-counter]
+        counter=counter+len(list_Constr2)
+        for i in range(counter,counter+len(list_Constr3)):
+            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter]
+        counter=counter+len(list_Constr3)
+        for i in range(counter,counter+len(list_Constr4)):
+            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr4[i-counter]
 
         self.m.setObjective( self.function_obj + self.LR_obj,  self.sense_opt)
+
+################################################################################
+# METHOD: return_lambda_size()
+################################################################################
+    def return_lambda_size(self):
+        num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
+        return num
 
 ################################################################################
 # PRIVATE METHOD: __create_constraints__()
