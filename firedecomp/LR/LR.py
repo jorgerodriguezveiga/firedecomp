@@ -54,7 +54,7 @@ class LagrangianRelaxation(object):
         # OPTIONS LR
         self.max_iters = max_iters
         self.max_time = max_time
-        self.epsilon = 0.001
+        self.epsilon = 0.01
         self.v = 1
         self.RPP_obj_prev = float("inf")
         # Gurobi options
@@ -78,9 +78,9 @@ class LagrangianRelaxation(object):
         self.lambda1_prev = []
         self.lambda1_next = []
         for i in range(0,self.NL):
-            self.lambda1.append(2.0)
-            self.lambda1_prev.append(2.0)
-            self.lambda1_next.append(2.0)
+            self.lambda1.append(1.0)
+            self.lambda1_prev.append(1.0)
+            self.lambda1_next.append(1.0)
         # Create Relaxed Primal Problem
         self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
         self.RPP_sol = float("inf")
@@ -97,14 +97,16 @@ class LagrangianRelaxation(object):
     def subgradient(self):
         # solution, lambda, mi
         # update lambda and mi
-        part1 = 1/(self.a+self.b/self.v)
+        part1 = 1 / (self.a + self.b/self.v)
         if (self.LR_pen != 0):
-            part2 = self.LR_pen / abs(self.LR_pen)
+            part2 = self.LR_pen / (self.LR_pen)
         else:
             part2 = 0
 
         for i in range(0,self.NL):
             self.lambda1_next[i] = self.lambda1[i] + part1 * part2
+            if (self.lambda1_next[i] > 0.1):
+                self.lambda1_next[i] = 0.1
 
         print("self.lambda1_next :"+str(self.lambda1_next[0]))
         print("self.lambda1      :"+str(self.lambda1[0]))
@@ -166,12 +168,10 @@ class LagrangianRelaxation(object):
             self.L_obj_down = RPP_sol.get_objfunction()
             self.obj = self.problem_RPP.return_function_obj(RPP_sol)
             self.LR_pen = self.problem_RPP.return_LR_obj2(RPP_sol)
-            print("1 - ", str(self.problem_RPP.return_LR_obj2(RPP_sol)))
-            print("2 - ", str(self.problem_RPP.return_LR_obj(RPP_sol)))
 
-            print("self.L_obj_down"+str(self.L_obj_down))
-            print("self.obj"+str(self.obj))
-            print("self.LR_pen"+str(self.LR_pen))
+            print("self.L_obj_down "+str(self.L_obj_down))
+            print("self.obj "+str(self.obj))
+            print("self.LR_pen "+str(self.LR_pen))
 
             # (2) Calculate new values of lambda and update
             self.lambda1_prev = self.lambda1.copy()
