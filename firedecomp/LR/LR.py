@@ -165,7 +165,9 @@ class LagrangianRelaxation(object):
             RPP_sol = self.problem_RPP.solve(self.solver_options)
             self.L_obj_down = RPP_sol.get_objfunction()
             self.obj = self.problem_RPP.return_function_obj(RPP_sol)
-            self.LR_pen = self.problem_RPP.return_LR_obj(RPP_sol)
+            self.LR_pen = self.problem_RPP.return_LR_obj2(RPP_sol)
+            print("1 - ", str(self.problem_RPP.return_LR_obj2(RPP_sol)))
+            print("2 - ", str(self.problem_RPP.return_LR_obj(RPP_sol)))
 
             print("self.L_obj_down"+str(self.L_obj_down))
             print("self.obj"+str(self.obj))
@@ -187,14 +189,15 @@ class LagrangianRelaxation(object):
                     " LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +
                         " penL:" + str(self.LR_pen) +"\n")
 
-            self.destroy_DPP_set()
+
 
             # (3) Check termination criteria
             termination_criteria = self.convergence_checking()
-
+            if termination_criteria == False:
+                self.destroy_DPP_set()
             self.v = self.v + 1
 
-        return 1
+        return RPP_sol
 
 ###############################################################################
 # PRIVATE create_DPP_set()
