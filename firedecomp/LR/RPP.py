@@ -224,10 +224,10 @@ class RelaxedPrimalProblem(model.InputModel):
 # PRIVATE METHOD: __create_objfunc__()
 ################################################################################
     def __create_objfunc__(self):
-        self.divResources()
+        #self.divResources()
 # Wildfire Containment (2) and (3)
         Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T]) -
-                    sum([self.PR[i, t]*self.w[i, t]*self.divResources
+                    sum([self.PR[i, t]*self.w[i, t]
                      for i in self.I for t in self.T]))
 # SON VARIAS
         list_Constr2 = list(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
@@ -276,6 +276,7 @@ class RelaxedPrimalProblem(model.InputModel):
 ################################################################################
     def return_lambda_size(self):
         num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
+        print("return_lambda_size "+str(num))
         return num
 
 ################################################################################

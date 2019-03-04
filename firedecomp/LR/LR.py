@@ -72,7 +72,8 @@ class LagrangianRelaxation(object):
         self.a = 1
         self.b = 0.1
         # Create lambda
-        self.NL = 1 + len(problem_data.get_names("wildfire"))*3
+        self.NL = (1 + len(problem_data.get_names("wildfire")) +
+            len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
         self.lambda1 = []
         self.lambda1_prev = []
         self.lambda1_next = []
