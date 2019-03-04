@@ -93,25 +93,6 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
                                  str(self.resource_i))
 
 ################################################################################
-# METHOD: return_function_obj()
-################################################################################
-    def return_function_obj(self, solution):
-
-        self.s = solution.get_variables().get_variable('s')
-        self.tr = solution.get_variables().get_variable('tr')
-        self.r = solution.get_variables().get_variable('r')
-        self.er = solution.get_variables().get_variable('er')
-        self.e = solution.get_variables().get_variable('e')
-
-        self.__create_auxiliar_vars__()
-
-        self.y = solution.get_variables().get_variable('y')
-        self.mu = solution.get_variables().get_variable('mu')
-        self.m.update()
-        return self.function_obj.getValue()
-
-
-################################################################################
 # PRIVATE METHOD: __create_var_y__
 # OVERWRITE RelaxedPrimalProblem.__create_var_y__()
 ################################################################################
@@ -125,24 +106,6 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
             self.y[i].UB=self.list_y[i]
             self.y[i].LB=self.list_y[i]
             self.y[i].Start=self.list_y[i]
-
-################################################################################
-# METHOD: return_LR_obj()
-################################################################################
-    def return_LR_obj(self, solution):
-
-        self.s = solution.get_variables().get_variable('s')
-        self.tr = solution.get_variables().get_variable('tr')
-        self.r = solution.get_variables().get_variable('r')
-        self.er = solution.get_variables().get_variable('er')
-        self.e = solution.get_variables().get_variable('e')
-
-        self.__create_auxiliar_vars__()
-
-        self.y = solution.get_variables().get_variable('y')
-        self.mu = solution.get_variables().get_variable('mu')
-        self.m.update()
-        return self.LR_obj.getValue()
 
 ################################################################################
 # METHOD: divResources

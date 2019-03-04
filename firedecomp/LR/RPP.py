@@ -269,7 +269,7 @@ class RelaxedPrimalProblem(model.InputModel):
         for i in range(counter,counter+len(list_Constr4)):
             self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr4[i-counter]
 
-        self.m.setObjective( self.function_obj + self.LR_obj,  self.sense_opt)
+        self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 
 ################################################################################
 # METHOD: return_lambda_size()
@@ -395,6 +395,41 @@ class RelaxedPrimalProblem(model.InputModel):
     def divResources(self):
         self.divResources = 1
 
+################################################################################
+# METHOD: return_LR_obj()
+################################################################################
+    def return_LR_obj(self, solution):
+
+        self.s = solution.get_variables().get_variable('s')
+        self.tr = solution.get_variables().get_variable('tr')
+        self.r = solution.get_variables().get_variable('r')
+        self.er = solution.get_variables().get_variable('er')
+        self.e = solution.get_variables().get_variable('e')
+
+        self.__create_auxiliar_vars__()
+
+        self.y = solution.get_variables().get_variable('y')
+        self.mu = solution.get_variables().get_variable('mu')
+        self.m.update()
+        return self.LR_obj.getValue()
+
+################################################################################
+# METHOD: return_function_obj()
+################################################################################
+    def return_function_obj(self, solution):
+
+        self.s = solution.get_variables().get_variable('s')
+        self.tr = solution.get_variables().get_variable('tr')
+        self.r = solution.get_variables().get_variable('r')
+        self.er = solution.get_variables().get_variable('er')
+        self.e = solution.get_variables().get_variable('e')
+
+        self.__create_auxiliar_vars__()
+
+        self.y = solution.get_variables().get_variable('y')
+        self.mu = solution.get_variables().get_variable('mu')
+        self.m.update()
+        return self.function_obj.getValue()
 ################################################################################
 # METHOD: __set_solution_in_RPP__
 ################################################################################

@@ -54,6 +54,7 @@ class LagrangianRelaxation(object):
         # OPTIONS LR
         self.max_iters = max_iters
         self.max_time = max_time
+        self.epsilon = 0.001
         self.v = 1
         self.RPP_obj_prev = float("inf")
         # Gurobi options
@@ -72,12 +73,13 @@ class LagrangianRelaxation(object):
         self.b = 0.1
         # Create lambda
         self.NL = 1 + len(problem_data.get_names("wildfire"))*3
-        print("DDDD"+str(self.NL))
         self.lambda1 = []
         self.lambda1_prev = []
+        self.lambda1_next = []
         for i in range(0,self.NL):
-            self.lambda1.append(0.1)
-            self.lambda1_prev.append(0.0)
+            self.lambda1.append(2.0)
+            self.lambda1_prev.append(2.0)
+            self.lambda1_next.append(2.0)
         # Create Relaxed Primal Problem
         self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
         self.RPP_sol = float("inf")
@@ -94,30 +96,33 @@ class LagrangianRelaxation(object):
     def subgradient(self):
         # solution, lambda, mi
         # update lambda and mi
-        #num = 0
-        #aux = 0
-        #for i in range(0,self.N):
-        #    num = num + (-1) *  self.DPP_sol_obj[i]
-        #for i in range(0,self.N):
-        #    aux = aux + (-1) * self.DPP_sol_obj[i]**2
-        #module = math.sqrt(aux)
-        #l = (1/(self.a+self.b*self.v)) * (num / module)
-        #for i in range(0,self.NL):
-        #    self.lambda1[i] = self.lambda1[i] + l
+        part1 = 1/(self.a+self.b/self.v)
+        if (self.LR_pen != 0):
+            part2 = self.LR_pen / abs(self.LR_pen)
+        else:
+            part2 = 0
 
-        const=0.1
         for i in range(0,self.NL):
-            self.lambda1[i] = self.lambda1[i] + const
+            self.lambda1_next[i] = self.lambda1[i] + part1 * part2
 
-        return self.lambda1
+        print("self.lambda1_next :"+str(self.lambda1_next[0]))
+        print("self.lambda1      :"+str(self.lambda1[0]))
+        print("self.lambda1_prev :"+str(self.lambda1_prev[0]))
+
+        return self.lambda1_next
 
 ###############################################################################
 # PUBLIC METHOD convergence_checking()
 ###############################################################################
     def convergence_checking(self):
         stop = bool(False)
+        result = abs(self.lambda1_prev[0]-self.lambda1_next[0])/abs(self.lambda1[0])
         # check convergence
         if (self.v >= self.max_iters):
+            print("[STOP] Max iters achieved!")
+            stop = bool(True)
+        elif (result <= self.epsilon):
+            print("[STOP] Lambda epsilion achieved!")
             stop = bool(True)
 
         return stop
@@ -138,34 +143,36 @@ class LagrangianRelaxation(object):
             self.obj = 0
             self.LR_pen = 0
             best_f_value = float("inf")
-            for i in range(0,self.y_master_size-1):
-                DPP_sol_row = []
-                fl_value=0
-                f_value=0
-                fp_value=0
-                for j in range(0,self.N):
-                    #print(self.problem_DPP[i][j].lambda1)
-                    DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
-                    fl_value = fl_value + DPP_sol_row[j].get_objfunction()
-                    f_value  = f_value + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
-                    fp_value = fp_value + self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
+            self.lambda1 = self.lambda1_next.copy()
+            #for i in range(0,self.y_master_size-1):
+            #    DPP_sol_row = []
+            #    fl_value=0
+            #    f_value=0
+            #    fp_value=0
+            #    for j in range(0,self.N):
+            #        DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
+            #        fl_value = fl_value + DPP_sol_row[j].get_objfunction()
+            #        f_value  = f_value + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
+            #        fp_value = fp_value + self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
+            #    if ((f_value > 0) == (best_f_value > f_value)):
+            #        self.L_obj_down  = fl_value
+            #        self.obj = f_value
+            #        self.LR_pen = fp_value
+            #        best_f_value = f_value
+            #    self.DPP_sol.append(DPP_sol_row)
+            self.problem_RPP = RPP.RelaxedPrimalProblem(self.problem_data, self.lambda1);
+            RPP_sol = self.problem_RPP.solve(self.solver_options)
+            self.L_obj_down = RPP_sol.get_objfunction()
+            self.obj = self.problem_RPP.return_function_obj(RPP_sol)
+            self.LR_pen = self.problem_RPP.return_LR_obj(RPP_sol)
 
-                #print("SOLUTION "+str(i)+ " fl_value:"+str(fl_value)+" fvalue:"+str(f_value))
-                if ((f_value > 0) == (best_f_value > f_value)):
-                    self.L_obj_down  = fl_value
-                    self.obj = f_value
-                    self.LR_pen = fp_value
-                    best_f_value = f_value
-
-                self.DPP_sol.append(DPP_sol_row)
+            print("self.L_obj_down"+str(self.L_obj_down))
+            print("self.obj"+str(self.obj))
+            print("self.LR_pen"+str(self.LR_pen))
 
             # (2) Calculate new values of lambda and update
             self.lambda1_prev = self.lambda1.copy()
-            self.subgradient()
-
-            # (3) Check termination criteria
-            termination_criteria = self.convergence_checking()
-            self.v = self.v + 1
+            self.lambda1_next = self.subgradient()
 
             if (self.L_obj_down > self.L_obj_down_prev):
                 self.L_obj_down_prev = self.L_obj_down
@@ -175,11 +182,16 @@ class LagrangianRelaxation(object):
             #            self.option_decomp, self.lambda1, self.solver_options,
             #            self.groupR)
             log.info("Iteration # mi lambda f(x) L(x,mi,lambda) penL")
-            print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1_prev)+
+            print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1[0])+
                     " LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +
                         " penL:" + str(self.LR_pen) +"\n")
 
             self.destroy_DPP_set()
+
+            # (3) Check termination criteria
+            termination_criteria = self.convergence_checking()
+
+            self.v = self.v + 1
 
         return 1
 
