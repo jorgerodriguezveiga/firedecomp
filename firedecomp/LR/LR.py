@@ -70,14 +70,14 @@ class LagrangianRelaxation(object):
         self.__log__(log_level)
         # Subgradient vars
         self.a = 1
-        self.b = 0.5
+        self.b = 0.1
         # Create lambda
-        self.NL = (1 + len(problem_data.get_names("wildfire")))# +
-            #len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
+        self.NL = (1 + len(problem_data.get_names("wildfire")) +
+            len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
         self.lambda1 = []
         self.lambda1_prev = []
         self.lambda1_next = []
-        init_value=10
+        init_value=10*self.NL
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
             self.lambda1_prev.append(init_value)
@@ -121,12 +121,16 @@ class LagrangianRelaxation(object):
 ###############################################################################
     def convergence_checking(self):
         stop = bool(False)
-        result = abs(self.lambda1_prev[0]-self.lambda1_next[0])/abs(self.lambda1[0])
+        result = 0
+        for i in range(0,len(self.lambda1)):
+            rr = abs(self.lambda1_prev[i]-self.lambda1_next[i])/abs(self.lambda1[i])
+            if (rr <= self.epsilon) :
+                result = result + 1
         # check convergence
         if (self.v >= self.max_iters):
             print("[STOP] Max iters achieved!")
             stop = bool(True)
-        elif (result <= self.epsilon):
+        elif (result > len(self.lambda1)):
             print("[STOP] Lambda epsilion achieved!")
             stop = bool(True)
 
