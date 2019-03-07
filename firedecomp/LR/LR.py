@@ -22,7 +22,7 @@ class LagrangianRelaxation(object):
         problem_data,
         min_res_penalty=1000000,
         gap=0.01,
-        max_iters=100,
+        max_iters=1000,
         max_time=60,
         log_level="LR",
         solver_options=None,
@@ -70,10 +70,10 @@ class LagrangianRelaxation(object):
         self.__log__(log_level)
         # Subgradient vars
         self.a = 1
-        self.b = 0.001
+        self.b = 0.5
         # Create lambda
-        self.NL = (1 + len(problem_data.get_names("wildfire")) +
-            len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
+        self.NL = (1 + len(problem_data.get_names("wildfire")))# +
+            #len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
         self.lambda1 = []
         self.lambda1_prev = []
         self.lambda1_next = []
@@ -98,18 +98,17 @@ class LagrangianRelaxation(object):
     def subgradient(self):
         # solution, lambda, mi
         # update lambda and mi
-        part1 = 1 / (self.a + self.b/self.v)
-        if (self.LR_pen != 0):
-            part2 = (self.LR_pen) / abs(self.LR_pen)
-        else:
-            part2 = 0
-
         for i in range(0,self.NL):
+            part1 = 1 / (self.a + self.b/self.v)
+            if (self.LR_pen[i] != 0):
+                part2 = (self.LR_pen[i]) / abs(self.LR_pen[i])
+            else:
+                part2 = 0
             self.lambda1_next[i] = self.lambda1[i] + part1 * part2
             if (self.lambda1_next[i] < 0.0):
                 self.lambda1_next[i] = self.lambda1[i]
-                self.a = self.a*10
-                self.b = self.b*10
+
+            print(str(self.LR_pen[i])+"    "+str(self.lambda1[i])+"  "+str(self.lambda1_next[i])+" add "+str(part1 * part2))
 
         print("self.lambda1_next :"+str(self.lambda1_next[0]))
         print("self.lambda1      :"+str(self.lambda1[0]))
@@ -175,8 +174,8 @@ class LagrangianRelaxation(object):
             print("self.L_obj_down "+str(self.L_obj_down))
             print("self.obj "+str(self.obj))
             print("self.LR_pen "+str(self.LR_pen))
-            print("self.pen_all "+str(self.pen_all))
             print("self.lambda "+str(self.lambda1))
+            print("self.pen_all "+str(self.pen_all))
 
             # (2) Calculate new values of lambda and update
             self.lambda1_prev = self.lambda1.copy()
@@ -192,7 +191,7 @@ class LagrangianRelaxation(object):
             log.info("Iteration # mi lambda f(x) L(x,mi,lambda) penL")
             print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1[0])+
                     " LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +
-                        " penL:" + str(self.LR_pen) +"\n")
+                        " penL:" + str(sum(self.LR_pen)) +"\n")
 
 
 
