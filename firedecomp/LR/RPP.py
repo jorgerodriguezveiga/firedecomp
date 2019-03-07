@@ -239,8 +239,6 @@ class RelaxedPrimalProblem(model.InputModel):
                     for g in self.G for t in self.T)
 
 
-
-
 # Objective
 # =========
         self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
@@ -250,16 +248,17 @@ class RelaxedPrimalProblem(model.InputModel):
                        0.001*self.y[self.max_t])
 
         self.LR_obj = self.lambda1[0] * Constr1
-        self.LR_obj_const1 = 0
+        #self.LR_obj_const1 = 0
         self.LR_obj_const2 = 0
         self.LR_obj_const3 = 0
         self.LR_obj_const4 = 0
-        self.LR_obj_const1 = Constr1
-        counter=1
-        for i in range(counter,counter+len(list_Constr2)):
-            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i-counter]
-            self.LR_obj_const2 = self.LR_obj_const2 + list_Constr2[i-counter]
-        counter=counter+len(list_Constr2)
+        #self.LR_obj_const1 = Constr1
+        #counter=1
+        counter=0
+        #for i in range(counter,counter+len(list_Constr2)):
+        #    self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i-counter]
+        #    self.LR_obj_const2 = self.LR_obj_const2 + list_Constr2[i-counter]
+        #counter=counter+len(list_Constr2)
         for i in range(counter,counter+len(list_Constr3)):
             self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter]
             self.LR_obj_const3 = self.LR_obj_const3 + list_Constr3[i-counter]
@@ -273,7 +272,8 @@ class RelaxedPrimalProblem(model.InputModel):
 # METHOD: return_lambda_size()
 ################################################################################
     def return_lambda_size(self):
-        num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
+        #num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
+        num=len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
         return num
 
 ################################################################################
@@ -287,15 +287,15 @@ class RelaxedPrimalProblem(model.InputModel):
     # --------------------
         self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
 
-        #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
-        #            sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
-        #            name='wildfire_containment_1')
+        self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+                    sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
+                    name='wildfire_containment_1')
 
-        #self.m.addConstrs(
-        #    (-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
-        #      - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
-        #      <= 0 for t in self.T),
-        #    name='wildfire_containment_2')
+        self.m.addConstrs(
+            (-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+              - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+              <= 0 for t in self.T),
+            name='wildfire_containment_2')
 
         # Start of activity
         # -----------------
@@ -471,11 +471,14 @@ class RelaxedPrimalProblem(model.InputModel):
         self.mu = solution.get_variables().get_variable('mu')
         self.m.update()
 
-        total = (self.LR_obj_const1.getValue() + self.LR_obj_const2.getValue() +
-                 self.LR_obj_const3.getValue() + self.LR_obj_const4.getValue())
+        total = (( self.LR_obj_const3.getValue() + self.LR_obj_const4.getValue()) )
 
-        print("cont1 "+str(self.LR_obj_const1.getValue()))
-        print("cont2 "+str(self.LR_obj_const2.getValue()))
+
+        #total = ((self.LR_obj_const1.getValue() + self.LR_obj_const2.getValue() +
+        #         self.LR_obj_const3.getValue() + self.LR_obj_const4.getValue()) )
+
+        #print("cont1 "+str(self.LR_obj_const1.getValue()))
+        #print("cont2 "+str(self.LR_obj_const2.getValue()))
         print("cont3 "+str(self.LR_obj_const3.getValue()))
         print("cont4 "+str(self.LR_obj_const4.getValue()))
         return total

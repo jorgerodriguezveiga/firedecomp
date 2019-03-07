@@ -54,7 +54,7 @@ class LagrangianRelaxation(object):
         # OPTIONS LR
         self.max_iters = max_iters
         self.max_time = max_time
-        self.epsilon = 0.0001
+        self.epsilon = 0.000001
         self.v = 1
         self.RPP_obj_prev = float("inf")
         # Gurobi options
@@ -84,7 +84,7 @@ class LagrangianRelaxation(object):
             self.lambda1_next.append(init_value)
         # Create Relaxed Primal Problem
         self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
-        self.RPP_sol = float("inf")
+        self.solution_RPP = float("inf")
         # Initialize Decomposite Primal Problem Variables
         self.problem_DPP = []
         self.N = len(self.problem_RPP.I)
@@ -106,8 +106,10 @@ class LagrangianRelaxation(object):
 
         for i in range(0,self.NL):
             self.lambda1_next[i] = self.lambda1[i] + part1 * part2
-            if (self.lambda1_next[i] < 0.01):
-                self.lambda1_next[i] = 0.01
+            if (self.lambda1_next[i] < 0.0):
+                self.lambda1_next[i] = self.lambda1[i]
+                self.a = self.a*10
+                self.b = self.b*10
 
         print("self.lambda1_next :"+str(self.lambda1_next[0]))
         print("self.lambda1      :"+str(self.lambda1[0]))
@@ -165,11 +167,11 @@ class LagrangianRelaxation(object):
             #        best_f_value = f_value
             #    self.DPP_sol.append(DPP_sol_row)
             self.problem_RPP = RPP.RelaxedPrimalProblem(self.problem_data, self.lambda1);
-            RPP_sol = self.problem_RPP.solve(self.solver_options)
-            self.L_obj_down = RPP_sol.get_objfunction()
-            self.obj = self.problem_RPP.return_function_obj(RPP_sol)
-            self.LR_pen = self.problem_RPP.return_LR_obj2(RPP_sol)
-            self.pen_all = self.problem_RPP.return_LR_obj(RPP_sol)
+            self.solution_RPP = self.problem_RPP.solve(self.solver_options)
+            self.L_obj_down = self.solution_RPP.get_objfunction()
+            self.obj = self.problem_RPP.return_function_obj(self.solution_RPP)
+            self.LR_pen = self.problem_RPP.return_LR_obj2(self.solution_RPP)
+            self.pen_all = self.problem_RPP.return_LR_obj(self.solution_RPP)
             print("self.L_obj_down "+str(self.L_obj_down))
             print("self.obj "+str(self.obj))
             print("self.LR_pen "+str(self.LR_pen))
@@ -200,7 +202,7 @@ class LagrangianRelaxation(object):
                 self.destroy_DPP_set()
             self.v = self.v + 1
 
-        return RPP_sol
+        return self.solution_RPP
 
 ###############################################################################
 # PRIVATE create_DPP_set()
