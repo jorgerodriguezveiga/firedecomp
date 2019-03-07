@@ -231,17 +231,6 @@ class RelaxedPrimalProblem(model.InputModel):
                     - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
                     for t in self.T)
 
-#        self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
-#                    sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
-#                    name='wildfire_containment_1')
-
-#        self.m.addConstrs(
-#            (-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
-#              - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
-#              <= 0 for t in self.T),
-#            name='wildfire_containment_2')
-
-
 # Non-Negligence of Fronts (14) and (15)
         list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
                     for g in self.G for t in self.T)
@@ -249,17 +238,8 @@ class RelaxedPrimalProblem(model.InputModel):
         list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
                     for g in self.G for t in self.T)
 
-        # Non-Negligence of Fronts
-        # ------------------------
-        #self.m.addConstrs(
-        #    ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-        #     <= 0 for g in self.G for t in self.T),
-        #    name='non-negligence_1')
 
-        #self.m.addConstrs(
-        #    (sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
-        #     for g in self.G for t in self.T),
-        #    name='non-negligence_2')
+
 
 # Objective
 # =========

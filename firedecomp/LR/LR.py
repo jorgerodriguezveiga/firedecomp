@@ -54,7 +54,7 @@ class LagrangianRelaxation(object):
         # OPTIONS LR
         self.max_iters = max_iters
         self.max_time = max_time
-        self.epsilon = 0.001
+        self.epsilon = 0.0001
         self.v = 1
         self.RPP_obj_prev = float("inf")
         # Gurobi options
@@ -70,7 +70,7 @@ class LagrangianRelaxation(object):
         self.__log__(log_level)
         # Subgradient vars
         self.a = 1
-        self.b = 0.1
+        self.b = 0.001
         # Create lambda
         self.NL = (1 + len(problem_data.get_names("wildfire")) +
             len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
