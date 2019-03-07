@@ -30,6 +30,7 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         self.list_y = list_y
         super().__init__(problem_data, lambda1, relaxed, min_res_penalty)
 
+
 ##########################################################################################
 # PRIVATE METHOD: __extract_set_data_problem__ ()
 # OVERWRITE RelaxedPrimalProblem.__extract_set_data_problem__()
@@ -40,27 +41,11 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         self.__extract_set_data_problem_by_resources__(relaxed)
 
 ##########################################################################################
-# PRIVATE METHOD: __extract_set_data_problem_by_groups__ ()
-    def __extract_set_data_problem_by_groups__(self, relaxed=False):
-        """ Extract SET fields from data problem
-        """
-        #  SETS
-        self.G = [self.problem_data.get_names("groups")[self.resource_i]]
-        self.T = self.problem_data.get_names("wildfire")
-        key_group = self.G[0]
-        self.I = self.problem_data.groups.get_info('resources')[key_group].get_names()
-        dic_group = { key_group : self.problem_data.groups.get_info('resources')[key_group] }
-        self.Ig = {
-            k: [e.name for e in v]
-            for k, v in dic_group.items()}
-        self.T_int = self.problem_data.wildfire
-
-##########################################################################################
 # PRIVATE METHOD: __extract_set_data_problem_by_resources__ ()
     def __extract_set_data_problem_by_resources__(self, relaxed=False):
-        """ Extract SET fields from data problem
-        """
-        #  SETS
+#        """ Extract SET fields from data problem
+#        """
+#        #  SETS
         self.I = [self.problem_data.get_names("resources")[self.resource_i]]
         self.T = self.problem_data.get_names("wildfire")
         key_res = self.I[0];
@@ -111,4 +96,4 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 # METHOD: divResources
 ################################################################################
     def divResources(self):
-        self.divResources = 1/len(self.problem_data.get_names('resources'))
+        self.divRes = 1/len(self.problem_data.get_names('resources'))
