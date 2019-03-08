@@ -83,7 +83,7 @@ class LagrangianRelaxation(object):
         self.LR_pen = []
         self.pen_all = float("inf")
 
-        init_value=self.NL
+        init_value=1
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
             self.lambda1_prev.append(init_value)

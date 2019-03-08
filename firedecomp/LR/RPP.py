@@ -223,6 +223,7 @@ class RelaxedPrimalProblem(model.InputModel):
 # PRIVATE METHOD: __create_objfunc__()
 ################################################################################
     def __create_objfunc__(self):
+        self.divResources()
         self.div = gurobipy.LinExpr(self.divRes)
 
 # Wildfire Containment (2) and (3)
@@ -256,7 +257,7 @@ class RelaxedPrimalProblem(model.InputModel):
         for i in range(counter,counter+len(list_Constr2)):
             self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i-counter]
             self.LR_obj_const.append(list_Constr2[i-counter])
-        #counter=counter+len(list_Constr2)
+        counter=counter+len(list_Constr2)
         #for i in range(counter,counter+len(list_Constr3)):
         #    self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter]
         #    self.LR_obj_const.append(list_Constr3[i-counter])
@@ -270,8 +271,8 @@ class RelaxedPrimalProblem(model.InputModel):
 # METHOD: return_lambda_size()
 ################################################################################
     def return_lambda_size(self):
-        #num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
-        num=1+len(list_Constr2)
+        num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
+        #num=1#+len(list_Constr2)
         return num
 
 ################################################################################
