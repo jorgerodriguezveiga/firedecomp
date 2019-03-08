@@ -111,7 +111,7 @@ class LagrangianRelaxation(object):
             LRpen = self.LR_pen[i]
             part1 = 1 / (self.a + self.b/self.v)
             if (LRpen != 0):
-                part2 = (LRpen - self.L_obj_down) / (LRpen/len(self.LR_pen))**2#abs(LRpen)
+                part2 = (LRpen*(self.L_obj_down - self.obj)) / (LRpen/len(self.LR_pen))**2#abs(LRpen)
             else:
                 part2 = 0
             self.lambda1_next[i] = self.lambda1[i] + part1 * part2
