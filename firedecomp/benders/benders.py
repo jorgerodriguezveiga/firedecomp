@@ -68,12 +68,10 @@ class Benders(object):
         self.mip_gap_obj = mip_gap_obj
         self.max_iters = max_iters
         self.max_time = max_time
-        self.compute_feas_cuts = compute_feas_cuts
         self.n_start_info = n_start_info
         self.start_period = start_period
         self.step_period = step_period
         self.solver_options_master = solver_options_master
-        self.solver_options_subproblem = solver_options_subproblem
 
         self.num_cuts_prev = 0
         self.best_obj_period = float("inf")
@@ -207,33 +205,17 @@ class Benders(object):
         if 'TimeLimit' not in self.solver_options_master:
             self.solver_options_master['TimeLimit'] = max(1, self.max_time)
 
-        if self.compute_feas_cuts:
-            header = utils.format_benders([
-                "PER",
-                "ITER",
-                "SECONDS",
-                "OBJ",
-                "LB_PER",
-                "UB_PER",
-                "MIP_GAP",
-                "MIP_GAP_R",
-                "START_C",
-                "FEA_CONT_C",
-                "FEA_SING_C"
-            ])
-            sep = "-+-".join(["-" * 10] * 11)
-        else:
-            header = utils.format_benders([
-                "PER",
-                "ITER",
-                "SECONDS",
-                "OBJ",
-                "LB_PER",
-                "START_C",
-                "FEA_CONT_C",
-                "FEA_SING_C"
-            ])
-            sep = "-+-".join(["-"*10]*8)
+        header = utils.format_benders([
+            "PER",
+            "ITER",
+            "SECONDS",
+            "OBJ",
+            "LB_PER",
+            "START_C",
+            "FEA_CONT_C",
+            "FEA_SING_C"
+        ])
+        sep = "-+-".join(["-"*10]*8)
 
         self.log.benders(header)
         self.log.benders(sep)
@@ -289,8 +271,6 @@ class Benders(object):
         master = self.master
         if warm_start:
             self.master.use_warm_start()
-        subproblem = self.subproblem
-        subproblem_infeas = self.subproblem_infeas
 
         min_t = self.problem_data.data.min_t
 
@@ -329,73 +309,9 @@ class Benders(object):
                     ", ".join([str(k) for k, v in start.items() if v == 1]))
 
             # Get start info and add cuts if they are needed
-            start_info = self.get_start_info(
+            self.get_start_info(
                 list_resorce_period=[k for k, v in start.items() if v is True]
             )
-
-            # Update subproblems
-            if self.compute_feas_cuts:
-                subproblem.update_model(start, **start_info)
-
-                # Solve Subproblem
-                self.log.debug("\t[SUBPROBLEM]:")
-                sub_status = subproblem.solve(
-                    solver_options=self.solver_options_subproblem)
-                self.runtime += subproblem.model.runtime
-
-                if sub_status == 2:
-                    self.log.debug("\t - Optimal")
-                    self.log.info("\t - Update objective bounds")
-                    self.obj_lb = master.get_obj()
-                    new_ub = subproblem.get_obj()
-                    if new_ub <= self.obj_ub:
-                        self.log.info("\t - Update best solution")
-                        self.obj_ub = new_ub
-                        self.best_sol = \
-                            self.problem_data.resources_wildfire.get_info(
-                                "start")
-                else:
-                    self.log.debug("\t - Not optimal")
-                    # Update subproblem_infeas
-                    subproblem_infeas.update_model(start, **start_info)
-
-                    # Solve Subproblem Infeasibilities
-                    self.log.debug("\t[SLACK SUBPROBLEM]:")
-                    sub_infeas_status = subproblem_infeas.solve(
-                        solver_options=self.solver_options_subproblem)
-                    self.runtime += sub_infeas_status.model.runtime
-
-                    if sub_infeas_status == 2:
-                        self.log.debug("\t - Optimal")
-                        self.log.info(
-                            "\t - Add contention integer feasibility cut")
-                        self.add_contention_feas_int_cut()
-                    else:
-                        self.log.debug("\t - Not optimal")
-                        self.log.info("\t - Add integer feasibility cut")
-                        self.add_feas_int_cut()
-            else:
-                # Update subproblem_infeas
-                subproblem_infeas.update_model(start, **start_info)
-
-                # Solve Subproblem Infeasibilities
-                self.log.debug("\t[SUBPROBLEM]:")
-                sub_infeas_status = subproblem_infeas.solve(
-                    solver_options=self.solver_options_subproblem)
-                self.runtime += subproblem_infeas.model.runtime
-
-                if sub_infeas_status == 2:
-                    if subproblem_infeas.model.getObjective().getValue() == 0:
-                        self.log.debug("\t - Optimal")
-                        self.obj_lb = master.get_obj()
-                    else:
-                        self.log.info(
-                            "\t - Add contention integer feasibility cut")
-                        self.add_contention_feas_int_cut()
-                else:
-                    self.log.debug("\t - Not optimal")
-                    self.log.info("\t - Add integer feasibility cut")
-                    self.add_feas_int_cut()
 
             num_cuts = \
                 len(master.constraints.opt_start_int) + \
