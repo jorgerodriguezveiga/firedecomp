@@ -103,14 +103,19 @@ class Master(object):
         grp_wild = self.problem_data.groups_wildfire
 
         for t in self.data.T:
-            self.variables.y[t].start = int(not wild[t].contained)
+            if isinstance(wild[t].contained, (bool, int, float)):
+                self.variables.y[t].start = int(not wild[t].contained)
             for i in self.data.I:
-                self.variables.s[i, t].start = int(res_wild[i, t].start)
-                self.variables.e[i, t].start = int(res_wild[i, t].end)
-                self.variables.w[i, t].start = int(res_wild[i, t].work)
+                if isinstance(res_wild[i, t].start, (bool, int, float)):
+                    self.variables.s[i, t].start = int(res_wild[i, t].start)
+                if isinstance(res_wild[i, t].end, (bool, int, float)):
+                    self.variables.e[i, t].start = int(res_wild[i, t].end)
+                if isinstance(res_wild[i, t].work, (bool, int, float)):
+                    self.variables.w[i, t].start = int(res_wild[i, t].work)
             for g in self.data.G:
-                self.variables.mu[g, t].start = \
-                    grp_wild[g, t].num_left_resources
+                if isinstance(grp_wild[g, t].num_left_resources, (int, float)):
+                    self.variables.mu[g, t].start = \
+                        grp_wild[g, t].num_left_resources
 
     def get_S_set(self):
         shared_variables = ["start"]
