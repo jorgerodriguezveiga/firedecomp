@@ -3,6 +3,7 @@ original:
     MIPGapAbs: 0
     MIPGap: 0
     OutputFlag: 1
+    TimeLimit: 600
     LogToConsole: 1
 benders:
   mip_gap_obj: 0.01
@@ -15,4 +16,5 @@ benders:
     MIPGapAbs: 0
     MIPGap: 0
     OutputFlag: 0
+    TimeLimit: 600
     LogToConsole: 0
