@@ -18,12 +18,10 @@ class Benders(object):
             self,
             problem_data,
             mip_gap_obj=0.01, max_iters=10, max_time=3600,
-            compute_feas_cuts=False,
             n_start_info=0,
             start_period=None,
             step_period=6,
             solver_options_master=None,
-            solver_options_subproblem=None,
             log_level="benders"
     ):
         """Initialize the Benders object.
@@ -36,9 +34,6 @@ class Benders(object):
                 10.
             max_time (:obj:`float`): maximum cpu time (in seconds). Defaults to
                 3600.
-            compute_feas_cuts (:obj:`bool`): indicate if feasibility cuts are
-                computed or not. If ``False`` MIP GAP information is not
-                computed and execution cost decrease. Defaults to False.
             n_start_info (:obj:`int`): number periods to compute start
                 information of the resources. A large number implies a less
                 number of iterations but the execution time cost increase due
@@ -51,9 +46,6 @@ class Benders(object):
                 next period to solve the period_problem. Defaults to ``5``.
             solver_options_master (:obj:`dict`): dictionary with solver options
                 for the master problem. If ``None`` no options. Defaults to
-                ``None``.
-            solver_options_subproblem (:obj:`dict`): dictionary with solver
-                options for the subproblem. If ``None`` no options. Defaults to
                 ``None``.
             log_level (:obj:`str`): logging level. Defaults to ``'benders'``.
         """
@@ -335,39 +327,19 @@ class Benders(object):
 
             self.time = time.time() - self.__start_time__
 
-            if self.compute_feas_cuts:
-                self.log.info("[STOP CRITERIA]:")
-                self.log.debug("\t - lb: %s", self.obj_lb)
-                self.log.debug("\t - ub: %s", self.obj_ub)
-                self.log.info("\t - GAP: %s", self.obj_ub - self.obj_lb)
+            self.log.info("[STOP CRITERIA]:")
+            self.log.debug("\t - lb: %s", self.obj_lb)
 
-                self.log.benders(utils.format_benders([
-                    max_period,
-                    self.iter,
-                    self.time,
-                    self.obj,
-                    self.obj_lb,
-                    self.obj_ub,
-                    (self.obj_ub - self.obj_lb),
-                    (self.obj_ub - self.obj_lb) / self.obj_ub,
-                    len(master.constraints.opt_start_int),
-                    len(master.constraints.content_feas_int),
-                    len(master.constraints.feas_int)
-                ]))
-            else:
-                self.log.info("[STOP CRITERIA]:")
-                self.log.debug("\t - lb: %s", self.obj_lb)
-
-                self.log.benders(utils.format_benders([
-                    max_period,
-                    self.iter,
-                    self.time,
-                    self.obj,
-                    self.obj_lb,
-                    len(master.constraints.opt_start_int),
-                    len(master.constraints.content_feas_int),
-                    len(master.constraints.feas_int)
-                ]))
+            self.log.benders(utils.format_benders([
+                max_period,
+                self.iter,
+                self.time,
+                self.obj,
+                self.obj_lb,
+                len(master.constraints.opt_start_int),
+                len(master.constraints.content_feas_int),
+                len(master.constraints.feas_int)
+            ]))
 
             if self.period_status != 1:
                 break

@@ -216,9 +216,7 @@ class Problem(object):
             default_benders_options = {
                 'max_iters': 100,
                 'mip_gap_obj': 0.01,
-                'compute_feas_cuts': False,
                 'solver_options_master': None,
-                'solver_options_subproblem': None,
             }
             if isinstance(benders_options, dict):
                 default_benders_options.update(benders_options)
