@@ -70,7 +70,7 @@ class LagrangianRelaxation(object):
         self.__log__(log_level)
         # Subgradient vars
         self.a = 1
-        self.b = 0.1
+        self.b = 0.01
         # Create lambda
         #self.NL = 1
         self.NL = (1 + len(problem_data.get_names("wildfire"))) # +
@@ -83,7 +83,7 @@ class LagrangianRelaxation(object):
         self.LR_pen = []
         self.pen_all = float("inf")
 
-        init_value=1
+        init_value=self.NL
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
             self.lambda1_prev.append(init_value)
@@ -104,25 +104,23 @@ class LagrangianRelaxation(object):
     def subgradient(self):
         # solution, lambda, mi
         # update lambda and mi
-
-
         for i in range(0,self.NL):
             #print(self.LR_pen)
             LRpen = self.LR_pen[i]
             part1 = 1 / (self.a + self.b/self.v)
             if (LRpen != 0):
-                part2 = (LRpen*(self.L_obj_down - self.obj)) / (LRpen/len(self.LR_pen))**2#abs(LRpen)
+                part2 = (LRpen) / abs(LRpen)
             else:
                 part2 = 0
             self.lambda1_next[i] = self.lambda1[i] + part1 * part2
             if (self.lambda1_next[i] < 0.0):
                 self.lambda1_next[i] = self.lambda1[i]
 
-            print(str(LRpen)+"    "+str(self.lambda1[i])+"  "+str(self.lambda1_next[i])+" add "+str(part1 * part2))
+            #print(str(LRpen)+"    "+str(self.lambda1[i])+"  "+str(self.lambda1_next[i])+" add "+str(part1 * part2))
 
-        print("self.lambda1_next :"+str(self.lambda1_next[0]))
-        print("self.lambda1      :"+str(self.lambda1[0]))
-        print("self.lambda1_prev :"+str(self.lambda1_prev[0]))
+        #print("self.lambda1_next :"+str(self.lambda1_next[0]))
+        #print("self.lambda1      :"+str(self.lambda1[0]))
+        #print("self.lambda1_prev :"+str(self.lambda1_prev[0]))
 
         return self.lambda1_next
 
@@ -175,6 +173,7 @@ class LagrangianRelaxation(object):
                     DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
                     if (DPP_sol_row[j].model.Status == 3):
                         stop_inf = True
+                        print("CASCA "+str(i)+" "+str(j))
                         break
                     L_obj_down_local = L_obj_down_local + DPP_sol_row[j].get_objfunction()
                     obj_local  = obj_local + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
@@ -189,11 +188,14 @@ class LagrangianRelaxation(object):
                     self.LR_pen = LR_pen_local.copy()
                     self.pen_all = pen_all_local
                     index_best = i
+                    print("MELLORA")
+
                 #if (stop_inf == True):
                 #    break
                 self.DPP_sol.append(DPP_sol_row)
                 #print(str(i)+"))))**"+str(self.L_obj_down)+" "+str(self.obj))
 
+            print("best index "+str(index_best))
             ## ONLY 1 CONSTRAINTS AND WITH RPP
             #self.problem_RPP = RPP.RelaxedPrimalProblem(self.problem_data, self.lambda1);
             #self.solution_RPP = self.problem_RPP.solve(self.solver_options)

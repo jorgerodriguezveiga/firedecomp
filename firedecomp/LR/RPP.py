@@ -223,7 +223,6 @@ class RelaxedPrimalProblem(model.InputModel):
 # PRIVATE METHOD: __create_objfunc__()
 ################################################################################
     def __create_objfunc__(self):
-        self.divResources()
         self.div = gurobipy.LinExpr(self.divRes)
 
 # Wildfire Containment (2) and (3)
@@ -236,11 +235,11 @@ class RelaxedPrimalProblem(model.InputModel):
                     for t in self.T)
 
 # Non-Negligence of Fronts (14) and (15)
-        #list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-        #            for g in self.G for t in self.T)
+        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+                    for g in self.G for t in self.T)
 
-        #list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
-        #            for g in self.G for t in self.T)
+        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
+                    for g in self.G for t in self.T)
 
 # Objective
 # =========
@@ -271,8 +270,8 @@ class RelaxedPrimalProblem(model.InputModel):
 # METHOD: return_lambda_size()
 ################################################################################
     def return_lambda_size(self):
-        num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
-        #num=1#+len(list_Constr2)
+        #num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
+        num=1+len(list_Constr2)
         return num
 
 ################################################################################

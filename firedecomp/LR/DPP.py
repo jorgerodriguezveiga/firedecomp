@@ -96,5 +96,4 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 # METHOD: divResources
 ################################################################################
     def divResources(self):
-        
         self.divRes = 1.0/float(len(self.problem_data.get_names('resources')))
