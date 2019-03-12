@@ -2,12 +2,14 @@ original:
   solver_options:
     MIPGapAbs: 0
     MIPGap: 0
-    OutputFlag: 0
+    OutputFlag: 1
     LogToConsole: 1
+    TimeLimit: 600
 benders:
   mip_gap_obj: 0.01
   n_start_info: 20
-  max_iters: 100
+  max_iters: 1000
+  max_time: 600
   start_period: 20
   step_period: 6
   solver_options_master:
@@ -15,3 +17,4 @@ benders:
     MIPGap: 0
     OutputFlag: 0
     LogToConsole: 0
+    TimeLimit: 600
