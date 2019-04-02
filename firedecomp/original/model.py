@@ -204,6 +204,10 @@ def model(data, relaxed=False):
     # --------------------
     m.addConstr(y[data.min_t-1] == 1, name='start_no_contained')
 
+    m.addConstrs( (y[t-1] >= y[t] for t in data.T) ,name='aux_constraint_y1')
+    m.addConstrs( (w[i,t] <= y[t-1] for i in data.I for t in data.T) ,name='aux_constraint_y2')
+
+
     m.addConstr(sum([data.PER[t]*y[t-1] for t in data.T]) -
                 sum([data.PR[i, t]*w[i, t] for i in data.I for t in data.T]) <= 0,
                 name='wildfire_containment_1')

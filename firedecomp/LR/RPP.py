@@ -24,7 +24,7 @@ class RelaxedPrimalProblem(model.InputModel):
         self.problem_data = problem_data
         self.relaxed = relaxed
         self.min_res_penalty = min_res_penalty
-        #self.divRes=1
+
         # Extract data from problem data
         self.__extract_data_problem__()
 
@@ -230,9 +230,9 @@ class RelaxedPrimalProblem(model.InputModel):
                     sum([self.PR[i, t]*self.w[i, t]
                      for i in self.I for t in self.T]))
 # SON VARIAS
-        #list_Constr2 = list(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
-        #            - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
-        #            for t in self.T)
+        list_Constr2 = list(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+                    - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+                    for t in self.T)
 
 # Non-Negligence of Fronts (14) and (15)
         list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
@@ -252,25 +252,24 @@ class RelaxedPrimalProblem(model.InputModel):
         self.LR_obj_const = []
         self.LR_obj_const.append(Constr1)
         counter=1
-        #for i in range(counter,counter+len(list_Constr2)):
-        #    self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i-counter]
-        #    self.LR_obj_const.append(list_Constr2[i-counter])
+        for i in range(counter,counter+len(list_Constr2)):
+            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i-counter]
+            self.LR_obj_const.append(list_Constr2[i-counter])
         #counter=counter+len(list_Constr2)
-        for i in range(counter,counter+len(list_Constr3)):
-            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter]
-            self.LR_obj_const.append(list_Constr3[i-counter])
-        counter=counter+len(list_Constr3)
-        for i in range(counter,counter+len(list_Constr4)):
-            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr4[i-counter]
-            self.LR_obj_const.append(list_Constr4[i-counter])
+        #for i in range(counter,counter+len(list_Constr3)):
+        #    self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter]
+        #    self.LR_obj_const.append(list_Constr3[i-counter])
+        #counter=counter+len(list_Constr3)
+        #for i in range(counter,counter+len(list_Constr4)):
+        #    self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr4[i-counter]
+        #    self.LR_obj_const.append(list_Constr4[i-counter])
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 ################################################################################
 # METHOD: return_lambda_size()
 ################################################################################
     def return_lambda_size(self):
-        #num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
-        num=1+len(list_Constr3)+len(list_Constr4)
+        num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
         return num
 
 ################################################################################
@@ -288,10 +287,13 @@ class RelaxedPrimalProblem(model.InputModel):
         #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
         #        name='wildfire_containment_1')
 
-        self.m.addConstrs(
-        (-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
-          - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
-          <= 0 for t in self.T), name='wildfire_containment_2')
+        #self.m.addConstrs(
+        #(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+        #  - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+        #  <= 0 for t in self.T), name='wildfire_containment_2')
+
+        self.m.addConstrs( (self.y[t-1] >= self.y[t] for t in self.T) ,name='aux_constraint_y1')
+        self.m.addConstrs( (self.w[i,t] <= self.y[t-1] for i in self.I for t in self.T) ,name='aux_constraint_y2')
 
         # Start of activity
         # -----------------
@@ -372,15 +374,15 @@ class RelaxedPrimalProblem(model.InputModel):
 
         # Non-Negligence of Fronts
         # ------------------------
-        #self.m.addConstrs(
-        #((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-        # <= 0 for g in self.G for t in self.T),
-        #name='non-negligence_1')
+        self.m.addConstrs(
+            ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+         <= 0 for g in self.G for t in self.T),
+        name='non-negligence_1')
 
-        #self.m.addConstrs(
-        #(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
-        # for g in self.G for t in self.T),
-        #name='non-negligence_2')
+        self.m.addConstrs(
+        (sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
+         for g in self.G for t in self.T),
+        name='non-negligence_2')
 
         # Logical constraints
         # ------------------------
