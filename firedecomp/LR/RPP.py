@@ -269,7 +269,7 @@ class RelaxedPrimalProblem(model.InputModel):
 # METHOD: return_lambda_size()
 ################################################################################
     def return_lambda_size(self):
-        num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
+        num=1+len(list_Constr2)#+len(list_Constr3)+len(list_Constr4)
         return num
 
 ################################################################################

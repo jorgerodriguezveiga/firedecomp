@@ -67,6 +67,30 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
             for k, v in dic_group.items()}
         self.T_int = self.problem_data.wildfire
 
+
+##########################################################################################
+# PRIVATE METHOD: __extract_set_data_problem_by_resources__ ()
+##########################################################################################
+    def __extract_set_data_problem_by_groups__(self, relaxed=False):
+#        """ Extract SET fields from data problem
+#        """
+#        #  SETS
+        self.G = [self.problem_data.get_names("groups")[self.group_i]]
+        self.T = self.problem_data.get_names("wildfire")
+        self.I = []
+        for res in self.problem_data.groups[self.G[0]].resources:
+            self.I.append(res.name)
+        dic_group = { self.G[0] : self.I }
+
+        self.Ig = {
+            k: [e for e in v]
+            for k, v in dic_group.items()}
+        self.T_int = self.problem_data.wildfire
+
+        print(self.I)
+        print(self.G)
+        print(self.Ig)
+        
 ##########################################################################################
 # PRIVATE METHOD: __create_gurobi_model__ ()
 # OVERWRITE RelaxedPrimalProblem.__create_gurobi_model__()
