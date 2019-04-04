@@ -5,7 +5,7 @@ import gurobipy
 import pandas as pd
 
 # Package modules
-from firedecomp.benders import utils
+from firedecomp.fix_work import utils
 
 
 # Class which can have attributes set.

@@ -5,7 +5,7 @@ import time
 
 # Package modules
 from firedecomp.original import model as _model
-from firedecomp.benders import benders
+from firedecomp.fix_work import fix_work
 from firedecomp import config
 from firedecomp import plot
 
@@ -39,7 +39,7 @@ class Problem(object):
         self.period_unit = period_unit
         self.min_res_penalty = min_res_penalty
         self.original_model = None
-        self.benders_model = None
+        self.fix_work_model = None
         self.branch_price_model = None
         self.lagrangian_model = None
         self.solve_status = None
@@ -172,18 +172,18 @@ class Problem(object):
         self.data = Data(self)
 
     def solve(self, method='original',
-              solver_options=None, benders_options=None,
+              solver_options=None, fix_work_options=None,
               min_res_penalty=1000000,
               log_level=None):
         """Solve mathematical model.
 
         Args:
             method (:obj:`str`): method to solve the mathematical problem.
-                Options: ``'original'``, ``'benders'``. Defaults to
+                Options: ``'original'``, ``'fix_work'``. Defaults to
                 ``'original'``.
             solver_options (:obj:`dict`): gurobi options. Default ``None``.
                 Example: ``{'TimeLimit': 10}``.
-            benders_options (:obj:`dict`): benders method options. Default
+            fix_work_options (:obj:`dict`): fix work method options. Default
                 ``None``. If None:
                 ``{'max_iters': 100, 'min_res_penalty':1000000, 'gap':0.01}``.
             min_res_penalty (:obj:`float`): positive value that penalize the
@@ -209,27 +209,27 @@ class Problem(object):
                 self.constrvio = None
             self.solve_time = solution.model.runtime
             model = solution
-        elif method == 'benders':
+        elif method == 'fix_work':
             if log_level is None:
-                log_level = 'benders'
+                log_level = 'fix_work'
 
-            default_benders_options = {
+            default_fix_work_options = {
                 'max_iters': 100,
                 'mip_gap_obj': 0.01,
                 'solver_options_master': None,
             }
-            if isinstance(benders_options, dict):
-                default_benders_options.update(benders_options)
-            self.benders_model = benders.Benders(
-                self, **default_benders_options, log_level=log_level)
-            self.solve_status = self.benders_model.solve()
-            self.mipgap = self.benders_model.master.model.mipgap
-            if self.benders_model.master.model.SolCount >= 1:
-                self.constrvio = self.benders_model.master.model.constrvio
+            if isinstance(fix_work_options, dict):
+                default_fix_work_options.update(fix_work_options)
+            self.fix_work_model = fix_work.FixWorkAlgorithm(
+                self, **default_fix_work_options, log_level=log_level)
+            self.solve_status = self.fix_work_model.solve()
+            self.mipgap = self.fix_work_model.master.model.mipgap
+            if self.fix_work_model.master.model.SolCount >= 1:
+                self.constrvio = self.fix_work_model.master.model.constrvio
             else:
                 self.constrvio = float('inf')
-            self.solve_time = self.benders_model.runtime
-            model = self.benders_model
+            self.solve_time = self.fix_work_model.runtime
+            model = self.fix_work_model
         else:
             raise ValueError(
                 "Incorrect method '{}'. Options allowed: {}".format(

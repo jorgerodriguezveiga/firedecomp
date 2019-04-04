@@ -41,8 +41,8 @@ def simulations(
         num_periods (:obj:`list`): list with number of periods. If ``None``
             defaults to``[20, 30, 40]``.
         modes (:obj:`str`): list of execution modes. Options allowed:
-            ``'original'``, ``'benders'``. If ``None`` defaults to
-            ``['original', 'benders']``.
+            ``'original'``, ``'fix_work'``. If ``None`` defaults to
+            ``['original', 'fix_work']``.
         solver_options (:obj:`dict`): solver options. If None default options.
         solution_file (:obj:`str`): filename (.csv) with transferring results.
             Defaults to ``'solution.csv'``.
@@ -65,7 +65,7 @@ def simulations(
         num_periods = [20, 30, 40]
 
     if modes is None:
-        modes = ['original', 'benders']
+        modes = ['original', 'fix_work']
 
     comb = itertools.product(
         num_brigades, num_aircraft, num_machines, num_periods)
@@ -113,7 +113,7 @@ def simulations(
 
                 # Solver options
                 original_options = None
-                benders_options = None
+                fix_work_options = None
 
                 if solver_options is not None:
                     if 'original' in solver_options:
@@ -121,14 +121,14 @@ def simulations(
                         if 'solver_options' in orig_options:
                             original_options = orig_options['solver_options']
 
-                    if 'benders' in solver_options:
-                        benders_options = solver_options['benders']
+                    if 'fix_work_options' in solver_options:
+                        fix_work_options = solver_options['fix_work_algorithm']
 
                 print(1)
                 instance.solve(
                     method=m,
                     solver_options=original_options,
-                    benders_options=benders_options,
+                    fix_work_options=fix_work_options,
                     min_res_penalty=1000000,
                     log_level=None)
                 print(2)
@@ -207,10 +207,10 @@ def parse_args():
         default=None,
         nargs='+',
         type=str,
-        choices=['original', 'benders'],
+        choices=['original', 'fix_work'],
         help="List of execution modes. "
-             "Options allowed: original benders. "
-             "If None: original benders."
+             "Options allowed: original fix_work. "
+             "If None: original fix_work."
     )
 
     parser.add_argument(

@@ -177,14 +177,14 @@ def get_minimum_resources(data):
 # --------------------------------------------------------------------------- #
 
 
-# format_benders --------------------------------------------------------------
-def format_benders(message):
-    return " | ".join([format_benders_element(e) for e in message])
+# format_fix_work --------------------------------------------------------------
+def format_fix_work(message):
+    return " | ".join([format_fix_work_element(e) for e in message])
 # --------------------------------------------------------------------------- #
 
 
-# format_benders_element ------------------------------------------------------
-def format_benders_element(element):
+# format_fix_work_element ------------------------------------------------------
+def format_fix_work_element(element):
     log_s_format = "{:10s}"
     log_e_format = "{:.4E}"
     log_f_format = "{:7.2f}"

@@ -7,13 +7,13 @@ import time
 import numpy as np
 
 # Package modules
-from firedecomp import benders
+from firedecomp import fix_work
 from firedecomp import logging
-from firedecomp.benders import utils
+from firedecomp.fix_work import utils
 
 
 # Benders ---------------------------------------------------------------------
-class Benders(object):
+class FixWorkAlgorithm(object):
     def __init__(
             self,
             problem_data,
@@ -21,8 +21,9 @@ class Benders(object):
             n_start_info=0,
             start_period=None,
             step_period=6,
+            valid_constraints=None,
             solver_options_master=None,
-            log_level="benders"
+            log_level="fix_work"
     ):
         """Initialize the Benders object.
 
@@ -44,10 +45,13 @@ class Benders(object):
                 taken. Defaults to ``None``.
             step_period (:obj:`int`): step between the start_period and the
                 next period to solve the period_problem. Defaults to ``5``.
+            valid_constraints: list with desired valid constraints. Options
+                allowed: 'contention', 'work', 'max_obj'. If None all are
+                considered. Defaults to None.
             solver_options_master (:obj:`dict`): dictionary with solver options
                 for the master problem. If ``None`` no options. Defaults to
                 ``None``.
-            log_level (:obj:`str`): logging level. Defaults to ``'benders'``.
+            log_level (:obj:`str`): logging level. Defaults to ``'fix_work'``.
         """
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
@@ -63,6 +67,7 @@ class Benders(object):
         self.n_start_info = n_start_info
         self.start_period = start_period
         self.step_period = step_period
+        self.valid_constraints = valid_constraints
         self.solver_options_master = solver_options_master
 
         self.num_cuts_prev = 0
@@ -79,11 +84,11 @@ class Benders(object):
 
         # Models
         self.problem_data.update_period_data(max_period=self.start_period)
-        self.master = benders.master.Master(
-            self.problem_data)
-        self.subproblem = benders.subproblem.Subproblem(
+        self.master = fix_work.master.Master(
+            self.problem_data, self.valid_constraints)
+        self.subproblem = fix_work.subproblem.Subproblem(
             self.problem_data, relaxed=False)
-        self.subproblem_infeas = benders.subproblem.Subproblem(
+        self.subproblem_infeas = fix_work.subproblem.Subproblem(
             self.problem_data, relaxed=False, slack=True)
 
         # Master info
@@ -127,15 +132,15 @@ class Benders(object):
                     for k, v in self.get_start_resource_info(i, t)[m].items()}
                 for m in info}
 
-    def __log__(self, level="benders"):
-        log.addLevelName(60, "benders")
-        log.Logger.benders = logging.benders
+    def __log__(self, level="fix_work"):
+        log.addLevelName(60, "fix_work")
+        log.Logger.fix_work = logging.fix_work
 
-        if level != 'benders':
+        if level != 'fix_work':
             log_level = getattr(log, level)
-            logger = log.getLogger('benders_logging')
+            logger = log.getLogger('fix_work_logging')
             logger.setLevel(log_level)
-            logger.addFilter(logging.BendersFilter())
+            logger.addFilter(logging.FixWorkFilter())
             if len(logger.handlers) == 0:
                 ch = log.StreamHandler()
                 ch.setLevel(log_level)
@@ -145,7 +150,7 @@ class Benders(object):
                 logger.addHandler(ch)
         else:
             log_level = 60
-            logger = log.getLogger('benders')
+            logger = log.getLogger('fix_work')
             logger.setLevel(log_level)
             if len(logger.handlers) == 0:
                 ch = log.StreamHandler()
@@ -197,7 +202,7 @@ class Benders(object):
         if 'TimeLimit' not in self.solver_options_master:
             self.solver_options_master['TimeLimit'] = max(1, self.max_time)
 
-        header = utils.format_benders([
+        header = utils.format_fix_work([
             "PER",
             "ITER",
             "SECONDS",
@@ -209,8 +214,8 @@ class Benders(object):
         ])
         sep = "-+-".join(["-"*10]*8)
 
-        self.log.benders(header)
-        self.log.benders(sep)
+        self.log.fix_work(header)
+        self.log.fix_work(sep)
 
         new_obj = float('inf')
         periods = [
@@ -236,17 +241,17 @@ class Benders(object):
             if status == 2:
                 new_obj = self.problem_data.get_cost()
                 if abs(self.best_obj_period - new_obj) <= self.mip_gap_obj:
-                    self.log.benders("\nConvergence.")
+                    self.log.fix_work("\nConvergence.")
                     self.status = 2
                     break
                 else:
                     if period == data.max_t:
                         self.status = 2
                     else:
-                        self.log.benders(sep)
+                        self.log.fix_work(sep)
                         self.status = 1
             else:
-                self.log.benders("")
+                self.log.fix_work("")
                 self.status = status
 
         return self.status
@@ -330,7 +335,7 @@ class Benders(object):
             self.log.info("[STOP CRITERIA]:")
             self.log.debug("\t - lb: %s", self.obj_lb)
 
-            self.log.benders(utils.format_benders([
+            self.log.fix_work(utils.format_fix_work([
                 max_period,
                 self.iter,
                 self.time,

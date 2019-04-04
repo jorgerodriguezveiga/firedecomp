@@ -3,6 +3,7 @@
 # Python packages
 import gurobipy
 import re
+import logging as log
 
 
 # Class which can have attributes set.
@@ -13,9 +14,20 @@ class Expando(object):
 
 # Master ----------------------------------------------------------------------
 class Master(object):
-    def __init__(self, problem_data):
+    def __init__(self, problem_data, valid_constraints=None):
+        """Build Master problem.
+
+        Args:
+            problem_data: problem.
+            valid_constraints: list with desired valid constraints. Options
+                allowed: 'contention', 'work', 'max_obj'. If None all are
+                considered. Defaults to None.
+        """
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
+
+        if valid_constraints is None:
+            valid_constraints = ['contention', 'work', 'max_obj']
 
         self.problem_data = problem_data
         self.variables = Expando()
@@ -27,6 +39,7 @@ class Master(object):
         self.obj_wildfire = None
         self.obj_law = None
         self.max_obj = None
+        self.valid_constraints = valid_constraints
 
         self.__start_info__ = {}
         self.__build_model__()
@@ -149,6 +162,29 @@ class Master(object):
             self.variables.wildfire_cost +
             self.variables.law_cost,
             gurobipy.GRB.MINIMIZE)
+
+    def __build_valid_constraint_contention__(self):
+        y = self.variables.y
+
+        expr_lhs = {t: y[t] for t in self.data.T}
+        expr_rhs = {t: y[t - 1] for t in self.data.T}
+
+        self.constraints.wildfire_containment_1 = self.model.addConstrs(
+            (expr_lhs[t] <= expr_rhs[t] for t in self.data.T),
+            name='valid_constraint_contention')
+
+    def __build_valid_constraint_work__(self):
+        """w_{it} <= y_{t - 1}"""
+        y = self.variables.y
+        w = self.variables.w
+
+        expr_lhs = {(i, t): w[i, t] for i in self.data.I for t in self.data.T}
+        expr_rhs = {t: y[t - 1] for t in self.data.T}
+
+        self.constraints.wildfire_containment_1 = self.model.addConstrs(
+            (expr_lhs[i, t] <= expr_rhs[t]
+             for i in self.data.I for t in self.data.T),
+            name='valid_constraint_contention')
 
     def __build_wildfire_containment_1__(self):
         data = self.data
@@ -346,13 +382,25 @@ class Master(object):
         self.constraints.feas_int = {}
         self.constraints.max_obj = None
 
-        # Max obj
-        # -------
-        self.__build_max_obj_cut__()
-
         # Start info
         # ----------
         self.__build_opt_start_init_cuts__()
+
+        # Max obj
+        # -------
+        if 'max_obj' in self.valid_constraints:
+            log.info("Add max_obj valid constraint.")
+            self.__build_max_obj_cut__()
+
+        # Valid constraints
+        # -----------------
+        if 'contention' in self.valid_constraints:
+            log.info("Add contention valid constraint.")
+            self.__build_valid_constraint_contention__()
+
+        if 'work' in self.valid_constraints:
+            log.info("Add work valid constraint.")
+            self.__build_valid_constraint_work__()
 
         # Wildfire Containment
         # --------------------

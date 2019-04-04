@@ -5,13 +5,14 @@ original:
     OutputFlag: 1
     LogToConsole: 1
     TimeLimit: 600
-benders:
+fix_work_algorithm:
   mip_gap_obj: 0.01
   n_start_info: 20
   max_iters: 1000
   max_time: 600
   start_period: 20
   step_period: 6
+  valid_constraints: ['max_obj', 'work', 'contention']
   solver_options_master:
     MIPGapAbs: 0
     MIPGap: 0
