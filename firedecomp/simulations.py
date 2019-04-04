@@ -112,14 +112,16 @@ def simulations(
                 solution_dict['mode'] = m
 
                 # Solver options
-                original_options = None
+                orig_options = None
                 fix_work_options = None
 
                 if solver_options is not None:
                     if 'original' in solver_options:
                         orig_options = solver_options['original']
-                        if 'solver_options' in orig_options:
-                            original_options = orig_options['solver_options']
+                        if 'solver_options' not in orig_options:
+                            orig_options['solver_options'] = {}
+                        if 'valid_constraints' not in orig_options:
+                            orig_options['valid_constraints'] = None
 
                     if 'fix_work_options' in solver_options:
                         fix_work_options = solver_options['fix_work_algorithm']
@@ -127,7 +129,7 @@ def simulations(
                 print(1)
                 instance.solve(
                     method=m,
-                    solver_options=original_options,
+                    solver_options=orig_options,
                     fix_work_options=fix_work_options,
                     min_res_penalty=1000000,
                     log_level=None)

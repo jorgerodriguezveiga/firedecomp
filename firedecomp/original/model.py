@@ -11,7 +11,8 @@ from firedecomp import config
 
 # InputModel ------------------------------------------------------------------
 class InputModel(object):
-    def __init__(self, problem_data, relaxed=False, min_res_penalty=1000000):
+    def __init__(self, problem_data, relaxed=False, min_res_penalty=1000000,
+                 valid_constraints=None):
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
@@ -54,10 +55,12 @@ class InputModel(object):
         self.M = sum([v for k, v in self.PER.items()])
         self.min_t = int(min(self.T))
         self.max_t = int(max(self.T))
+        self.valid_constraints = valid_constraints
         self.model = self.__get_model__()
 
     def __get_model__(self):
-        return model(self, relaxed=self.relaxed)
+        return model(self, relaxed=self.relaxed,
+                     valid_constraints=self.valid_constraints)
 
     def solve(self, solver_options=None):
         """Solve mathematical model.
@@ -125,7 +128,7 @@ class InputModel(object):
 
 
 # model -----------------------------------------------------------------------
-def model(data, relaxed=False, slack_containment=False,
+def model(data, relaxed=False, slack_containment=False, valid_constraints=None,
           slack_penalty=1000000000000):
     """Wildfire suppression model.
 
@@ -147,6 +150,9 @@ def model(data, relaxed=False, slack_containment=False,
         vtype = gurobipy.GRB.BINARY
         lb = 0
         ub = 1
+
+    if valid_constraints is None:
+        valid_constraints = ['contention', 'work', 'max_obj']
 
     # Variables
     # =========
@@ -223,6 +229,27 @@ def model(data, relaxed=False, slack_containment=False,
 
     # Constraints
     # ===========
+
+    # Valid constraints
+    # -----------------
+
+    if 'contention' in valid_constraints:
+        expr_lhs = {t: y[t] for t in data.T}
+        expr_rhs = {t: y[t - 1] for t in data.T}
+
+        m.addConstrs(
+            (expr_lhs[t] <= expr_rhs[t] for t in data.T),
+            name='valid_constraint_contention'
+        )
+
+    if 'work' in valid_constraints:
+        expr_lhs = {(i, t): w[i, t] for i in data.I for t in data.T}
+        expr_rhs = {t: y[t - 1] for t in data.T}
+
+        m.addConstrs(
+            (expr_lhs[i, t] <= expr_rhs[t] for i in data.I for t in data.T),
+            name='valid_constraint_contention'
+        )
 
     # Wildfire Containment
     # --------------------
