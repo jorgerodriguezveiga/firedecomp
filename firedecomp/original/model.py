@@ -121,7 +121,6 @@ class InputModel(object):
         return m
 # --------------------------------------------------------------------------- #
 
-
 # model -----------------------------------------------------------------------
 def model(data, relaxed=False):
     """Wildfire suppression model.

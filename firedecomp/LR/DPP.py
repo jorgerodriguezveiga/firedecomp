@@ -70,8 +70,6 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
                 for t in self.T:
                     ind = self.I[i]
                     # VAR S
-                    print(self.s[ind,t].UB)
-                    print(self.solution.get_variables().s[ind,t])
                     self.s[ind,t].UB     = self.solution.get_variables().s[ind,t]
                     self.s[ind,t].LB     = self.solution.get_variables().s[ind,t]
                     self.s[ind,t].Start  = self.solution.get_variables().s[ind,t]

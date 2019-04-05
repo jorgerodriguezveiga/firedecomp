@@ -9,10 +9,10 @@ from firedecomp import logging
 from firedecomp.LR import RPP
 from firedecomp.LR import DPP
 from firedecomp.LR import RDP
-from firedecomp.original import model as _model
+from firedecomp.classes import solution as _sol
 import time
 import math
-
+import gurobipy
 
 ###############################################################################
 # CLASS LagrangianRelaxation()
@@ -213,9 +213,9 @@ class LagrangianRelaxation(object):
                     self.index_best = i
                     changes=1
 
-                solution_full = self.gather_solution(DPP_sol_row)
+                solution = self.gather_solution(DPP_sol_row, solution)
                 for j in range(0,self.N):
-                    self.problem_DPP[i][j].update_lambda1(self.lambda_matrix[i],solution_full)
+                    self.problem_DPP[i][j].update_lambda1(self.lambda_matrix[i],solution)
 
                 #if (stop_inf == True):
                 #    break
@@ -266,14 +266,16 @@ class LagrangianRelaxation(object):
 ###############################################################################
     def gather_solution(self, DPP_sol_row, solution):
         counter = 0
-        s = tupledict()
-        tr = tupledict()
-        r = tupledict()
-        er = tupledict()
-        e = tupledict()
-        vars = Variables()
+        s = gurobipy.tupledict()
+        tr = gurobipy.tupledict()
+        r = gurobipy.tupledict()
+        er = gurobipy.tupledict()
+        e = gurobipy.tupledict()
+        vars = _sol.Variables()
         Tlen = self.problem_data.get_names("wildfire")
         Ilen = self.problem_data.get_names("resources")
+        print(Ilen)
+        print(len(DPP_sol_row))
         for res in Ilen:
             DPP = DPP_sol_row[counter]
             for tt in Tlen:
@@ -311,9 +313,37 @@ class LagrangianRelaxation(object):
 # PRIVATE init_solution()
 ###############################################################################
     def init_solution(self):
-        original_model = _model.InputModel(self.problem_data)
-        solution = original_model.model
+        counter = 0
+        s = gurobipy.tupledict()
+        tr = gurobipy.tupledict()
+        r = gurobipy.tupledict()
+        er = gurobipy.tupledict()
+        e = gurobipy.tupledict()
+        Tlen = self.problem_data.get_names("wildfire")
+        Ilen = self.problem_data.get_names("resources")
+        first=1
+        for res in Ilen:
+            for tt in Tlen:
+                if (first == 1) :
+                    value = 1
+                else:
+                    value = 0
 
+                s[res,tt] = value
+                tr[res,tt] = value
+                r[res,tt] = value
+                er[res,tt] = value
+                e[res,tt] = value
+            counter = counter + 1
+        variables = gurobipy.tupledict()
+        variables["s"] = s
+        variables["tr"] = tr
+        variables["r"] = r
+        variables["er"] = er
+        variables["e"] = e
+        model = gurobipy.Model("Init")
+        solution = _sol.Solution(model, variables)
+        #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
         return solution
 
 ###############################################################################
