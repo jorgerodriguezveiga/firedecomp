@@ -9,6 +9,7 @@ from firedecomp import logging
 from firedecomp.LR import RPP
 from firedecomp.LR import DPP
 from firedecomp.LR import RDP
+from firedecomp.original import model as _model
 import time
 import math
 
@@ -69,8 +70,8 @@ class LagrangianRelaxation(object):
         # Log level
         self.__log__(log_level)
         # Subgradient vars
-        self.a = 1
-        self.b = 0.0001
+        self.a = 0.1
+        self.b = 0.01
         # Create lambda
         #self.NL = 1
         self.NL = (1 + len(problem_data.get_names("wildfire")))  #+
@@ -122,10 +123,14 @@ class LagrangianRelaxation(object):
         lambda_old = lambda_vector.copy()
         for i in range(0,self.NL):
             LRpen = LR_pen_v[i]
-            part1 = self.UB / (self.a + self.b*self.v)
+            #part1 = (self.UB - self.L_obj_down) / (self.a + self.b*self.v)
+            #part2 = 0
+            #if (total_LRpen != 0):
+            #    part2 =  LRpen / total_LRpen
+            part1 = 1 / (self.a + self.b*self.v)
             part2 = 0
             if (LRpen != 0):
-                part2 =  1 / total_LRpen * LRpen / abs(LRpen)
+                part2 =  LRpen / abs(LRpen)
             lambda_vector[i] = lambda_old[i] + part1 * part2
             if (lambda_vector[i] < 0.0):
                 lambda_vector[i] = 0
@@ -164,7 +169,8 @@ class LagrangianRelaxation(object):
         self.DPP_sol = []
         changes = 0
         # (0) Initialize DPP
-        self.create_DPP_set()
+        solution = self.init_solution()
+        self.create_DPP_set(solution)
 
         while (termination_criteria == False):
             if (changes != 0):
@@ -207,8 +213,9 @@ class LagrangianRelaxation(object):
                     self.index_best = i
                     changes=1
 
+                solution_full = self.gather_solution(DPP_sol_row)
                 for j in range(0,self.N):
-                    self.problem_DPP[i][j].update_lambda1(self.lambda_matrix[i])
+                    self.problem_DPP[i][j].update_lambda1(self.lambda_matrix[i],solution_full)
 
                 #if (stop_inf == True):
                 #    break
@@ -254,20 +261,60 @@ class LagrangianRelaxation(object):
 
         return self.solution_RPP
 
+###############################################################################
+# PRIVATE gather_solution()
+###############################################################################
+    def gather_solution(self, DPP_sol_row, solution):
+        counter = 0
+        s = tupledict()
+        tr = tupledict()
+        r = tupledict()
+        er = tupledict()
+        e = tupledict()
+        vars = Variables()
+        Tlen = self.problem_data.get_names("wildfire")
+        Ilen = self.problem_data.get_names("resources")
+        for res in Ilen:
+            DPP = DPP_sol_row[counter]
+            for tt in Tlen:
+                s[res,tt] = DPP.get_variables().get_variable('s')[res,tt]
+                tr[res,tt] = DPP.get_variables().get_variable('tr')[res,tt]
+                r[res,tt] = DPP.get_variables().get_variable('r')[res,tt]
+                er[res,tt] = DPP.get_variables().get_variable('er')[res,tt]
+                e[res,tt] = DPP.get_variables().get_variable('e')[res,tt]
+            counter = counter + 1
+        vars.set_variable("s",s)
+        vars.set_variable("tr",tr)
+        vars.set_variable("r",r)
+        vars.set_variable("er",er)
+        vars.set_variable("e",e)
+        solution.set_variables(vars)
+        #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
+        return solution
 
 ###############################################################################
 # PRIVATE create_DPP_set()
 ###############################################################################
-    def create_DPP_set(self):
+    def create_DPP_set(self, solution):
         for i in range(0,self.y_master_size-1):
             problem_DPP_row = []
             self.y_master = dict([ (p, 1) for p in range(0,self.y_master_size)])
-            for p in range(self.y_master_size - (2+i), self.y_master_size):
+            for p in range(self.y_master_size - (1+i), self.y_master_size):
                 self.y_master[p] = 0
             for j in range(0,self.N):
                 problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
-                                                    self.lambda1, j, self.y_master))
+                                       self.lambda1, j,
+                                       self.y_master, solution))
             self.problem_DPP.append(problem_DPP_row)
+
+###############################################################################
+# PRIVATE init_solution()
+###############################################################################
+    def init_solution(self):
+        original_model = _model.InputModel(self.problem_data)
+        solution = original_model.model
+
+        return solution
 
 ###############################################################################
 # PRIVATE extract_infeasibility()

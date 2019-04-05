@@ -15,8 +15,7 @@ from firedecomp.original import model
 # CLASS RelaxedPrimalProblem()
 ################################################################################
 class RelaxedPrimalProblem(model.InputModel):
-    def __init__(self, problem_data, lambda1, relaxed=False,
-        min_res_penalty=1000000):
+    def __init__(self, problem_data, lambda1, relaxed=False, min_res_penalty=1000000):
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
@@ -165,23 +164,17 @@ class RelaxedPrimalProblem(model.InputModel):
 
         # (3) Wildfire
         # --------
-        self.__create_var_y__()
         self.mu = self.m.addVars(self.G, self.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
                       name="missing_resources")
+        self.__create_var_y_and_fixed_vars__()
 
 ################################################################################
 # PRIVATE METHOD: __create_var_y__
 ################################################################################
-    def __create_var_y__(self):
+    def __create_var_y_and_fixed_vars__(self):
         self.sizey = len(self.T + [self.min_t-1])
         self.y = self.m.addVars(self.T + [self.min_t-1], vtype=self.vtype, lb=self.lb, ub=self.ub,
                               name="contention")
-
-################################################################################
-#  METHOD: return_sizey
-################################################################################
-    def return_sizey(self):
-        return self.sizey
 
 ################################################################################
 # PRIVATE METHOD: create_auxiliar_vars
@@ -229,7 +222,6 @@ class RelaxedPrimalProblem(model.InputModel):
         Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T]) -
                     sum([self.PR[i, t]*self.w[i, t]
                      for i in self.I for t in self.T]))
-# SON VARIAS
         list_Constr2 = list(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
                     - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
                     for t in self.T)
@@ -408,9 +400,6 @@ class RelaxedPrimalProblem(model.InputModel):
 
         self.m.update()
 
-
-
-
 ################################################################################
 # METHOD: UPDATE LAMBDA1
 ################################################################################
@@ -493,6 +482,10 @@ class RelaxedPrimalProblem(model.InputModel):
         self.mu = solution.get_variables().get_variable('mu')
         self.m.update()
         return self.function_obj.getValue()
+
+
+    def return_sizey(self):
+        return  len(self.T + [self.min_t-1])
 ################################################################################
 # METHOD: __set_solution_in_RPP__
 ################################################################################
