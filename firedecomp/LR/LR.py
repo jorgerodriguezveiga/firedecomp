@@ -166,10 +166,10 @@ class LagrangianRelaxation(object):
     def solve(self, max_iters=100):
 
         termination_criteria = bool(False)
-        self.DPP_sol = []
         changes = 0
+        self.DPP_sol = []
         # (0) Initialize DPP
-        solution = self.init_solution()
+        solution = self.problem_RPP.solve()
         self.create_DPP_set(solution)
 
         while (termination_criteria == False):
@@ -212,18 +212,14 @@ class LagrangianRelaxation(object):
                     self.pen_all = pen_all_local
                     self.index_best = i
                     changes=1
+                solution = self.gather_solution(DPP_sol_row)
+                self.DPP_sol.append(solution)
 
-                solution = self.gather_solution(DPP_sol_row, solution)
-                for j in range(0,self.N):
-                    self.problem_DPP[i][j].update_lambda1(self.lambda_matrix[i],solution)
-
-                #if (stop_inf == True):
-                #    break
-                self.DPP_sol.append(DPP_sol_row)
                 print("INF"+ str(inf_sol) +"||||||| Y -----> "+str(self.problem_DPP[i][0].list_y))
 
-                #time.sleep(1)
-                #print(str(i)+"))))**"+str(self.L_obj_down)+" "+str(self.obj))
+            for j in range(0,self.N):
+                self.problem_DPP[i][j].update_lambda1(self.lambda_matrix[i], self.DPP_sol[i])
+
 
             ## ONLY 1 CONSTRAINTS AND WITH RPP
             #self.problem_RPP = RPP.RelaxedPrimalProblem(self.problem_data, self.lambda1);
@@ -264,18 +260,15 @@ class LagrangianRelaxation(object):
 ###############################################################################
 # PRIVATE gather_solution()
 ###############################################################################
-    def gather_solution(self, DPP_sol_row, solution):
+    def gather_solution(self, DPP_sol_row):
         counter = 0
         s = gurobipy.tupledict()
         tr = gurobipy.tupledict()
         r = gurobipy.tupledict()
         er = gurobipy.tupledict()
         e = gurobipy.tupledict()
-        vars = _sol.Variables()
         Tlen = self.problem_data.get_names("wildfire")
         Ilen = self.problem_data.get_names("resources")
-        print(Ilen)
-        print(len(DPP_sol_row))
         for res in Ilen:
             DPP = DPP_sol_row[counter]
             for tt in Tlen:
@@ -285,14 +278,24 @@ class LagrangianRelaxation(object):
                 er[res,tt] = DPP.get_variables().get_variable('er')[res,tt]
                 e[res,tt] = DPP.get_variables().get_variable('e')[res,tt]
             counter = counter + 1
-        vars.set_variable("s",s)
-        vars.set_variable("tr",tr)
-        vars.set_variable("r",r)
-        vars.set_variable("er",er)
-        vars.set_variable("e",e)
-        solution.set_variables(vars)
+        vars = gurobipy.tupledict()
+        vars["s"] = s
+        vars["tr"] = tr
+        vars["r"] = r
+        vars["er"] = er
+        vars["e"] = e
+        model = gurobipy.Model("Init")
+        solution = _sol.Solution(model, vars)
         #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
         return solution
+
+
+    def print_solution(self, solution):
+        Tlen = self.problem_data.get_names("wildfire")
+        Ilen = self.problem_data.get_names("resources")
+        for res in Ilen:
+            for tt in Tlen:
+                print(solution.get_variables().s[res,tt])
 
 ###############################################################################
 # PRIVATE create_DPP_set()

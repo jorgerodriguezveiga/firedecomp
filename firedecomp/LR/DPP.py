@@ -3,6 +3,7 @@
 import gurobipy
 import logging as log
 import pandas as pd
+import copy
 
 # Package modules
 from firedecomp.classes import solution
@@ -12,7 +13,7 @@ from firedecomp.LR import RPP
 
 # Subproblem ------------------------------------------------------------------
 class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
-    def __init__(self, problem_data, lambda1, resource_i, list_y, solution, relaxed=False,
+    def __init__(self, problem_data, lambda1, resource_i, list_y, sol, relaxed=False,
                  min_res_penalty=1000000):
         """Initialize the DecomposedPrimalProblem.
 
@@ -28,7 +29,7 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         """
         self.resource_i= resource_i
         self.list_y = list_y
-        self.solution = solution
+        self.solution = sol
         super().__init__(problem_data, lambda1, relaxed, min_res_penalty)
 
 
@@ -64,31 +65,37 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
             self.y[i].UB=self.list_y[i]
             self.y[i].LB=self.list_y[i]
             self.y[i].Start=self.list_y[i]
+        print("INIT")
+        for i in self.I:
+            for t in self.T:
+                #ind = self.I[i]
+                print(self.solution.get_variables().s[i,t])
+        print("END")
         # fixed solution vars
         for i in range(0,len(self.I)):
             if (i != self.resource_i):
                 for t in self.T:
                     ind = self.I[i]
                     # VAR S
-                    self.s[ind,t].UB     = self.solution.get_variables().s[ind,t]
-                    self.s[ind,t].LB     = self.solution.get_variables().s[ind,t]
-                    self.s[ind,t].Start  = self.solution.get_variables().s[ind,t]
+                    self.s[ind,t].UB     = self.solution.get_variables().s[ind,t].X
+                    self.s[ind,t].LB     = self.solution.get_variables().s[ind,t].X
+                    self.s[ind,t].Start  = self.solution.get_variables().s[ind,t].X
                     # VAR TR
-                    self.tr[ind,t].UB     = self.solution.get_variables().tr[ind,t]
-                    self.tr[ind,t].LB     = self.solution.get_variables().tr[ind,t]
-                    self.tr[ind,t].Start  = self.solution.get_variables().tr[ind,t]
+                    self.tr[ind,t].UB     = self.solution.get_variables().tr[ind,t].X
+                    self.tr[ind,t].LB     = self.solution.get_variables().tr[ind,t].X
+                    self.tr[ind,t].Start  = self.solution.get_variables().tr[ind,t].X
                     # VAR R
-                    self.r[ind,t].UB     = self.solution.get_variables().r[ind,t]
-                    self.r[ind,t].LB     = self.solution.get_variables().r[ind,t]
-                    self.r[ind,t].Start  = self.solution.get_variables().r[ind,t]
+                    self.r[ind,t].UB     = self.solution.get_variables().r[ind,t].X
+                    self.r[ind,t].LB     = self.solution.get_variables().r[ind,t].X
+                    self.r[ind,t].Start  = self.solution.get_variables().r[ind,t].X
                     # VAR ER
-                    self.er[ind,t].UB     = self.solution.get_variables().er[ind,t]
-                    self.er[ind,t].LB     = self.solution.get_variables().er[ind,t]
-                    self.er[ind,t].Start  = self.solution.get_variables().er[ind,t]
+                    self.er[ind,t].UB     = self.solution.get_variables().er[ind,t].X
+                    self.er[ind,t].LB     = self.solution.get_variables().er[ind,t].X
+                    self.er[ind,t].Start  = self.solution.get_variables().er[ind,t].X
                     # VAR E
-                    self.e[ind,t].UB     = self.solution.get_variables().e[ind,t]
-                    self.e[ind,t].LB     = self.solution.get_variables().e[ind,t]
-                    self.e[ind,t].Start  = self.solution.get_variables().e[ind,t]
+                    self.e[ind,t].UB     = self.solution.get_variables().e[ind,t].X
+                    self.e[ind,t].LB     = self.solution.get_variables().e[ind,t].X
+                    self.e[ind,t].Start  = self.solution.get_variables().e[ind,t].X
         # fixed solution vars
         #for g in self.G:
         #    if (g != self.resource_g ):
@@ -129,12 +136,13 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 ################################################################################
 # METHOD: UPDATE LAMBDA1
 ################################################################################
-    def update_lambda1(self, lambda1, solution):
-        """Update lambda in RPP model
+    def update_lambda1(self, lambda1, sol):
+        """Update lambda in DPP model
             Args:
             lambda1 (:obj:`list`): Array with lambda values.
         """
-        self.solution = solution
+
+        self.solution = sol
         self.lambda1 = lambda1
         self.__create_vars__()
         self.__create_objfunc__()
