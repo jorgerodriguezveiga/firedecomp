@@ -65,37 +65,34 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
             self.y[i].UB=self.list_y[i]
             self.y[i].LB=self.list_y[i]
             self.y[i].Start=self.list_y[i]
-        print("INIT")
-        for i in self.I:
-            for t in self.T:
-                #ind = self.I[i]
-                print(self.solution.get_variables().s[i,t])
-        print("END")
+        ##########################################
+        ##########################################
         # fixed solution vars
         for i in range(0,len(self.I)):
             if (i != self.resource_i):
                 for t in self.T:
                     ind = self.I[i]
+
                     # VAR S
-                    self.s[ind,t].UB     = self.solution.get_variables().s[ind,t].X
-                    self.s[ind,t].LB     = self.solution.get_variables().s[ind,t].X
-                    self.s[ind,t].Start  = self.solution.get_variables().s[ind,t].X
+                    self.s[ind,t].UB     = self.solution.get_variables().s[ind,t].start
+                    self.s[ind,t].LB     = self.solution.get_variables().s[ind,t].start
+                    self.s[ind,t].Start  = self.solution.get_variables().s[ind,t].start
                     # VAR TR
-                    self.tr[ind,t].UB     = self.solution.get_variables().tr[ind,t].X
-                    self.tr[ind,t].LB     = self.solution.get_variables().tr[ind,t].X
-                    self.tr[ind,t].Start  = self.solution.get_variables().tr[ind,t].X
+                    self.tr[ind,t].UB     = self.solution.get_variables().tr[ind,t].start
+                    self.tr[ind,t].LB     = self.solution.get_variables().tr[ind,t].start
+                    self.tr[ind,t].Start  = self.solution.get_variables().tr[ind,t].start
                     # VAR R
-                    self.r[ind,t].UB     = self.solution.get_variables().r[ind,t].X
-                    self.r[ind,t].LB     = self.solution.get_variables().r[ind,t].X
-                    self.r[ind,t].Start  = self.solution.get_variables().r[ind,t].X
+                    self.r[ind,t].UB     = self.solution.get_variables().r[ind,t].start
+                    self.r[ind,t].LB     = self.solution.get_variables().r[ind,t].start
+                    self.r[ind,t].Start  = self.solution.get_variables().r[ind,t].start
                     # VAR ER
-                    self.er[ind,t].UB     = self.solution.get_variables().er[ind,t].X
-                    self.er[ind,t].LB     = self.solution.get_variables().er[ind,t].X
-                    self.er[ind,t].Start  = self.solution.get_variables().er[ind,t].X
+                    self.er[ind,t].UB     = self.solution.get_variables().er[ind,t].start
+                    self.er[ind,t].LB     = self.solution.get_variables().er[ind,t].start
+                    self.er[ind,t].Start  = self.solution.get_variables().er[ind,t].start
                     # VAR E
-                    self.e[ind,t].UB     = self.solution.get_variables().e[ind,t].X
-                    self.e[ind,t].LB     = self.solution.get_variables().e[ind,t].X
-                    self.e[ind,t].Start  = self.solution.get_variables().e[ind,t].X
+                    self.e[ind,t].UB     = self.solution.get_variables().e[ind,t].start
+                    self.e[ind,t].LB     = self.solution.get_variables().e[ind,t].start
+                    self.e[ind,t].Start  = self.solution.get_variables().e[ind,t].start
         # fixed solution vars
         #for g in self.G:
         #    if (g != self.resource_g ):
@@ -151,6 +148,7 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         self.model = solution.Solution(
             self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
             w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
+
 ##########################################################################################
 # PRIVATE METHOD: __extract_set_data_problem_by_resources__ ()
 ##########################################################################################

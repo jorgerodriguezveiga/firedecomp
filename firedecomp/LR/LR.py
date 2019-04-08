@@ -13,6 +13,7 @@ from firedecomp.classes import solution as _sol
 import time
 import math
 import gurobipy
+import copy
 
 ###############################################################################
 # CLASS LagrangianRelaxation()
@@ -123,11 +124,11 @@ class LagrangianRelaxation(object):
         lambda_old = lambda_vector.copy()
         for i in range(0,self.NL):
             LRpen = LR_pen_v[i]
-            #part1 = (self.UB - self.L_obj_down) / (self.a + self.b*self.v)
+            part1 = (self.UB - self.L_obj_down) / (self.a + self.b*self.v)
             #part2 = 0
             #if (total_LRpen != 0):
             #    part2 =  LRpen / total_LRpen
-            part1 = 1 / (self.a + self.b*self.v)
+            #part1 = 1 / (self.a + self.b*self.v)
             part2 = 0
             if (LRpen != 0):
                 part2 =  LRpen / abs(LRpen)
@@ -167,20 +168,34 @@ class LagrangianRelaxation(object):
 
         termination_criteria = bool(False)
         changes = 0
+
+        # (0) Initial solution
         self.DPP_sol = []
-        # (0) Initialize DPP
-        solution = self.problem_RPP.solve()
-        self.create_DPP_set(solution)
+        isol = self.problem_data.solve()
+        initial_solution = self.create_initial_solution(isol)
+        for i in range(0,self.y_master_size-1):
+            self.DPP_sol.append(initial_solution)
 
         while (termination_criteria == False):
+            # (0) Initialize DPP
+            for i in range(0,self.y_master_size-1):
+                print("CHECK "+str(i))
+                self.print_solution(self.DPP_sol[i])
+
+            self.create_DPP_set()
+            self.DPP_sol = []
             if (changes != 0):
                 self.lambda1 = self.lambda1_next.copy()
                 changes=0
 
             # (1) Solve DPP problems
+            print("ITERATION -> "+str(self.v))
             for i in range(0,self.y_master_size-1):
+                print("START Y -> "+str(self.problem_DPP[i][0].list_y))
+
                 DPP_sol_row = []
                 L_obj_down_local=0
+
                 LR_pen_local = []
                 for j in range(0,self.NL):
                     LR_pen_local.append(0.0)
@@ -188,8 +203,10 @@ class LagrangianRelaxation(object):
                 pen_all_local=0
                 stop_inf = False
                 for j in range(0,self.N):
+                    print("SOLVE "+str(j))
                     DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
                     if (DPP_sol_row[j].model.Status == 3):
+                        print("NON FACTIBLE Y"+str(i))
                         stop_inf = True
                         break
                     L_obj_down_local = L_obj_down_local + DPP_sol_row[j].get_objfunction()
@@ -198,62 +215,46 @@ class LagrangianRelaxation(object):
                     for z in range(0,self.NL):
                         LR_pen_local[z] = LR_pen_local[z] + auxL[z]
                     pen_all_local = pen_all_local + self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
-                self.lambda_matrix[i] = self.subgradient( self.lambda_matrix[i], L_obj_down_local, LR_pen_local)
-                inf_sol = self.extract_infeasibility(LR_pen_local)
-                print("BEST" + str(self.L_obj_down) + " > " + str(L_obj_down_local))
-                print("END")
-                print("")
-                print("")
-                if (self.L_obj_down < L_obj_down_local and stop_inf != True and inf_sol < 0):
-                    self.L_obj_down  = L_obj_down_local
-                    self.obj = obj_local
-                    self.LR_pen = LR_pen_local.copy()
-                    self.inf_sol = inf_sol
-                    self.pen_all = pen_all_local
-                    self.index_best = i
-                    changes=1
-                solution = self.gather_solution(DPP_sol_row)
-                self.DPP_sol.append(solution)
+                    #if (i == 0):
+                    #    print("RESOURCE"+str(j)+":")
+                    #    self.print_solution(DPP_sol_row[j])
+                if (stop_inf == False):
+                    self.lambda_matrix[i] = self.subgradient( self.lambda_matrix[i], L_obj_down_local, LR_pen_local)
+                    inf_sol = self.extract_infeasibility(LR_pen_local)
+                    print("BEST" + str(self.L_obj_down) + " > " + str(L_obj_down_local))
+                    print("")
+                    print("")
+                    if (self.L_obj_down < L_obj_down_local and stop_inf != True and inf_sol < 0):
+                        self.L_obj_down  = L_obj_down_local
+                        self.obj = obj_local
+                        self.LR_pen = LR_pen_local.copy()
+                        self.inf_sol = inf_sol
+                        self.pen_all = pen_all_local
+                        self.index_best = i
+                        changes=1
+                    self.DPP_sol.append( self.gather_solution(DPP_sol_row))
+                    # (2) Calculate new values of lambda and update
+                    if (changes != 0):
+                        self.lambda1_prev = self.lambda1.copy()
+                        self.lambda1_next = self.lambda_matrix[self.index_best]
 
-                print("INF"+ str(inf_sol) +"||||||| Y -----> "+str(self.problem_DPP[i][0].list_y))
+                    if (self.L_obj_down > self.L_obj_down_prev):
+                        self.L_obj_down_prev = self.L_obj_down
 
-            for j in range(0,self.N):
-                self.problem_DPP[i][j].update_lambda1(self.lambda_matrix[i], self.DPP_sol[i])
-
-
-            ## ONLY 1 CONSTRAINTS AND WITH RPP
-            #self.problem_RPP = RPP.RelaxedPrimalProblem(self.problem_data, self.lambda1);
-            #self.solution_RPP = self.problem_RPP.solve(self.solver_options)
-            #self.L_obj_down = self.solution_RPP.get_objfunction()
-            #self.obj = self.problem_RPP.return_function_obj(self.solution_RPP)
-            #self.LR_pen = self.problem_RPP.return_LR_obj2(self.solution_RPP)
-            #self.pen_all = self.problem_RPP.return_LR_obj(self.solution_RPP)
-            #print("self.L_obj_down "+str(self.L_obj_down))
-            #print("self.obj "+str(self.obj))
-            #print("self.LR_pen "+str(self.LR_pen))
-            #print("self.lambda "+str(self.lambda1))
-            #print("self.pen_all "+str(self.pen_all))
-
-            # (2) Calculate new values of lambda and update
-            if (changes != 0):
-                self.lambda1_prev = self.lambda1.copy()
-                self.lambda1_next = self.lambda_matrix[self.index_best]
-
-            if (self.L_obj_down > self.L_obj_down_prev):
-                self.L_obj_down_prev = self.L_obj_down
-
-            # Show iteration results
-            log.info("Iteration # mi lambda f(x) L(x,mi,lambda) penL")
-            print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1[0])+
-                    " LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +
-                        " penL:" + str(sum(self.LR_pen)) +"\n")
+                    # Show iteration results
+                    log.info("Iteration # mi lambda f(x) L(x,mi,lambda) penL")
+                    print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1[0])+
+                            " LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +
+                            " penL:" + str(sum(self.LR_pen)) +"\n")
+                else:
+                    self.DPP_sol.append( initial_solution )
 
             # (3) Check termination criteria
             termination_criteria = self.convergence_checking()
             self.v = self.v + 1
 
-        # Destroy DPP
-        self.destroy_DPP_set()
+            # Destroy DPP
+            self.destroy_DPP_set()
 
         return self.solution_RPP
 
@@ -272,11 +273,11 @@ class LagrangianRelaxation(object):
         for res in Ilen:
             DPP = DPP_sol_row[counter]
             for tt in Tlen:
-                s[res,tt] = DPP.get_variables().get_variable('s')[res,tt]
-                tr[res,tt] = DPP.get_variables().get_variable('tr')[res,tt]
-                r[res,tt] = DPP.get_variables().get_variable('r')[res,tt]
-                er[res,tt] = DPP.get_variables().get_variable('er')[res,tt]
-                e[res,tt] = DPP.get_variables().get_variable('e')[res,tt]
+                s[res,tt].start = DPP.get_variables().get_variable('s')[res,tt].X
+                tr[res,tt].start = DPP.get_variables().get_variable('tr')[res,tt].X
+                r[res,tt].start = DPP.get_variables().get_variable('r')[res,tt].X
+                er[res,tt].start = DPP.get_variables().get_variable('er')[res,tt].X
+                e[res,tt].start = DPP.get_variables().get_variable('e')[res,tt].X
             counter = counter + 1
         vars = gurobipy.tupledict()
         vars["s"] = s
@@ -284,10 +285,41 @@ class LagrangianRelaxation(object):
         vars["r"] = r
         vars["er"] = er
         vars["e"] = e
-        model = gurobipy.Model("Init")
-        solution = _sol.Solution(model, vars)
+        modelcopy = gurobipy.Model("Init")
+        modelcopy.update()
+        sol1 = _sol.Solution(modelcopy, vars)
         #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
-        return solution
+        return sol1
+
+    def create_initial_solution(self, solution):
+        counter = 0
+        s = gurobipy.tupledict()
+        tr = gurobipy.tupledict()
+        r = gurobipy.tupledict()
+        er = gurobipy.tupledict()
+        e = gurobipy.tupledict()
+
+        Tlen = self.problem_data.get_names("wildfire")
+        Ilen = self.problem_data.get_names("resources")
+        for res in Ilen:
+            for tt in Tlen:
+                s[res,tt] = solution.get_variables().get_variable('s')[res,tt].X
+                tr[res,tt] = solution.get_variables().get_variable('tr')[res,tt].X
+                r[res,tt] = solution.get_variables().get_variable('r')[res,tt].X
+                er[res,tt] = solution.get_variables().get_variable('er')[res,tt].X
+                e[res,tt] = solution.get_variables().get_variable('e')[res,tt].X
+            counter = counter + 1
+        vars = gurobipy.tupledict()
+        vars["s"] = s
+        vars["tr"] = tr
+        vars["r"] = r
+        vars["er"] = er
+        vars["e"] = e
+        modelcopy = gurobipy.Model("Init")
+        modelcopy.update()
+        sol1 = _sol.Solution(modelcopy, vars)
+        #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
+        return sol1
 
 
     def print_solution(self, solution):
@@ -295,12 +327,12 @@ class LagrangianRelaxation(object):
         Ilen = self.problem_data.get_names("resources")
         for res in Ilen:
             for tt in Tlen:
-                print(solution.get_variables().s[res,tt])
+                print(solution.get_variables().tr[res,tt])
 
 ###############################################################################
 # PRIVATE create_DPP_set()
 ###############################################################################
-    def create_DPP_set(self, solution):
+    def create_DPP_set(self):
         for i in range(0,self.y_master_size-1):
             problem_DPP_row = []
             self.y_master = dict([ (p, 1) for p in range(0,self.y_master_size)])
@@ -309,7 +341,7 @@ class LagrangianRelaxation(object):
             for j in range(0,self.N):
                 problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
                                        self.lambda1, j,
-                                       self.y_master, solution))
+                                       self.y_master, self.DPP_sol[i]))
             self.problem_DPP.append(problem_DPP_row)
 
 ###############################################################################
@@ -364,7 +396,11 @@ class LagrangianRelaxation(object):
 ###############################################################################
     def destroy_DPP_set(self):
         for i in range(0,len(self.problem_DPP)):
-            self.problem_DPP[i]=[]
+            len_p = len(self.problem_DPP[i])
+            if (len_p > 0):
+                for j in range(0,len_p):
+                    del self.problem_DPP[i][0]
+                self.problem_DPP[i]=[]
         self.problem_DPP = []
         print("DESTROY")
 

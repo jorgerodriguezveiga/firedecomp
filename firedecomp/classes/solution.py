@@ -1,5 +1,5 @@
 """Module with model class."""
-
+import copy
 
 # Solution --------------------------------------------------------------------
 class Solution(object):
