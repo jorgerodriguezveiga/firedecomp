@@ -72,27 +72,28 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
             if (i != self.resource_i):
                 for t in self.T:
                     ind = self.I[i]
-
                     # VAR S
-                    self.s[ind,t].UB     = self.solution.get_variables().s[ind,t].start
-                    self.s[ind,t].LB     = self.solution.get_variables().s[ind,t].start
-                    self.s[ind,t].Start  = self.solution.get_variables().s[ind,t].start
+                    #print(self.s[ind,t].UB)
+                    #print(self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start)
+                    self.s[ind,t].UB     = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start
+                    self.s[ind,t].LB     = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start
+                    self.s[ind,t].Start  = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start
                     # VAR TR
-                    self.tr[ind,t].UB     = self.solution.get_variables().tr[ind,t].start
-                    self.tr[ind,t].LB     = self.solution.get_variables().tr[ind,t].start
-                    self.tr[ind,t].Start  = self.solution.get_variables().tr[ind,t].start
+                    self.tr[ind,t].UB     = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").start
+                    self.tr[ind,t].LB     = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").start
+                    self.tr[ind,t].Start  = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").start
                     # VAR R
-                    self.r[ind,t].UB     = self.solution.get_variables().r[ind,t].start
-                    self.r[ind,t].LB     = self.solution.get_variables().r[ind,t].start
-                    self.r[ind,t].Start  = self.solution.get_variables().r[ind,t].start
+                    self.r[ind,t].UB     = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").start
+                    self.r[ind,t].LB     = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").start
+                    self.r[ind,t].Start  = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").start
                     # VAR ER
-                    self.er[ind,t].UB     = self.solution.get_variables().er[ind,t].start
-                    self.er[ind,t].LB     = self.solution.get_variables().er[ind,t].start
-                    self.er[ind,t].Start  = self.solution.get_variables().er[ind,t].start
+                    self.er[ind,t].UB     = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").start
+                    self.er[ind,t].LB     = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").start
+                    self.er[ind,t].Start  = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").start
                     # VAR E
-                    self.e[ind,t].UB     = self.solution.get_variables().e[ind,t].start
-                    self.e[ind,t].LB     = self.solution.get_variables().e[ind,t].start
-                    self.e[ind,t].Start  = self.solution.get_variables().e[ind,t].start
+                    self.e[ind,t].UB     = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").start
+                    self.e[ind,t].LB     = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").start
+                    self.e[ind,t].Start  = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").start
         # fixed solution vars
         #for g in self.G:
         #    if (g != self.resource_g ):

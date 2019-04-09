@@ -92,7 +92,7 @@ class LagrangianRelaxation(object):
         self.his = []
 
         self.UB=1000
-        init_value=self.NL
+        init_value=2
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
             self.lambda1_prev.append(init_value+1)
@@ -124,7 +124,8 @@ class LagrangianRelaxation(object):
         lambda_old = lambda_vector.copy()
         for i in range(0,self.NL):
             LRpen = LR_pen_v[i]
-            part1 = (self.UB - self.L_obj_down) / (self.a + self.b*self.v)
+            #part1 = (self.UB - self.L_obj_down) / (self.a + self.b*self.v)
+            part1 = 1 / (self.a + self.b*self.v)
             #part2 = 0
             #if (total_LRpen != 0):
             #    part2 =  LRpen / total_LRpen
@@ -178,9 +179,9 @@ class LagrangianRelaxation(object):
 
         while (termination_criteria == False):
             # (0) Initialize DPP
-            for i in range(0,self.y_master_size-1):
-                print("CHECK "+str(i))
-                self.print_solution(self.DPP_sol[i])
+            #for i in range(0,self.y_master_size-1):
+            #    print("CHECK "+str(i))
+            #    self.print_solution(self.DPP_sol[i])
 
             self.create_DPP_set()
             self.DPP_sol = []
@@ -203,10 +204,10 @@ class LagrangianRelaxation(object):
                 pen_all_local=0
                 stop_inf = False
                 for j in range(0,self.N):
-                    print("SOLVE "+str(j))
+                    #print("SOLVE "+str(j))
                     DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
                     if (DPP_sol_row[j].model.Status == 3):
-                        print("NON FACTIBLE Y"+str(i))
+                    #    print("UNFACTIBLE Y"+str(i))
                         stop_inf = True
                         break
                     L_obj_down_local = L_obj_down_local + DPP_sol_row[j].get_objfunction()
@@ -222,8 +223,8 @@ class LagrangianRelaxation(object):
                     self.lambda_matrix[i] = self.subgradient( self.lambda_matrix[i], L_obj_down_local, LR_pen_local)
                     inf_sol = self.extract_infeasibility(LR_pen_local)
                     print("BEST" + str(self.L_obj_down) + " > " + str(L_obj_down_local))
-                    print("")
-                    print("")
+                    #print("")
+                    #print("")
                     if (self.L_obj_down < L_obj_down_local and stop_inf != True and inf_sol < 0):
                         self.L_obj_down  = L_obj_down_local
                         self.obj = obj_local
@@ -232,7 +233,8 @@ class LagrangianRelaxation(object):
                         self.pen_all = pen_all_local
                         self.index_best = i
                         changes=1
-                    self.DPP_sol.append( self.gather_solution(DPP_sol_row))
+                    self.DPP_sol.append( self.gather_solution(DPP_sol_row, initial_solution))
+
                     # (2) Calculate new values of lambda and update
                     if (changes != 0):
                         self.lambda1_prev = self.lambda1.copy()
@@ -261,7 +263,7 @@ class LagrangianRelaxation(object):
 ###############################################################################
 # PRIVATE gather_solution()
 ###############################################################################
-    def gather_solution(self, DPP_sol_row):
+    def gather_solution(self, DPP_sol_row, initial_solution):
         counter = 0
         s = gurobipy.tupledict()
         tr = gurobipy.tupledict()
@@ -273,11 +275,11 @@ class LagrangianRelaxation(object):
         for res in Ilen:
             DPP = DPP_sol_row[counter]
             for tt in Tlen:
-                s[res,tt].start = DPP.get_variables().get_variable('s')[res,tt].X
-                tr[res,tt].start = DPP.get_variables().get_variable('tr')[res,tt].X
-                r[res,tt].start = DPP.get_variables().get_variable('r')[res,tt].X
-                er[res,tt].start = DPP.get_variables().get_variable('er')[res,tt].X
-                e[res,tt].start = DPP.get_variables().get_variable('e')[res,tt].X
+                s[res,tt] = DPP.get_variables().get_variable('s')[res,tt].X
+                tr[res,tt] = DPP.get_variables().get_variable('tr')[res,tt].X
+                r[res,tt] = DPP.get_variables().get_variable('r')[res,tt].X
+                er[res,tt] = DPP.get_variables().get_variable('er')[res,tt].X
+                e[res,tt] = DPP.get_variables().get_variable('e')[res,tt].X
             counter = counter + 1
         vars = gurobipy.tupledict()
         vars["s"] = s
@@ -285,41 +287,38 @@ class LagrangianRelaxation(object):
         vars["r"] = r
         vars["er"] = er
         vars["e"] = e
-        modelcopy = gurobipy.Model("Init")
+        modelcopy = initial_solution.get_model().copy()
         modelcopy.update()
         sol1 = _sol.Solution(modelcopy, vars)
+        counter=0
+        for res in Ilen:
+            DPP = DPP_sol_row[counter]
+            for tt in Tlen:
+                sol1.get_model().getVarByName("start["+res+","+str(tt)+"]").start = DPP.get_variables().get_variable('s')[res,tt].X
+                sol1.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('tr')[res,tt].X
+                sol1.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('r')[res,tt].X
+                sol1.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('er')[res,tt].X
+                sol1.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('e')[res,tt].X
+            counter = counter + 1
+        sol1.get_model().update()
+        #print(sol1.get_model().getVars())
         #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
         return sol1
 
     def create_initial_solution(self, solution):
-        counter = 0
-        s = gurobipy.tupledict()
-        tr = gurobipy.tupledict()
-        r = gurobipy.tupledict()
-        er = gurobipy.tupledict()
-        e = gurobipy.tupledict()
-
         Tlen = self.problem_data.get_names("wildfire")
         Ilen = self.problem_data.get_names("resources")
         for res in Ilen:
             for tt in Tlen:
-                s[res,tt] = solution.get_variables().get_variable('s')[res,tt].X
-                tr[res,tt] = solution.get_variables().get_variable('tr')[res,tt].X
-                r[res,tt] = solution.get_variables().get_variable('r')[res,tt].X
-                er[res,tt] = solution.get_variables().get_variable('er')[res,tt].X
-                e[res,tt] = solution.get_variables().get_variable('e')[res,tt].X
-            counter = counter + 1
-        vars = gurobipy.tupledict()
-        vars["s"] = s
-        vars["tr"] = tr
-        vars["r"] = r
-        vars["er"] = er
-        vars["e"] = e
-        modelcopy = gurobipy.Model("Init")
-        modelcopy.update()
-        sol1 = _sol.Solution(modelcopy, vars)
+                solution.get_model().getVarByName("start["+res+","+str(tt)+"]").start = solution.get_variables().get_variable('s')[res,tt].X
+                solution.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = solution.get_variables().get_variable('tr')[res,tt].X
+                solution.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = solution.get_variables().get_variable('r')[res,tt].X
+                solution.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = solution.get_variables().get_variable('er')[res,tt].X
+                solution.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = solution.get_variables().get_variable('e')[res,tt].X
+        solution.get_model().update()
+
         #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
-        return sol1
+        return solution
 
 
     def print_solution(self, solution):
@@ -339,8 +338,9 @@ class LagrangianRelaxation(object):
             for p in range(self.y_master_size - (1+i), self.y_master_size):
                 self.y_master[p] = 0
             for j in range(0,self.N):
+                #print("CREATE DPP "+str(j))
                 problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
-                                       self.lambda1, j,
+                                       self.lambda_matrix[i], j,
                                        self.y_master, self.DPP_sol[i]))
             self.problem_DPP.append(problem_DPP_row)
 

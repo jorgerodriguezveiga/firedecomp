@@ -149,7 +149,6 @@ class RelaxedPrimalProblem(model.InputModel):
                 update.
         """
         self.__relaxed_config__()
-
         # VARIABLES
         # (1) Resources
         # ---------
