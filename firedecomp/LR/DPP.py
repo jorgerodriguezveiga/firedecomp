@@ -37,11 +37,11 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 # PRIVATE METHOD: __extract_set_data_problem__ ()
 # OVERWRITE RelaxedPrimalProblem.__extract_set_data_problem__()
 ##########################################################################################
-    def __extract_set_data_problem__(self, relaxed=False):
-        """ Extract SET fields from data problem
-        """
-
-        self.__extract_set_data_problem_by_resources__(relaxed)
+#    def __extract_set_data_problem__(self, relaxed=False):
+#        """ Extract SET fields from data problem
+#        """
+#
+#        self.__extract_set_data_problem_by_resources__(relaxed)
 
 ##########################################################################################
 # PRIVATE METHOD: __create_gurobi_model__ ()
@@ -106,30 +106,30 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 ##########################################################################################
 # PRIVATE METHOD: __extract_set_data_problem_by_resources__ ()
 ##########################################################################################
-    def __extract_set_data_problem_by_resources__(self, relaxed=False):
-        """ Extract SET fields from data problem
-        """
-        #  SETS
-        self.I = self.problem_data.get_names("resources")
-        self.RI = [self.problem_data.get_names("resources")[self.resource_i]]
-        self.T = self.problem_data.get_names("wildfire")
-        self.G = self.problem_data.get_names("groups")
-        key_res = self.RI[0]
-        key_group = ''
-        for group in self.problem_data.groups.elements:
-            for res in group.resources:
-                if res.name == key_res:
-                    key_group = group.name
-                    break
-        if key_group == '':
-            print("ERROR: the model is wrong implemented\n")
-        resource_i = self.problem_data.groups.get_info('resources')[key_group].get_element(key_res)
-        dic_group = { key_group : [resource_i] }
-        self.resource_g = [key_group]
-        self.Ig = {
-            k: [e.name for e in v]
-            for k, v in dic_group.items()}
-        self.T_int = self.problem_data.wildfire
+#    def __extract_set_data_problem_by_resources__(self, relaxed=False):
+#        """ Extract SET fields from data problem
+#        """
+#        #  SETS
+#        self.I = self.problem_data.get_names("resources")
+#        self.RI = [self.problem_data.get_names("resources")[self.resource_i]]
+#        self.T = self.problem_data.get_names("wildfire")
+#        self.G = self.problem_data.get_names("groups")
+#        key_res = self.RI[0]
+#        key_group = ''
+#        for group in self.problem_data.groups.elements:
+#            for res in group.resources:
+#                if res.name == key_res:
+#                    key_group = group.name
+#                    break
+#        if key_group == '':
+#            print("ERROR: the model is wrong implemented\n")
+#        resource_i = self.problem_data.groups.get_info('resources')[key_group].get_element(key_res)
+#        dic_group = { key_group : [resource_i] }
+#        self.resource_g = [key_group]
+#        self.Ig = {
+#            k: [e.name for e in v]
+#            for k, v in dic_group.items()}
+#        self.T_int = self.problem_data.wildfire
 
 ################################################################################
 # METHOD: UPDATE LAMBDA1

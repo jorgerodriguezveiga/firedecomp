@@ -72,7 +72,7 @@ class LagrangianRelaxation(object):
         self.__log__(log_level)
         # Subgradient vars
         self.a = 0.1
-        self.b = 0.01
+        self.b = 0.1
         # Create lambda
         #self.NL = 1
         self.NL = (1 + len(problem_data.get_names("wildfire")))  #+
@@ -108,8 +108,11 @@ class LagrangianRelaxation(object):
         self.y_master_size = self.problem_RPP.return_sizey()
         for i in range(0,self.y_master_size):
             lambda_row = []
-            for z in range(0,self.NL):
-                lambda_row.append(init_value*(z+1))
+            for j in range(0,self.N):
+                lambda_col = []
+                for z in range(0,self.NL):
+                    lambda_col.append(init_value*(j+1))
+                lambda_row.append(lambda_col)
             self.lambda_matrix.append(lambda_row)
 
 
@@ -124,22 +127,23 @@ class LagrangianRelaxation(object):
         lambda_old = lambda_vector.copy()
         for i in range(0,self.NL):
             LRpen = LR_pen_v[i]
-            #part1 = (self.UB - self.L_obj_down) / (self.a + self.b*self.v)
-            part1 = 1 / (self.a + self.b*self.v)
+            #part1 = (self.UB - L_obj_down) / (self.a + self.b*self.v)
+            part1 = 2
             #part2 = 0
             #if (total_LRpen != 0):
             #    part2 =  LRpen / total_LRpen
             #part1 = 1 / (self.a + self.b*self.v)
             part2 = 0
             if (LRpen != 0):
-                part2 =  LRpen / abs(LRpen)
+                part2 =  LRpen
+                #part2 = LRpen / abs(total_LRpen)
             lambda_vector[i] = lambda_old[i] + part1 * part2
             if (lambda_vector[i] < 0.0):
                 lambda_vector[i] = 0
 
-            print(str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) )
-        print("")
-        print("")
+            print("#####"+str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) )
+        #print("")
+        #print("")
         return lambda_vector
 
 ###############################################################################
@@ -172,7 +176,8 @@ class LagrangianRelaxation(object):
 
         # (0) Initial solution
         self.DPP_sol = []
-        isol = self.problem_data.solve()
+        #isol = self.problem_data.solve()
+        isol = self.problem_RPP.solve()
         initial_solution = self.create_initial_solution(isol)
         for i in range(0,self.y_master_size-1):
             self.DPP_sol.append(initial_solution)
@@ -192,6 +197,9 @@ class LagrangianRelaxation(object):
             # (1) Solve DPP problems
             print("ITERATION -> "+str(self.v))
             for i in range(0,self.y_master_size-1):
+
+
+
                 print("START Y -> "+str(self.problem_DPP[i][0].list_y))
 
                 DPP_sol_row = []
@@ -204,41 +212,40 @@ class LagrangianRelaxation(object):
                 pen_all_local=0
                 stop_inf = False
                 for j in range(0,self.N):
+                    if (i > (self.y_master_size-1)/2):
+                        stop_inf = True
+                        break
                     #print("SOLVE "+str(j))
                     DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
                     if (DPP_sol_row[j].model.Status == 3):
                     #    print("UNFACTIBLE Y"+str(i))
                         stop_inf = True
                         break
-                    L_obj_down_local = L_obj_down_local + DPP_sol_row[j].get_objfunction()
-                    obj_local  = obj_local + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
-                    auxL = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
-                    for z in range(0,self.NL):
-                        LR_pen_local[z] = LR_pen_local[z] + auxL[z]
-                    pen_all_local = pen_all_local + self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
-                    #if (i == 0):
-                    #    print("RESOURCE"+str(j)+":")
-                    #    self.print_solution(DPP_sol_row[j])
-                if (stop_inf == False):
-                    self.lambda_matrix[i] = self.subgradient( self.lambda_matrix[i], L_obj_down_local, LR_pen_local)
+                    L_obj_down_local = DPP_sol_row[j].get_objfunction()
+                    obj_local  = self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
+                    LR_pen_local = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
+                    pen_all_local = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
+                    self.lambda_matrix[i][j] = self.subgradient( self.lambda_matrix[i][j], L_obj_down_local, LR_pen_local)
                     inf_sol = self.extract_infeasibility(LR_pen_local)
-                    print("BEST" + str(self.L_obj_down) + " > " + str(L_obj_down_local))
-                    #print("")
-                    #print("")
-                    if (self.L_obj_down < L_obj_down_local and stop_inf != True and inf_sol < 0):
+                    print(str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol))
+                    if (self.L_obj_down < L_obj_down_local and (inf_sol <= 0)):
                         self.L_obj_down  = L_obj_down_local
                         self.obj = obj_local
                         self.LR_pen = LR_pen_local.copy()
                         self.inf_sol = inf_sol
                         self.pen_all = pen_all_local
-                        self.index_best = i
+                        self.index_best_i = i
+                        self.index_best_j = j
                         changes=1
-                    self.DPP_sol.append( self.gather_solution(DPP_sol_row, initial_solution))
-
+                if (stop_inf == False):
+                    print("BEST" + str(self.L_obj_down) )
+                    #print("")
+                    #print("")
+                    self.DPP_sol.append(self.gather_solution(DPP_sol_row, initial_solution))
                     # (2) Calculate new values of lambda and update
                     if (changes != 0):
                         self.lambda1_prev = self.lambda1.copy()
-                        self.lambda1_next = self.lambda_matrix[self.index_best]
+                        self.lambda1_next = self.lambda_matrix[self.index_best_i][self.index_best_j]
 
                     if (self.L_obj_down > self.L_obj_down_prev):
                         self.L_obj_down_prev = self.L_obj_down
@@ -340,7 +347,7 @@ class LagrangianRelaxation(object):
             for j in range(0,self.N):
                 #print("CREATE DPP "+str(j))
                 problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
-                                       self.lambda_matrix[i], j,
+                                       self.lambda_matrix[i][j], j,
                                        self.y_master, self.DPP_sol[i]))
             self.problem_DPP.append(problem_DPP_row)
 

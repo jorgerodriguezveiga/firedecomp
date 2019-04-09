@@ -83,8 +83,7 @@ class RelaxedPrimalProblem(model.InputModel):
         self.WP = self.problem_data.resources.get_info("max_work_time")
         self.RP = self.problem_data.resources.get_info("necessary_rest_time")
         self.UP = self.problem_data.resources.get_info("max_work_daily")
-        self.PR = self.problem_data.resources_wildfire.get_info(
-            "resource_performance")
+        self.PR = self.problem_data.resources_wildfire.get_info("resource_performance")
         self.PER = self.problem_data.wildfire.get_info("increment_perimeter")
         self.NVC = self.problem_data.wildfire.get_info("increment_cost")
         self.nMin = self.problem_data.groups_wildfire.get_info("min_res_groups")
