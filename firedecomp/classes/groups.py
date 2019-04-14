@@ -37,6 +37,9 @@ class Group(gc.Element):
     def size(self):
         """Return the number of members of the group."""
         return len(list(self.resources))
+
+    def __iter__(self):
+        return (r for r in self.resources)
 # --------------------------------------------------------------------------- #
 
 
