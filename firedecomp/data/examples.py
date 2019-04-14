@@ -13,7 +13,7 @@ from firedecomp.classes.resources_wildfire import ResourcePeriod, \
 from firedecomp.classes.groups_wildfire import GroupPeriod, GroupsWildfire
 from firedecomp.classes.problem import Problem
 from . import random as r
-from ..benders import utils
+from ..fix_work import utils
 
 
 # INPUT =======================================================================

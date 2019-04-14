@@ -6,7 +6,7 @@ import logging as log
 import pandas as pd
 
 # Package modules
-from firedecomp.benders import utils
+from firedecomp.fix_work import utils
 from firedecomp import config
 
 
