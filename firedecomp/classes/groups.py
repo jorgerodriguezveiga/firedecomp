@@ -27,6 +27,11 @@ class Group(gc.Element):
         """
         super(Group, self).__init__(name=name)
         self.resources = resources
+
+        # Add group information in resource object.
+        for res in self.resources:
+            res.__group__.add(self)
+
         self.__group_period__ = gw.GroupsWildfire([])
 
     def size(self):

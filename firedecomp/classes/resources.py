@@ -3,6 +3,7 @@
 # Package modules
 from firedecomp.classes import general as gc
 from firedecomp.classes import resources_wildfire as rw
+from firedecomp.classes import groups as g
 
 
 # Resource --------------------------------------------------------------------
@@ -64,6 +65,7 @@ class Resource(gc.Element):
         self.necessary_rest_time = necessary_rest_time
         self.max_work_daily = max_work_daily
         self.select = select
+        self.__group__ = g.Groups([])
         self.__resource_period__ = rw.ResourcesWildfire([])
 
     def get_total_performance(self):
