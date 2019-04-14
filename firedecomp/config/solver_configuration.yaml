@@ -1,4 +1,5 @@
 original:
+  valid_constraints: ['work', 'contention']
   solver_options:
     MIPGapAbs: 0
     MIPGap: 0
