@@ -122,6 +122,11 @@ class Set(object):
     #             "Not allow assignment to protected member '{}'".format(key))
     #     self.__dict__[key] = value
 
+    def add(self, element):
+        new_id = element.get_index()
+        if new_id not in self.get_names():
+            self.__index__[new_id] = element
+
     def __iter__(self):
         return (e for e in self.__index__.values())
 
