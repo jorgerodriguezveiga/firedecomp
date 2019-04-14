@@ -172,7 +172,7 @@ class Problem(object):
         self.data = Data(self)
 
     def solve(self, method='original',
-              solver_options=None, fix_work_options=None,
+              original_options=None, fix_work_options=None,
               min_res_penalty=1000000,
               log_level=None):
         """Solve mathematical model.
@@ -181,7 +181,7 @@ class Problem(object):
             method (:obj:`str`): method to solve the mathematical problem.
                 Options: ``'original'``, ``'fix_work'``. Defaults to
                 ``'original'``.
-            solver_options (:obj:`dict`): gurobi options. Default ``None``.
+            original_options (:obj:`dict`): gurobi options. Default ``None``.
                 Example: ``{'TimeLimit': 10}``.
             fix_work_options (:obj:`dict`): fix work method options. Default
                 ``None``. If None:
@@ -198,9 +198,21 @@ class Problem(object):
         if method == 'original':
             if log_level is None:
                 log_level = 'WARNING'
+
+            valid_constraints = None
+            solver_options = None
+            if isinstance(original_options, dict):
+                if 'valid_constraints' in original_options:
+                    valid_constraints = original_options['valid_constraints']
+
+                if 'solver_options' in original_options:
+                    solver_options = original_options['solver_options']
+
             self.original_model = _model.InputModel(
-                self, min_res_penalty=min_res_penalty)
-            solution = self.original_model.solve(solver_options=solver_options)
+                self, min_res_penalty=min_res_penalty,
+                valid_constraints=valid_constraints)
+            solution = self.original_model.solve(
+                solver_options=solver_options)
             self.solve_status = solution.model.Status
             self.mipgap = solution.model.mipgap
             if solution.model.SolCount >= 1:
