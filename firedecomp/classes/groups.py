@@ -2,6 +2,7 @@
 
 # Package modules
 from firedecomp.classes import general as gc
+from firedecomp.classes import groups_wildfire as gw
 
 
 # Group -----------------------------------------------------------------------
@@ -26,6 +27,7 @@ class Group(gc.Element):
         """
         super(Group, self).__init__(name=name)
         self.resources = resources
+        self.__group_period__ = gw.GroupsWildfire([])
 
     def size(self):
         """Return the number of members of the group."""

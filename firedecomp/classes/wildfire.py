@@ -3,6 +3,7 @@
 # Package modules
 from firedecomp.classes import general as gc
 from firedecomp.classes import resources_wildfire as rw
+from firedecomp.classes import groups_wildfire as gw
 
 
 # Period ----------------------------------------------------------------------
@@ -33,6 +34,7 @@ class Period(gc.Element):
         self.increment_cost = None
         self.contained = contained
         self.__resource_period__ = rw.ResourcesWildfire([])
+        self.__group_period__ = gw.GroupsWildfire([])
 
     def get_increment_perimeter(self):
         return self.increment_perimeter * (not self.contained)

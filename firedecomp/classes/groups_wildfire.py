@@ -33,7 +33,9 @@ class GroupPeriod(gc.Element):
         super(GroupPeriod, self).__init__(
             name=(group.get_index(), period.get_index()))
         self.group = group
+        self.group.__group_period__.add(self)
         self.period = period
+        self.period.__group_period__.add(self)
         self.min_res_groups = min_res_groups
         self.max_res_groups = max_res_groups
         self.num_left_resources = num_left_resources
