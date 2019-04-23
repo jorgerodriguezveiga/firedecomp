@@ -245,14 +245,14 @@ class RelaxedPrimalProblem(model.InputModel):
         for i in range(counter,counter+len(list_Constr2)):
             self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i-counter]
             self.LR_obj_const.append(list_Constr2[i-counter])
-        #counter=counter+len(list_Constr2)
-        #for i in range(counter,counter+len(list_Constr3)):
-        #    self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter]
-        #    self.LR_obj_const.append(list_Constr3[i-counter])
-        #counter=counter+len(list_Constr3)
-        #for i in range(counter,counter+len(list_Constr4)):
-        #    self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr4[i-counter]
-        #    self.LR_obj_const.append(list_Constr4[i-counter])
+        counter=counter+len(list_Constr2)
+        for i in range(counter,counter+len(list_Constr3)):
+            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter]
+            self.LR_obj_const.append(list_Constr3[i-counter])
+        counter=counter+len(list_Constr3)
+        for i in range(counter,counter+len(list_Constr4)):
+            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr4[i-counter]
+            self.LR_obj_const.append(list_Constr4[i-counter])
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 ################################################################################

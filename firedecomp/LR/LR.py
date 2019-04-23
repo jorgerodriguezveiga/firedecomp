@@ -75,8 +75,8 @@ class LagrangianRelaxation(object):
         self.b = 0.1
         # Create lambda
         #self.NL = 1
-        self.NL = (1 + len(problem_data.get_names("wildfire")))  #+
-            #len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
+        self.NL = (1 + len(problem_data.get_names("wildfire"))  +
+            len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
         #self.NL = (len(problem_data.get_names("wildfire"))  +
         #    len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
         self.lambda1 = []
@@ -91,7 +91,7 @@ class LagrangianRelaxation(object):
         self.index_best = -1
         self.his = []
 
-        self.UB=1000
+        self.UB=2500
         init_value=2
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
@@ -127,15 +127,14 @@ class LagrangianRelaxation(object):
         lambda_old = lambda_vector.copy()
         for i in range(0,self.NL):
             LRpen = LR_pen_v[i]
-            #part1 = (self.UB - L_obj_down) / (self.a + self.b*self.v)
-            part1 = 2
+            part1 = (self.UB - L_obj_down) / (self.a + self.b*self.v)
             #part2 = 0
-            #if (total_LRpen != 0):
-            #    part2 =  LRpen / total_LRpen
+            if (total_LRpen != 0):
+                part2 =  LRpen / total_LRpen
             #part1 = 1 / (self.a + self.b*self.v)
-            part2 = 0
-            if (LRpen != 0):
-                part2 =  LRpen
+            #part2 = 0
+            #if (LRpen != 0):
+            #    part2 =  LRpen
                 #part2 = LRpen / abs(total_LRpen)
             lambda_vector[i] = lambda_old[i] + part1 * part2
             if (lambda_vector[i] < 0.0):
@@ -174,6 +173,7 @@ class LagrangianRelaxation(object):
         termination_criteria = bool(False)
         changes = 0
 
+        print("CREATING STARTING POINT")
         # (0) Initial solution
         self.DPP_sol = []
         #isol = self.problem_data.solve()
@@ -181,7 +181,7 @@ class LagrangianRelaxation(object):
         initial_solution = self.create_initial_solution(isol)
         for i in range(0,self.y_master_size-1):
             self.DPP_sol.append(initial_solution)
-
+        print("START SUBGRADIENT METHOD")
         while (termination_criteria == False):
             # (0) Initialize DPP
             #for i in range(0,self.y_master_size-1):
@@ -197,8 +197,6 @@ class LagrangianRelaxation(object):
             # (1) Solve DPP problems
             print("ITERATION -> "+str(self.v))
             for i in range(0,self.y_master_size-1):
-
-
 
                 print("START Y -> "+str(self.problem_DPP[i][0].list_y))
 
@@ -228,15 +226,16 @@ class LagrangianRelaxation(object):
                     self.lambda_matrix[i][j] = self.subgradient( self.lambda_matrix[i][j], L_obj_down_local, LR_pen_local)
                     inf_sol = self.extract_infeasibility(LR_pen_local)
                     print(str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol))
-                    if (self.L_obj_down < L_obj_down_local and (inf_sol <= 0)):
-                        self.L_obj_down  = L_obj_down_local
-                        self.obj = obj_local
-                        self.LR_pen = LR_pen_local.copy()
-                        self.inf_sol = inf_sol
-                        self.pen_all = pen_all_local
-                        self.index_best_i = i
-                        self.index_best_j = j
-                        changes=1
+                    if (self.obj >= obj_local and (inf_sol <= 0)):
+                        if (self.L_obj_down <= L_obj_down_local):
+                            self.L_obj_down  = L_obj_down_local
+                            self.obj = obj_local
+                            self.LR_pen = LR_pen_local.copy()
+                            self.inf_sol = inf_sol
+                            self.pen_all = pen_all_local
+                            self.index_best_i = i
+                            self.index_best_j = j
+                            changes=1
                 if (stop_inf == False):
                     print("BEST" + str(self.L_obj_down) )
                     #print("")
