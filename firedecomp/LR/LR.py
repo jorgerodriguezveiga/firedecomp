@@ -91,7 +91,7 @@ class LagrangianRelaxation(object):
         self.index_best = -1
         self.his = []
 
-        self.UB=2500
+        self.UB=25000
         init_value=2
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
@@ -140,7 +140,7 @@ class LagrangianRelaxation(object):
             if (lambda_vector[i] < 0.0):
                 lambda_vector[i] = 0
 
-            print("#####"+str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) )
+            #print("#####"+str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) )
         #print("")
         #print("")
         return lambda_vector
@@ -235,7 +235,7 @@ class LagrangianRelaxation(object):
                             self.pen_all = pen_all_local
                             self.index_best_i = i
                             self.index_best_j = j
-                            changes=1
+                        changes=1
                 if (stop_inf == False):
                     print("BEST" + str(self.L_obj_down) )
                     #print("")
