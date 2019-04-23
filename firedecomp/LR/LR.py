@@ -71,12 +71,12 @@ class LagrangianRelaxation(object):
         # Log level
         self.__log__(log_level)
         # Subgradient vars
-        self.a = 0.1
+        self.a = 1
         self.b = 0.1
         # Create lambda
         #self.NL = 1
-        self.NL = (1 + len(problem_data.get_names("wildfire"))  +
-            len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
+        self.NL = (1 + len(problem_data.get_names("wildfire")) +
+             len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
         #self.NL = (len(problem_data.get_names("wildfire"))  +
         #    len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
         self.lambda1 = []
@@ -91,7 +91,7 @@ class LagrangianRelaxation(object):
         self.index_best = -1
         self.his = []
 
-        self.UB=25000
+        self.UB=1000
         init_value=2
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
@@ -128,19 +128,20 @@ class LagrangianRelaxation(object):
         for i in range(0,self.NL):
             LRpen = LR_pen_v[i]
             part1 = (self.UB - L_obj_down) / (self.a + self.b*self.v)
-            #part2 = 0
-            if (total_LRpen != 0):
-                part2 =  LRpen / total_LRpen
             #part1 = 1 / (self.a + self.b*self.v)
             #part2 = 0
-            #if (LRpen != 0):
-            #    part2 =  LRpen
-                #part2 = LRpen / abs(total_LRpen)
+            #if (total_LRpen != 0):
+            #    part2 =  LRpen / total_LRpen
+            #part1 = 1 / (self.a + self.b*self.v)
+            part2 = 0
+            if (LRpen != 0):
+                part2 = LRpen / abs(total_LRpen)
+                #part2 =  LRpen / abs(LRpen)
             lambda_vector[i] = lambda_old[i] + part1 * part2
             if (lambda_vector[i] < 0.0):
                 lambda_vector[i] = 0
 
-            #print("#####"+str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) )
+            #print(str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) )
         #print("")
         #print("")
         return lambda_vector
@@ -173,7 +174,6 @@ class LagrangianRelaxation(object):
         termination_criteria = bool(False)
         changes = 0
 
-        print("CREATING STARTING POINT")
         # (0) Initial solution
         self.DPP_sol = []
         #isol = self.problem_data.solve()
@@ -181,7 +181,7 @@ class LagrangianRelaxation(object):
         initial_solution = self.create_initial_solution(isol)
         for i in range(0,self.y_master_size-1):
             self.DPP_sol.append(initial_solution)
-        print("START SUBGRADIENT METHOD")
+
         while (termination_criteria == False):
             # (0) Initialize DPP
             #for i in range(0,self.y_master_size-1):
@@ -197,7 +197,6 @@ class LagrangianRelaxation(object):
             # (1) Solve DPP problems
             print("ITERATION -> "+str(self.v))
             for i in range(0,self.y_master_size-1):
-
                 print("START Y -> "+str(self.problem_DPP[i][0].list_y))
 
                 DPP_sol_row = []
@@ -210,13 +209,9 @@ class LagrangianRelaxation(object):
                 pen_all_local=0
                 stop_inf = False
                 for j in range(0,self.N):
-                    if (i > (self.y_master_size-1)/2):
-                        stop_inf = True
-                        break
                     #print("SOLVE "+str(j))
                     DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
                     if (DPP_sol_row[j].model.Status == 3):
-                    #    print("UNFACTIBLE Y"+str(i))
                         stop_inf = True
                         break
                     L_obj_down_local = DPP_sol_row[j].get_objfunction()
@@ -226,15 +221,14 @@ class LagrangianRelaxation(object):
                     self.lambda_matrix[i][j] = self.subgradient( self.lambda_matrix[i][j], L_obj_down_local, LR_pen_local)
                     inf_sol = self.extract_infeasibility(LR_pen_local)
                     print(str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol))
-                    if (self.obj >= obj_local and (inf_sol <= 0)):
-                        if (self.L_obj_down <= L_obj_down_local):
-                            self.L_obj_down  = L_obj_down_local
-                            self.obj = obj_local
-                            self.LR_pen = LR_pen_local.copy()
-                            self.inf_sol = inf_sol
-                            self.pen_all = pen_all_local
-                            self.index_best_i = i
-                            self.index_best_j = j
+                    if (self.L_obj_down < L_obj_down_local and (inf_sol <= 0)):
+                        self.L_obj_down  = L_obj_down_local
+                        self.obj = obj_local
+                        self.LR_pen = LR_pen_local.copy()
+                        self.inf_sol = inf_sol
+                        self.pen_all = pen_all_local
+                        self.index_best_i = i
+                        self.index_best_j = j
                         changes=1
                 if (stop_inf == False):
                     print("BEST" + str(self.L_obj_down) )
