@@ -91,7 +91,7 @@ def small_example():
 
 # input_example ---------------------------------------------------------------
 def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
-                  num_periods=20, ini_perimeter=20, last_per_content=10,
+                  num_periods=20, ini_perimeter=20, contention_factor=0.5,
                   random=False, seed=None):
     """Input example."""
     if seed is not None:
@@ -203,10 +203,9 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
         return round(max(min_per, max_perf * proportion), 2)
 
     periods_names = problem_data.wildfire.get_names()
-    min_p = min(periods_names)
     max_p = max(periods_names)
     content_period = rand.random_num(
-        min_val=max(min_p, max_p - last_per_content),
+        min_val=int(max_p*contention_factor),
         max_val=max_p - 1, zero=0)
 
     print(max_performance)
