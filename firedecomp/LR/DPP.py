@@ -151,6 +151,57 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
             w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
 
 
+################################################################################
+# PRIVATE METHOD: __create_objfunc__()
+################################################################################
+    def __create_objfunc__(self):
+        #self.div = gurobipy.LinExpr(self.divRes)
+
+# Wildfire Containment (2) and (3)
+        Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+                    sum([self.PR[i, t]*self.w[i, t]
+                     for i in self.I for t in self.T]))
+        list_Constr2 = list(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+                    - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+                    for t in self.T)
+
+# Non-Negligence of Fronts (14) and (15)
+        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+                    for g in self.G for t in self.T)
+        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
+                    for g in self.G for t in self.T)
+
+# Objective
+# =========
+        self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
+                       sum([self.P[i] * self.z[i] for i in self.I]) +
+                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+                       0.001*self.y[self.max_t])
+
+        self.LR_obj = 0
+        self.LR_obj_const = []
+
+        if self.resource_i == 0 :
+            self.LR_obj = self.lambda1[0] * Constr1
+            self.LR_obj_const.append(Constr1)
+
+        if self.resource_i == 1 :
+            for i in range(0,len(list_Constr2)):
+                self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i]
+                self.LR_obj_const.append(list_Constr2[i])
+
+        if self.resource_i == 2 :
+            counter2=0
+            for i in range(counter2,counter2+len(list_Constr3)):
+                self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter2]
+                self.LR_obj_const.append(list_Constr3[i-counter2])
+            counter2=counter2+len(list_Constr3)
+            for i in range(counter2,counter2+len(list_Constr4)):
+                self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr4[i-counter2]
+                self.LR_obj_const.append(list_Constr4[i-counter2])
+
+        self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 
 ##########################################################################################
 # PRIVATE METHOD: __extract_set_data_problem_by_resources__ ()

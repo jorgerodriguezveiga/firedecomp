@@ -127,7 +127,7 @@ class LagrangianRelaxation(object):
         lambda_old = lambda_vector.copy()
         for i in range(0,self.NL):
             LRpen = LR_pen_v[i]
-            part1 = (self.UB - L_obj_down) / (self.a + self.b*self.v)
+            part1 = 1.5#(self.UB - L_obj_down) / (self.a + self.b*self.v)
             #part1 = 1 / (self.a + self.b*self.v)
             #part2 = 0
             #if (total_LRpen != 0):
@@ -135,8 +135,8 @@ class LagrangianRelaxation(object):
             #part1 = 1 / (self.a + self.b*self.v)
             part2 = 0
             if (LRpen != 0):
-                part2 = LRpen / abs(total_LRpen)
-                #part2 =  LRpen / abs(LRpen)
+                #part2 = LRpen / abs(total_LRpen)
+                part2 =  LRpen / abs(LRpen)
             lambda_vector[i] = lambda_old[i] + part1 * part2
             if (lambda_vector[i] < 0.0):
                 lambda_vector[i] = 0
@@ -214,13 +214,13 @@ class LagrangianRelaxation(object):
                     if (DPP_sol_row[j].model.Status == 3):
                         stop_inf = True
                         break
-                    L_obj_down_local = DPP_sol_row[j].get_objfunction()
-                    obj_local  = self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
+                    L_obj_down_local = L_obj_down_local + DPP_sol_row[j].get_objfunction()
+                    obj_local  = obj_local + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
                     LR_pen_local = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
                     pen_all_local = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
                     self.lambda_matrix[i][j] = self.subgradient( self.lambda_matrix[i][j], L_obj_down_local, LR_pen_local)
                     inf_sol = self.extract_infeasibility(LR_pen_local)
-                    print(str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol))
+                    print(str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol) + "  " + str(LR_pen_local))
                     if (self.L_obj_down < L_obj_down_local and (inf_sol <= 0)):
                         self.L_obj_down  = L_obj_down_local
                         self.obj = obj_local
