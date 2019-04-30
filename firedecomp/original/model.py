@@ -205,9 +205,6 @@ def model(data, relaxed=False):
     m.addConstrs( (y[t-1] >= y[t] for t in data.T) ,name='aux_constraint_y1')
     m.addConstrs( (w[i,t] <= y[t-1] for i in data.I for t in data.T) ,name='aux_constraint_y2')
 
-    m.addConstrs( (y[t-1] >= y[t] for t in data.T) ,name='aux_constraint_y1')
-    m.addConstrs( (w[i,t] <= y[t-1] for i in data.I for t in data.T) ,name='aux_constraint_y2')
-
 
     m.addConstr(sum([data.PER[t]*y[t-1] for t in data.T]) -
                 sum([data.PR[i, t]*w[i, t] for i in data.I for t in data.T]) <= 0,

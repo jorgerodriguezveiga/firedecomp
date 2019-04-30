@@ -119,7 +119,7 @@ class LagrangianRelaxation(object):
 ###############################################################################
 # PUBLIC METHOD subgradient()
 ###############################################################################
-    def subgradient(self, lambda_vector, L_obj_down, LR_pen_v):
+    def subgradient(self, lambda_vector, L_obj_down, LR_pen_v, ii):
         # solution, lambda, mi
         # update lambda and mi
         #feas = all([val <= 0 for val in self.LR_pen])
@@ -127,7 +127,7 @@ class LagrangianRelaxation(object):
         lambda_old = lambda_vector.copy()
         for i in range(0,self.NL):
             LRpen = LR_pen_v[i]
-            part1 = 1.5#(self.UB - L_obj_down) / (self.a + self.b*self.v)
+            part1 = 2#(self.UB - L_obj_down) / (self.a + self.b*self.v)
             #part1 = 1 / (self.a + self.b*self.v)
             #part2 = 0
             #if (total_LRpen != 0):
@@ -140,9 +140,10 @@ class LagrangianRelaxation(object):
             lambda_vector[i] = lambda_old[i] + part1 * part2
             if (lambda_vector[i] < 0.0):
                 lambda_vector[i] = 0
-
-            #print(str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) )
-        #print("")
+            if ii == 7:
+                print(str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) )
+        if ii == 7:
+            print("")
         #print("")
         return lambda_vector
 
@@ -176,8 +177,10 @@ class LagrangianRelaxation(object):
 
         # (0) Initial solution
         self.DPP_sol = []
-        #isol = self.problem_data.solve()
-        isol = self.problem_RPP.solve()
+        isol = self.problem_data.solve()
+        print(isol.get_objfunction())
+        print(isol.get_variables().mu['aircraft',1].X)
+        #isol = self.problem_RPP.solve()
         initial_solution = self.create_initial_solution(isol)
         for i in range(0,self.y_master_size-1):
             self.DPP_sol.append(initial_solution)
@@ -208,6 +211,7 @@ class LagrangianRelaxation(object):
                 obj_local=0
                 pen_all_local=0
                 stop_inf = False
+                inf_sol=0
                 for j in range(0,self.N):
                     #print("SOLVE "+str(j))
                     DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
@@ -218,18 +222,20 @@ class LagrangianRelaxation(object):
                     obj_local  = obj_local + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
                     LR_pen_local = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
                     pen_all_local = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
-                    self.lambda_matrix[i][j] = self.subgradient( self.lambda_matrix[i][j], L_obj_down_local, LR_pen_local)
-                    inf_sol = self.extract_infeasibility(LR_pen_local)
-                    print(str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol) + "  " + str(LR_pen_local))
-                    if (self.L_obj_down < L_obj_down_local and (inf_sol <= 0)):
-                        self.L_obj_down  = L_obj_down_local
-                        self.obj = obj_local
-                        self.LR_pen = LR_pen_local.copy()
-                        self.inf_sol = inf_sol
-                        self.pen_all = pen_all_local
-                        self.index_best_i = i
-                        self.index_best_j = j
-                        changes=1
+                    self.lambda_matrix[i][j] = self.subgradient( self.lambda_matrix[i][j], L_obj_down_local, LR_pen_local, i)
+                    inf_sol = inf_sol + self.extract_infeasibility(LR_pen_local)
+                    print("Resource"+str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol) + "  " + str(LR_pen_local))
+                    print("")
+                    print("")
+                if (self.L_obj_down < L_obj_down_local and (inf_sol <= 0)):
+                    self.L_obj_down  = L_obj_down_local
+                    self.obj = obj_local
+                    self.LR_pen = LR_pen_local.copy()
+                    self.inf_sol = inf_sol
+                    self.pen_all = pen_all_local
+                    self.index_best_i = i
+                    self.index_best_j = j
+                    changes=1
                 if (stop_inf == False):
                     print("BEST" + str(self.L_obj_down) )
                     #print("")
@@ -272,6 +278,8 @@ class LagrangianRelaxation(object):
         e = gurobipy.tupledict()
         Tlen = self.problem_data.get_names("wildfire")
         Ilen = self.problem_data.get_names("resources")
+        Glen = self.problem_data.get_names("groups")
+
         for res in Ilen:
             DPP = DPP_sol_row[counter]
             for tt in Tlen:
@@ -300,26 +308,31 @@ class LagrangianRelaxation(object):
                 sol1.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('er')[res,tt].X
                 sol1.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('e')[res,tt].X
             counter = counter + 1
+        for gro in Glen:
+            for tt in Tlen:
+                sol1.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = DPP.get_variables().get_variable('mu')[gro,tt].X
         sol1.get_model().update()
         #print(sol1.get_model().getVars())
         #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
         return sol1
 
-    def create_initial_solution(self, solution):
+    def create_initial_solution(self, isol):
         Tlen = self.problem_data.get_names("wildfire")
         Ilen = self.problem_data.get_names("resources")
+        Glen = self.problem_data.get_names("groups")
+
         for res in Ilen:
             for tt in Tlen:
-                solution.get_model().getVarByName("start["+res+","+str(tt)+"]").start = solution.get_variables().get_variable('s')[res,tt].X
-                solution.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = solution.get_variables().get_variable('tr')[res,tt].X
-                solution.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = solution.get_variables().get_variable('r')[res,tt].X
-                solution.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = solution.get_variables().get_variable('er')[res,tt].X
-                solution.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = solution.get_variables().get_variable('e')[res,tt].X
-        solution.get_model().update()
-
-        #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
-        return solution
-
+                isol.get_model().getVarByName("start["+res+","+str(tt)+"]").start = isol.get_variables().get_variable('s')[res,tt].X
+                isol.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('tr')[res,tt].X
+                isol.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('r')[res,tt].X
+                isol.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('er')[res,tt].X
+                isol.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('e')[res,tt].X
+        for gro in Glen:
+            for tt in Tlen:
+                isol.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = isol.get_variables().get_variable('mu')[gro,tt].X
+        isol.get_model().update()
+        return isol
 
     def print_solution(self, solution):
         Tlen = self.problem_data.get_names("wildfire")
