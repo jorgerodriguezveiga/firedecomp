@@ -91,9 +91,11 @@ def small_example():
 
 # input_example ---------------------------------------------------------------
 def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
-                  num_periods=20, ini_perimeter=20, contention_factor=0.5,
+                  num_periods=20, contention_factor=0.5,
                   random=False, seed=None):
     """Input example."""
+    ini_perimeter = 1  # Any number greater than 0. It is not needed
+
     if seed is not None:
         np.random.seed(seed)
     else:
@@ -152,11 +154,6 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
         start_dict={(i, t): 1 if t == 1 else 0
                     for i, t in res_wild.get_names()})
 
-    # sum_work_periods = {
-    #     i: sum([info['work'][i, t]*data.PR[i, t] for t in data.T
-    #             if t <= data.WP[i] - data.CUP[i]])
-    #     for i in data.I}
-
     sum_work_periods = {
         t: {
             i: sum([info['work'][i, t] * data.PR[i, t]
@@ -166,15 +163,6 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
             for i in data.I
         }
         for t in data.T}
-
-
-    # max_res_groups = {g: min([data.nMax[g, t] for t in data.T])
-    #                   for g in data.G}
-    # max_performance = 0
-    # for g in data.G:
-    #     max_performance += sum(np.sort([
-    #         sum_work_periods[i]
-    #         for i in data.Ig[g]])[:max_res_groups[g]])
 
     max_performance = dict()
     for p in problem_data.wildfire:
@@ -189,16 +177,6 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
                 ) for gp in p.__group_period__]),
                 2)
 
-    # def get_perimeter(period, periods, ini_perim, end_perim):
-    #     step = max(1, (end_perim - ini_perim)/periods)
-    #     return round(ini_perim + step * (period - 1), 2)
-    #
-    # for p in problem_data.wildfire:
-    #     p.perimeter = get_perimeter(
-    #         p.get_index(), num_periods,
-    #         contention_factor*max_performance/num_periods,
-    #         max_performance)
-
     def get_perimeter(max_perf, min_per, proportion=1.1):
         return round(max(min_per, max_perf * proportion), 2)
 
@@ -208,7 +186,6 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
         min_val=int(max_p*contention_factor),
         max_val=max_p - 1, zero=0)
 
-    print(max_performance)
     prev_per = ini_perimeter
     for p in problem_data.wildfire:
         if p.get_index() >= content_period:
