@@ -1,2 +1,1 @@
-firedecomp_simulations -n 25 -nb 5 20 -na 5 20 -nm 5 20 -np 40 -m benders -so solver_options.yaml -vvv 
-# &> simulations.log
+firedecomp_simulations -n 5 -nb 5 -na 5 -nm 5 -np 20 -m fix_work -so solver_options.yaml -vvv  &> simulations.log
