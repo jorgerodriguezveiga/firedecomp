@@ -8,7 +8,6 @@ import numpy as np
 
 # Package modules
 from firedecomp import fix_work
-from firedecomp import logging
 from firedecomp.fix_work import utils
 
 
@@ -99,9 +98,6 @@ class FixWorkAlgorithm(object):
         self.__start_info__ = {}
         self.master.__start_info__ = self.__start_info__
 
-        # Logger
-        self.__log__(log_level)
-
     def get_start_resource_info(self, i, t):
         """Get start info of the selected resource and period.
 
@@ -131,36 +127,6 @@ class FixWorkAlgorithm(object):
         return {m: {k: v for i, t in list_resorce_period
                     for k, v in self.get_start_resource_info(i, t)[m].items()}
                 for m in info}
-
-    def __log__(self, level="fix_work"):
-        log.addLevelName(60, "fix_work")
-        log.Logger.fix_work = logging.fix_work
-
-        if level != 'fix_work':
-            log_level = getattr(log, level)
-            logger = log.getLogger('fix_work_logging')
-            logger.setLevel(log_level)
-            logger.addFilter(logging.FixWorkFilter())
-            if len(logger.handlers) == 0:
-                ch = log.StreamHandler()
-                ch.setLevel(log_level)
-                # create formatter and add it to the handlers
-                formatter = log.Formatter("%(levelname)8s: %(message)s")
-                ch.setFormatter(formatter)
-                logger.addHandler(ch)
-        else:
-            log_level = 60
-            logger = log.getLogger('fix_work')
-            logger.setLevel(log_level)
-            if len(logger.handlers) == 0:
-                ch = log.StreamHandler()
-                ch.setLevel(log_level)
-                # create formatter and add it to the handlers
-                formatter = log.Formatter("%(message)s")
-                ch.setFormatter(formatter)
-                logger.addHandler(ch)
-
-        self.log = logger
 
     def add_opt_start_int_cut(self, i, t, work):
         max_t = int(max(self.problem_data.get_names("wildfire")))
@@ -214,8 +180,8 @@ class FixWorkAlgorithm(object):
         ])
         sep = "-+-".join(["-"*10]*8)
 
-        self.log.fix_work(header)
-        self.log.fix_work(sep)
+        log.info(header)
+        log.info(sep)
 
         new_obj = float('inf')
         periods = [
@@ -226,7 +192,7 @@ class FixWorkAlgorithm(object):
         warm_start = False
 
         for period in periods:
-            self.log.info("Period: {}".format(period))
+            log.debug("Period: {}".format(period))
             self.best_obj_period = new_obj
             if self.best_obj_period < float('inf'):
                 self.master.max_obj = self.best_obj_period
@@ -241,17 +207,17 @@ class FixWorkAlgorithm(object):
             if status == 2:
                 new_obj = self.problem_data.get_cost()
                 if abs(self.best_obj_period - new_obj) <= self.mip_gap_obj:
-                    self.log.fix_work("\nConvergence.")
+                    log.info("\nConvergence.")
                     self.status = 2
                     break
                 else:
                     if period == data.max_t:
                         self.status = 2
                     else:
-                        self.log.fix_work(sep)
+                        log.info(sep)
                         self.status = 1
             else:
-                self.log.fix_work("")
+                log.info("")
                 self.status = status
 
         return self.status
@@ -286,22 +252,22 @@ class FixWorkAlgorithm(object):
 
         for it in range(1, self.max_iters+1):
             self.iter = it
-            self.log.info("[ITER]: {}".format(self.iter))
+            log.debug("[ITER]: {}".format(self.iter))
 
             # Solve Master problem
-            self.log.debug("\t[MASTER]:")
+            log.debug("\t[MASTER]:")
             master_status = master.solve(
                 solver_options=self.solver_options_master)
             self.runtime += master.model.runtime
 
             if master_status == 3:
-                self.log.debug("\t - Not optimal solution.")
+                log.debug("\t - Not optimal solution.")
                 self.period_status = 3
                 break
             else:
-                self.log.debug("\t - Optimal")
+                log.debug("\t - Optimal")
                 start = self.problem_data.resources_wildfire.get_info("start")
-                self.log.debug(
+                log.debug(
                     "\t - Solution: " +
                     ", ".join([str(k) for k, v in start.items() if v == 1]))
 
@@ -316,26 +282,26 @@ class FixWorkAlgorithm(object):
                 len(master.constraints.feas_int)
 
             if (self.obj_ub - self.obj_lb)/self.obj_ub <= self.mip_gap_obj:
-                self.log.info("\t - Convergence.")
+                log.debug("\t - Convergence.")
                 self.obj = self.obj_lb
                 self.period_status = 2
             elif self.max_iters == self.iter:
-                self.log.info("\t - Maximum number of iterations exceeded.")
+                log.debug("\t - Maximum number of iterations exceeded.")
                 self.period_status = 7
             elif self.time > self.max_time:
-                self.log.info("\t - Maximum time exceeded.")
+                log.debug("\t - Maximum time exceeded.")
                 self.period_status = 9
             elif self.num_cuts_prev == num_cuts:
-                self.log.info("\t - Convergence. No cuts added.")
+                log.debug("\t - Convergence. No cuts added.")
                 self.obj = self.obj_lb
                 self.period_status = 2
 
             self.time = time.time() - self.__start_time__
 
-            self.log.info("[STOP CRITERIA]:")
-            self.log.debug("\t - lb: %s", self.obj_lb)
+            log.debug("[STOP CRITERIA]:")
+            log.debug("\t - lb: %s", self.obj_lb)
 
-            self.log.fix_work(utils.format_fix_work([
+            log.info(utils.format_fix_work([
                 max_period,
                 self.iter,
                 self.time,

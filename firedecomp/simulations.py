@@ -123,17 +123,15 @@ def simulations(
                         if 'valid_constraints' not in orig_options:
                             orig_options['valid_constraints'] = None
 
-                    if 'fix_work_options' in solver_options:
-                        fix_work_options = solver_options['fix_work_algorithm']
+                    if 'fix_work' in solver_options:
+                        fix_work_options = solver_options['fix_work']
 
-                print(1)
                 instance.solve(
                     method=m,
-                    solver_options=orig_options,
+                    original_options=orig_options,
                     fix_work_options=fix_work_options,
                     min_res_penalty=1000000,
                     log_level=None)
-                print(2)
 
                 solution_dict.update(instance.get_solution_info())
 
@@ -302,6 +300,19 @@ def logger(debug):
             log_level = 10
         else:
             log_level = 50
+    elif isinstance(debug, str):
+        if debug == "fix_work":
+            log_level = 60
+            logger = log.getLogger('fix_work')
+            logger.setLevel(log_level)
+            if len(logger.handlers) == 0:
+                ch = log.StreamHandler()
+                ch.setLevel(log_level)
+                # create formatter and add it to the handlers
+                formatter = log.Formatter("%(message)s")
+                ch.setFormatter(formatter)
+                logger.addHandler(ch)
+            return
     else:
         log_level = 50
 

@@ -389,17 +389,17 @@ class Master(object):
         # Max obj
         # -------
         if 'max_obj' in self.valid_constraints:
-            log.info("Add max_obj valid constraint.")
+            log.debug("Add max_obj valid constraint.")
             self.__build_max_obj_cut__()
 
         # Valid constraints
         # -----------------
         if 'contention' in self.valid_constraints:
-            log.info("Add contention valid constraint.")
+            log.debug("Add contention valid constraint.")
             self.__build_valid_constraint_contention__()
 
         if 'work' in self.valid_constraints:
-            log.info("Add work valid constraint.")
+            log.debug("Add work valid constraint.")
             self.__build_valid_constraint_work__()
 
         # Wildfire Containment

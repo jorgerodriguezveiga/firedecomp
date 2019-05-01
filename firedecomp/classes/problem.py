@@ -228,7 +228,7 @@ class Problem(object):
             default_fix_work_options = {
                 'max_iters': 100,
                 'mip_gap_obj': 0.01,
-                'solver_options_master': None,
+                'solver_options_master': {},
             }
             if isinstance(fix_work_options, dict):
                 default_fix_work_options.update(fix_work_options)
