@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
+v2.0.0 - 01/05/2019
+-------------------
+
 ### Added ###
 - Add notebook to represent simulations information.
 - Add timelimit to benders method option.
@@ -17,6 +20,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Add command line argument to append results instead of generate a new results file.
 
 ### Changed ###
+- Change benders method name to fix_work.
+- Improve instances generation.
 
 ### Removed ###
 
