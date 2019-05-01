@@ -24,7 +24,8 @@ def simulations(
         num_periods=None,
         modes=None,
         solver_options=None,
-        solution_file='solution.csv'
+        solution_file='solution.csv',
+        append_results=False
 ):
     """Solve simulations.
 
@@ -40,11 +41,13 @@ def simulations(
         num_periods (:obj:`list`): list with number of periods. If ``None``
             defaults to``[20, 30, 40]``.
         modes (:obj:`str`): list of execution modes. Options allowed:
-            ``'original'``, ``'benders'``. If ``None`` defaults to
-            ``['original', 'benders']``.
+            ``'original'``, ``'fix_work'``. If ``None`` defaults to
+            ``['original', 'fix_work']``.
         solver_options (:obj:`dict`): solver options. If None default options.
         solution_file (:obj:`str`): filename (.csv) with transferring results.
             Defaults to ``'solution.csv'``.
+        append_results (:obj:`str`): if ``True`` append results to the previous
+            ones.
     """
     if num_simulations is None:
         num_simulations = 10
@@ -62,13 +65,17 @@ def simulations(
         num_periods = [20, 30, 40]
 
     if modes is None:
-        modes = ['original', 'benders']
+        modes = ['original', 'fix_work']
 
     comb = itertools.product(
         num_brigades, num_aircraft, num_machines, num_periods)
 
     header = True
-    mode = 'w'
+
+    if append_results:
+        mode = 'a'
+    else:
+        mode = 'w'
 
     for brigades, aircraft, machines, periods in comb:
         log.info("#####################################")
@@ -105,22 +112,24 @@ def simulations(
                 solution_dict['mode'] = m
 
                 # Solver options
-                original_options = None
-                benders_options = None
+                orig_options = None
+                fix_work_options = None
 
                 if solver_options is not None:
                     if 'original' in solver_options:
                         orig_options = solver_options['original']
-                        if 'solver_options' in orig_options:
-                            original_options = orig_options['solver_options']
+                        if 'solver_options' not in orig_options:
+                            orig_options['solver_options'] = {}
+                        if 'valid_constraints' not in orig_options:
+                            orig_options['valid_constraints'] = None
 
-                    if 'benders' in solver_options:
-                        benders_options = solver_options['benders']
+                    if 'fix_work' in solver_options:
+                        fix_work_options = solver_options['fix_work']
 
                 instance.solve(
                     method=m,
-                    solver_options=original_options,
-                    benders_options=benders_options,
+                    original_options=orig_options,
+                    fix_work_options=fix_work_options,
                     min_res_penalty=1000000,
                     log_level=None)
 
@@ -198,10 +207,10 @@ def parse_args():
         default=None,
         nargs='+',
         type=str,
-        choices=['original', 'benders'],
+        choices=['original', 'fix_work'],
         help="List of execution modes. "
-             "Options allowed: original benders. "
-             "If None: original benders."
+             "Options allowed: original fix_work. "
+             "If None: original fix_work."
     )
 
     parser.add_argument(
@@ -231,6 +240,14 @@ def parse_args():
         "--solution_file",
         default='solution.csv',
         help="Solution file (.csv)."
+    )
+
+    parser.add_argument(
+        "-ar",
+        "--append_results",
+        action="store_true",
+        help="Append results to the previous ones.",
+        required=False
     )
 
     parser.add_argument(
@@ -283,6 +300,19 @@ def logger(debug):
             log_level = 10
         else:
             log_level = 50
+    elif isinstance(debug, str):
+        if debug == "fix_work":
+            log_level = 60
+            logger = log.getLogger('fix_work')
+            logger.setLevel(log_level)
+            if len(logger.handlers) == 0:
+                ch = log.StreamHandler()
+                ch.setLevel(log_level)
+                # create formatter and add it to the handlers
+                formatter = log.Formatter("%(message)s")
+                ch.setFormatter(formatter)
+                logger.addHandler(ch)
+            return
     else:
         log_level = 50
 
@@ -315,6 +345,7 @@ def main():
     print_solver_options = args.print_solver_options
     out_directory = args.out_directory
     solution_file = args.solution_file
+    append_results = args.append_results
     verbose = args.verbose
     version = args.version
 
@@ -368,7 +399,8 @@ def main():
         num_periods=num_periods,
         modes=modes,
         solver_options=solver_options,
-        solution_file=solution_file_path
+        solution_file=solution_file_path,
+        append_results=append_results
     )
 # --------------------------------------------------------------------------- #
 

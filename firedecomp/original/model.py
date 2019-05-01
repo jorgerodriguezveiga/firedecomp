@@ -11,7 +11,8 @@ from firedecomp import config
 
 # InputModel ------------------------------------------------------------------
 class InputModel(object):
-    def __init__(self, problem_data, relaxed=False, min_res_penalty=1000000):
+    def __init__(self, problem_data, relaxed=False, min_res_penalty=1000000,
+                 valid_constraints=None):
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
@@ -54,10 +55,12 @@ class InputModel(object):
         self.M = sum([v for k, v in self.PER.items()])
         self.min_t = int(min(self.T))
         self.max_t = int(max(self.T))
+        self.valid_constraints = valid_constraints
         self.model = self.__get_model__()
 
     def __get_model__(self):
-        return model(self, relaxed=self.relaxed)
+        return model(self, relaxed=self.relaxed,
+                     valid_constraints=self.valid_constraints)
 
     def solve(self, solver_options=None):
         """Solve mathematical model.
@@ -79,22 +82,23 @@ class InputModel(object):
 
         m.model.optimize()
 
-        # Todo: check what status number return a solution
-        if m.model.Status != 3:
+        # Check if exist a solution
+        if m.model.SolCount >= 1 and m.model.Status != 3:
             if self.relaxed is not True:
                 # Load variables values
                 self.problem_data.resources.update_select(
-                    {i: m.variables.z[i].getValue() == 1 for i in self.I})
+                    {i: round(m.variables.z[i].getValue()) == 1
+                     for i in self.I})
 
                 self.problem_data.resources_wildfire.update(
                     {(i, t): {
-                        'start': m.variables.s[i, t].x == 1,
-                        'travel': m.variables.tr[i, t].x == 1,
-                        'rest': m.variables.r[i, t].x == 1,
-                        'end_rest': m.variables.er[i, t].x == 1,
-                        'end': m.variables.e[i, t].x == 1,
-                        'use': m.variables.u[i, t].getValue() == 1,
-                        'work': m.variables.w[i, t].getValue() == 1
+                        'start': round(m.variables.s[i, t].x) == 1,
+                        'travel': round(m.variables.tr[i, t].x) == 1,
+                        'rest': round(m.variables.r[i, t].x) == 1,
+                        'end_rest': round(m.variables.er[i, t].x) == 1,
+                        'end': round(m.variables.e[i, t].x) == 1,
+                        'use': round(m.variables.u[i, t].getValue()) == 1,
+                        'work': round(m.variables.w[i, t].getValue()) == 1
                     }
                      for i in self.I for t in self.T})
 
@@ -102,7 +106,7 @@ class InputModel(object):
                     {(g, t): {'num_left_resources': m.variables.mu[g, t].x}
                      for g in self.G for t in self.T})
 
-                contained = {t: m.variables.y[t].x == 0 for t in self.T}
+                contained = {t: round(m.variables.y[t].x) == 0 for t in self.T}
                 contained_period = [t for t, v in contained.items()
                                     if v is True]
 
@@ -115,6 +119,7 @@ class InputModel(object):
                     {t: {'contained': False if t < first_contained else True}
                      for t in self.T})
         else:
+            log.warning("No solutions found.")
             log.warning(
                 config.gurobi.status_info[m.model.Status]['description'])
 
@@ -123,7 +128,7 @@ class InputModel(object):
 
 
 # model -----------------------------------------------------------------------
-def model(data, relaxed=False, slack_containment=False,
+def model(data, relaxed=False, slack_containment=False, valid_constraints=None,
           slack_penalty=1000000000000):
     """Wildfire suppression model.
 
@@ -145,6 +150,9 @@ def model(data, relaxed=False, slack_containment=False,
         vtype = gurobipy.GRB.BINARY
         lb = 0
         ub = 1
+
+    if valid_constraints is None:
+        valid_constraints = ['contention', 'work', 'max_obj']
 
     # Variables
     # =========
@@ -217,17 +225,31 @@ def model(data, relaxed=False, slack_containment=False,
             slack_penalty * slack_cont1 + \
             sum([slack_penalty * slack_cont2[t] for t in data.T])
 
-    m.setObjective(sum([data.C[i]*u[i, t] for i in data.I for t in data.T]) +
-                   sum([data.P[i] * z[i] for i in data.I]) +
-                   sum([data.NVC[t] * y[t-1] for t in data.T]) +
-                   sum([data.Mp*mu[g, t] for g in data.G for t in data.T]) +
-                   0.001*y[data.max_t] +
-                   1000000000000 * slack_cont1 +
-                   sum([1000000000000 * slack_cont2[t] for t in data.T])
-                   , gurobipy.GRB.MINIMIZE)
+    m.setObjective(obj_expression, gurobipy.GRB.MINIMIZE)
 
     # Constraints
     # ===========
+
+    # Valid constraints
+    # -----------------
+
+    if 'contention' in valid_constraints:
+        expr_lhs = {t: y[t] for t in data.T}
+        expr_rhs = {t: y[t - 1] for t in data.T}
+
+        m.addConstrs(
+            (expr_lhs[t] <= expr_rhs[t] for t in data.T),
+            name='valid_constraint_contention'
+        )
+
+    if 'work' in valid_constraints:
+        expr_lhs = {(i, t): w[i, t] for i in data.I for t in data.T}
+        expr_rhs = {t: y[t - 1] for t in data.T}
+
+        m.addConstrs(
+            (expr_lhs[i, t] <= expr_rhs[t] for i in data.I for t in data.T),
+            name='valid_constraint_contention'
+        )
 
     # Wildfire Containment
     # --------------------

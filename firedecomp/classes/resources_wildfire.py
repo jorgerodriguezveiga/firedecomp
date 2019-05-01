@@ -143,11 +143,6 @@ class ResourcesWildfire(gc.Set):
         """Get total resources performance in the wildfire."""
         return sum([rp.get_performance() for rp in self])
 
-    def add(self, element):
-        new_id = element.get_index()
-        if new_id not in self.get_names():
-            self.__index__[new_id] = element
-
     def remove(self, index):
         del self.__index__[index]
 # --------------------------------------------------------------------------- #

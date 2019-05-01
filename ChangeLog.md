@@ -10,14 +10,23 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
+v2.0.0 - 01/05/2019
+-------------------
+
 ### Added ###
+- Add notebook to represent simulations information.
+- Add timelimit to benders method option.
+- Use initial solution and add max_obj constraint in the iteration period method to improve solving time.
+- Add command line argument to append results instead of generate a new results file.
 
 ### Changed ###
+- Change benders method name to fix_work.
+- Improve instances generation.
 
 ### Removed ###
 
 ### Fixed ###
-
+- Fix error getting variable value, now if solver returns 0.9999 it si considered like 1.
 
 1.1.0 - 2019-02-22
 ------------------

@@ -1,18 +1,22 @@
 original:
+  valid_constraints: ['work', 'contention']
   solver_options:
     MIPGapAbs: 0
     MIPGap: 0
-    OutputFlag: 0
+    OutputFlag: 1
     LogToConsole: 1
-benders:
+    TimeLimit: 600
+fix_work_algorithm:
   mip_gap_obj: 0.01
-  compute_feas_cuts: False
   n_start_info: 20
-  max_iters: 100
+  max_iters: 1000
+  max_time: 600
   start_period: 20
   step_period: 6
+  valid_constraints: ['max_obj', 'work', 'contention']
   solver_options_master:
     MIPGapAbs: 0
     MIPGap: 0
     OutputFlag: 0
     LogToConsole: 0
+    TimeLimit: 600

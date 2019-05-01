@@ -12,8 +12,8 @@ from firedecomp.classes.resources_wildfire import ResourcePeriod, \
     ResourcesWildfire
 from firedecomp.classes.groups_wildfire import GroupPeriod, GroupsWildfire
 from firedecomp.classes.problem import Problem
-from . import random as r
-from ..benders import utils
+from . import random as rand
+from ..fix_work import utils
 
 
 # INPUT =======================================================================
@@ -91,9 +91,11 @@ def small_example():
 
 # input_example ---------------------------------------------------------------
 def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
-                  num_periods=20, contention_factor=10,
+                  num_periods=20, contention_factor=0.5,
                   random=False, seed=None):
     """Input example."""
+    ini_perimeter = 1  # Any number greater than 0. It is not needed
+
     if seed is not None:
         np.random.seed(seed)
     else:
@@ -124,7 +126,7 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
     groups = Groups([brigades_grp, aircraft_grp, machines_grp])
 
     wildfire = wildfire_example(
-        num_periods=num_periods, ini_perimeter=20, random=random,
+        num_periods=num_periods, ini_perimeter=ini_perimeter, random=random,
         seed=seed)
 
     res_wild = ResourcesWildfire([ResourcePeriod(i, p, resources_efficiency=1)
@@ -132,8 +134,8 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
 
     group_bounds = {
         g: (
-            max(1, r.random_num(min(1, g.size()), g.size()/4, zero=0)),
-            min(5, r.random_num(g.size() * 3 / 4, g.size(), zero=0))
+            max(1, rand.random_num(min(1, g.size()), g.size()/4, zero=0)),
+            min(5, rand.random_num(g.size() * 3 / 4, g.size(), zero=0))
         )
         for g in groups}
 
@@ -153,27 +155,54 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
                     for i, t in res_wild.get_names()})
 
     sum_work_periods = {
-        i: sum([info['work'][i, t]*data.PR[i, t] for t in data.T
-                if t <= data.WP[i] - data.CUP[i]])
-        for i in data.I}
+        t: {
+            i: sum([info['work'][i, t] * data.PR[i, t]
+                    for t in data.T_int(p_max=t)
+                    if t <= data.WP[i] - data.CUP[i]])
 
-    max_res_groups = {g: min([data.nMax[g, t] for t in data.T])
-                      for g in data.G}
-    max_performance = 0
-    for g in data.G:
-        max_performance += sum(np.sort([
-            sum_work_periods[i]
-            for i in data.Ig[g]])[:max_res_groups[g]])
+            for i in data.I
+        }
+        for t in data.T}
 
-    def get_perimeter(period, periods, ini_perim, end_perim):
-        step = max(1, (end_perim - ini_perim)/periods)
-        return round(ini_perim + step * (period - 1), 2)
-
+    max_performance = dict()
     for p in problem_data.wildfire:
+        max_performance[p.get_index()] = \
+            round(sum([
+                sum(
+                    sorted([
+                        sum_work_periods[p.get_index()][r.get_index()]
+                        for r in gp.group],
+                        reverse=True
+                    )[:gp.max_res_groups]
+                ) for gp in p.__group_period__]),
+                2)
+
+    def get_perimeter(max_perf, min_per, proportion=1.1):
+        return round(max(min_per, max_perf * proportion), 2)
+
+    periods_names = problem_data.wildfire.get_names()
+    max_p = max(periods_names)
+    content_period = rand.random_num(
+        min_val=int(max_p*contention_factor),
+        max_val=max_p - 1, zero=0)
+
+    prev_per = ini_perimeter
+    for p in problem_data.wildfire:
+        if p.get_index() >= content_period:
+            proportion = 0.9
+        else:
+            proportion = 1.1
+
+        if p.get_index()+1 in max_performance:
+            max_perf = max_performance[p.get_index()+1]
+        else:
+            max_perf = max_performance[p.get_index()]
+
         p.perimeter = get_perimeter(
-            p.get_index(), num_periods,
-            contention_factor*max_performance/num_periods,
-            max_performance)
+            max_perf=max_perf,
+            min_per=prev_per,
+            proportion=proportion)
+        prev_per = p.perimeter
 
     problem_data.wildfire.compute_increments()
 
@@ -220,21 +249,21 @@ def resource_example(random=False, res_type='brigade', seed=None):
                                                       p=[0.3, 0.7])
         if working_this_wildfire is True:
             arrival = 0
-            work = r.random_num(0, 470)
+            work = rand.random_num(0, 470)
             rest = 0
         else:
-            arrival = r.random_num(30, 120)
+            arrival = rand.random_num(30, 120)
             if working_other_wildfire is True:
-                work = r.random_num(60, 400)
+                work = rand.random_num(60, 400)
                 rest = 0
             else:
                 work = 0
                 rest = 0
 
         total_work = work
-        performance = r.random_num(2/6, 10/6, zero=-1) * 6
-        fix_cost = r.random_num(0, 1000)
-        variable_cost = r.random_num(200, 500)
+        performance = rand.random_num(2/6, 10/6, zero=-1) * 6
+        fix_cost = rand.random_num(0, 1000)
+        variable_cost = rand.random_num(200, 500)
         time_between_rests = 10
         max_work_time = 480
         necessary_rest_time = 0
@@ -248,21 +277,21 @@ def resource_example(random=False, res_type='brigade', seed=None):
                                                       p=[0.3, 0.7])
         if working_this_wildfire is True:
             arrival = 0
-            work = r.random_num(0, 470)
+            work = rand.random_num(0, 470)
             rest = 0
         else:
-            arrival = r.random_num(60, 180)
+            arrival = rand.random_num(60, 180)
             if working_other_wildfire is True:
-                work = r.random_num(60, 400)
+                work = rand.random_num(60, 400)
                 rest = 0
             else:
                 work = 0
                 rest = 0
 
         total_work = work
-        performance = r.random_num(4/6, 15/6, zero=-1) * 6
-        fix_cost = r.random_num(0, 1000)
-        variable_cost = r.random_num(500, 1000)
+        performance = rand.random_num(4/6, 15/6, zero=-1) * 6
+        fix_cost = rand.random_num(0, 1000)
+        variable_cost = rand.random_num(500, 1000)
         time_between_rests = 10
         max_work_time = 480
         necessary_rest_time = 0
@@ -276,25 +305,25 @@ def resource_example(random=False, res_type='brigade', seed=None):
                                                       p=[0.3, 0.7])
         if working_this_wildfire is True:
             arrival = 0
-            work = r.random_num(0, 120)
+            work = rand.random_num(0, 120)
             rest = np.random.choice([0, 10, 20, 30], p=[0.7, 0.1, 0.1, 0.1])
         else:
-            arrival = r.random_num(10, 40)
+            arrival = rand.random_num(10, 40)
             if working_other_wildfire is True:
                 rest = np.random.choice([0, 10, 20, 30],
                                         p=[0.7, 0.1, 0.1, 0.1])
                 if rest > 0:
                     work = 120 + rest
                 else:
-                    work = r.random_num(0, 120)
+                    work = rand.random_num(0, 120)
             else:
                 work = 0
                 rest = 0
 
         total_work = 160*np.random.choice([0, 1, 2]) + work
-        performance = r.random_num(4/6, 15/6, zero=-1) * 6
-        fix_cost = r.random_num(0, 1000)
-        variable_cost = r.random_num(1000, 3000)
+        performance = rand.random_num(4/6, 15/6, zero=-1) * 6
+        fix_cost = rand.random_num(0, 1000)
+        variable_cost = rand.random_num(1000, 3000)
         time_between_rests = 10
         max_work_time = 120
         necessary_rest_time = 40
@@ -364,16 +393,16 @@ def wildfire_example(num_periods=10, ini_perimeter=10, random=False,
             np.random.seed(seed)
 
     perimeter = ini_perimeter
-    cost = r.random_num(300*perimeter, 500*perimeter, zero=-2)
+    cost = rand.random_num(300*perimeter, 500*perimeter, zero=-2)
 
     periods_list = [Period(name=1, perimeter=perimeter, cost=cost)]
 
     for p in range(2, num_periods+1):
-        inc_per = r.random_num(max(1, perimeter/30),
-                               min(3, perimeter/10),
-                               zero=-2)
+        inc_per = rand.random_num(max(1, perimeter/30),
+                                  min(3, perimeter/10),
+                                  zero=-2)
         perimeter += inc_per
-        cost += r.random_num(300*inc_per, 500*inc_per)
+        cost += rand.random_num(300*inc_per, 500*inc_per)
         periods_list.append(Period(name=p, perimeter=perimeter, cost=cost))
     return Wildfire(periods_list, time_per_period=10)
 # --------------------------------------------------------------------------- #
