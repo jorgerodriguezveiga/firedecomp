@@ -69,36 +69,54 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         ##########################################
         # fixed solution vars
         for i in range(0,len(self.I)):
-            if (i != self.resource_i):
-                for t in self.T:
-                    ind = self.I[i]
-                    # VAR S
-                    #print(self.s[ind,t].UB)
-                    #print(self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start)
+            for t in self.T:
+                ind = self.I[i]
+                # VAR S
+                if (i != self.resource_i):
                     self.s[ind,t].UB     = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start
                     self.s[ind,t].LB     = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start
-                    self.s[ind,t].Start  = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start
-                    # VAR TR
+                else:
+                    self.s[ind,t].UB     = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").UB
+                    self.s[ind,t].LB     = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").LB
+                self.s[ind,t].Start  = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start
+                # VAR TR
+                if (i != self.resource_i):
                     self.tr[ind,t].UB     = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").start
                     self.tr[ind,t].LB     = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").start
-                    self.tr[ind,t].Start  = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").start
-                    # VAR R
+                else:
+                    self.tr[ind,t].UB     = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").UB
+                    self.tr[ind,t].LB     = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").LB
+                self.tr[ind,t].Start  = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").start
+                # VAR R
+                if (i != self.resource_i):
                     self.r[ind,t].UB     = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").start
                     self.r[ind,t].LB     = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").start
-                    self.r[ind,t].Start  = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").start
-                    # VAR ER
+                else:
+                    self.r[ind,t].UB     = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").UB
+                    self.r[ind,t].LB     = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").LB
+                self.r[ind,t].Start  = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").start
+                # VAR ER
+                if (i != self.resource_i):
                     self.er[ind,t].UB     = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").start
                     self.er[ind,t].LB     = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").start
-                    self.er[ind,t].Start  = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").start
-                    # VAR E
+                else:
+                    self.er[ind,t].UB     = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").UB
+                    self.er[ind,t].LB     = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").LB
+                self.er[ind,t].Start  = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").start
+                # VAR E
+                if (i != self.resource_i):
                     self.e[ind,t].UB     = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").start
                     self.e[ind,t].LB     = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").start
-                    self.e[ind,t].Start  = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").start
+                else:
+                    self.e[ind,t].UB     = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").UB
+                    self.e[ind,t].LB     = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").LB
+                self.e[ind,t].Start  = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").start
         # fixed solution vars
-        for g in self.G:
-                for t in self.T:
+        for gro in self.G:
+                for tt in self.T:
                     # VAR MU
-                    self.mu[g,t].Start  = self.solution.get_variables().mu[g,t].getValue()
+                    self.mu[gro,tt].Start  = self.solution.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start
+
 
 ##########################################################################################
 # PRIVATE METHOD: __extract_set_data_problem_by_resources__ ()

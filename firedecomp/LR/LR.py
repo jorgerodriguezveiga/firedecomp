@@ -92,7 +92,7 @@ class LagrangianRelaxation(object):
         self.his = []
 
         self.UB=1000
-        init_value=2
+        init_value=10
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
             self.lambda1_prev.append(init_value+1)
@@ -178,6 +178,8 @@ class LagrangianRelaxation(object):
         # (0) Initial solution
         self.DPP_sol = []
         isol = self.problem_data.solve()
+        print("ORIGINAL")
+        print(isol.get_variables().s)
         print(isol.get_objfunction())
         print(isol.get_variables().mu['aircraft',1].X)
         #isol = self.problem_RPP.solve()
@@ -215,16 +217,20 @@ class LagrangianRelaxation(object):
                 for j in range(0,self.N):
                     #print("SOLVE "+str(j))
                     DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
+                    print("NODO "+str(j))
+                    print(DPP_sol_row[j].get_variables().s)
                     if (DPP_sol_row[j].model.Status == 3):
                         stop_inf = True
                         break
-                    L_obj_down_local = L_obj_down_local + DPP_sol_row[j].get_objfunction()
-                    obj_local  = obj_local + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
+                    UB_local = DPP_sol_row[j].get_objfunction()
+                    FX_local = self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
+                    L_obj_down_local = L_obj_down_local + UB_local
+                    obj_local  = obj_local + FX_local
                     LR_pen_local = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
                     pen_all_local = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
                     self.lambda_matrix[i][j] = self.subgradient( self.lambda_matrix[i][j], L_obj_down_local, LR_pen_local, i)
                     inf_sol = inf_sol + self.extract_infeasibility(LR_pen_local)
-                    print("Resource"+str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol) + "  " + str(LR_pen_local))
+                    print("Resource"+str(j)+" "+str(i)+" UB "+str(UB_local)+" fobj "+str(FX_local)+" Infeas "+str(inf_sol) + "  " + str(LR_pen_local))
                     print("")
                     print("")
                 if (self.L_obj_down < L_obj_down_local and (inf_sol <= 0)):
@@ -308,9 +314,9 @@ class LagrangianRelaxation(object):
                 sol1.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('er')[res,tt].X
                 sol1.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('e')[res,tt].X
             counter = counter + 1
-        for gro in Glen:
-            for tt in Tlen:
-                sol1.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = DPP.get_variables().get_variable('mu')[gro,tt].X
+        #for gro in Glen:
+        #    for tt in Tlen:
+        #        sol1.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = DPP.get_variables().get_variable('mu')[gro,tt].X
         sol1.get_model().update()
         #print(sol1.get_model().getVars())
         #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
@@ -328,9 +334,9 @@ class LagrangianRelaxation(object):
                 isol.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('r')[res,tt].X
                 isol.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('er')[res,tt].X
                 isol.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('e')[res,tt].X
-        for gro in Glen:
-            for tt in Tlen:
-                isol.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = isol.get_variables().get_variable('mu')[gro,tt].X
+        #for gro in Glen:
+        #    for tt in Tlen:
+        #        isol.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = isol.get_variables().get_variable('mu')[gro,tt].X
         isol.get_model().update()
         return isol
 
