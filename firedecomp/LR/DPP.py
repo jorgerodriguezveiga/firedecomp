@@ -176,8 +176,6 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 # PRIVATE METHOD: __create_objfunc__()
 ################################################################################
     def __create_objfunc__(self):
-        #self.div = gurobipy.LinExpr(self.divRes)
-
 # Wildfire Containment (2) and (3)
         Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T]) -
                     sum([self.PR[i, t]*self.w[i, t]

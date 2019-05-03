@@ -91,7 +91,7 @@ class LagrangianRelaxation(object):
         self.counterh = []
 
         self.UB=1000
-        init_value=1000
+        init_value=0
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
             self.lambda1_prev.append(init_value+1)
@@ -193,7 +193,7 @@ class LagrangianRelaxation(object):
             print(str(keys)+" "+str(values))
         print("")
 
-        #isol = self.problem_RPP.solve()
+        isol = self.problem_RPP.solve()
         initial_solution = self.create_initial_solution(isol)
         for i in range(0,self.y_master_size-1):
             self.DPP_sol.append(initial_solution)
