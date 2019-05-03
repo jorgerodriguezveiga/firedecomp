@@ -13,7 +13,7 @@ from firedecomp.LR import RPP
 
 # Subproblem ------------------------------------------------------------------
 class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
-    def __init__(self, problem_data, lambda1, resource_i, list_y, sol, relaxed=False,
+    def __init__(self, problem_data, lambda1, resource_i, list_y, sol, NL, relaxed=False,
                  min_res_penalty=1000000):
         """Initialize the DecomposedPrimalProblem.
 
@@ -30,9 +30,15 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         self.resource_i= resource_i
         self.list_y = list_y
         self.solution = sol
+        self.index_L = []
+        self.NL = NL
+        for i in range(0,NL):
+            self.index_L.append(0.0)
+
         super().__init__(problem_data, lambda1, relaxed, min_res_penalty)
 
-
+    def return_index_L(self):
+        return self.index_L
 ##########################################################################################
 # PRIVATE METHOD: __extract_set_data_problem__ ()
 # OVERWRITE RelaxedPrimalProblem.__extract_set_data_problem__()
@@ -199,33 +205,42 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         anula=1
         if self.resource_i != 0 :
             anula=0
+        else:
+            self.index_L[0] =  1
         self.lambda1[0] = self.lambda1[0] * anula
-        self.LR_obj = self.lambda1[0] * Constr1 * anula
+        self.LR_obj = self.lambda1[0] * Constr1* anula
         self.LR_obj_const = []
-        self.LR_obj_const.append(Constr1*anula)
+        self.LR_obj_const.append(Constr1* anula)
 # UNO
         anula=1
         if self.resource_i != 1 :
             anula=0
+
         counter=1
         for i in range(counter,counter+len(list_Constr2)):
+            if anula == 1:
+                self.index_L[i] = 1
             self.lambda1[i] = self.lambda1[i] * anula
-            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i-counter] * anula
-            self.LR_obj_const.append(list_Constr2[i-counter]*anula)
+            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i-counter]* anula
+            self.LR_obj_const.append(list_Constr2[i-counter]* anula)
         counter=counter+len(list_Constr2)
 # DOS
         anula=1
         if self.resource_i != 2 :
             anula=0
         for i in range(counter,counter+len(list_Constr3)):
+            if anula == 1:
+                self.index_L[i] = 1
             self.lambda1[i] = self.lambda1[i] * anula
-            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter] * anula
-            self.LR_obj_const.append(list_Constr3[i-counter]*anula)
+            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter]* anula
+            self.LR_obj_const.append(list_Constr3[i-counter]* anula)
         counter=counter+len(list_Constr3)
         for i in range(counter,counter+len(list_Constr4)):
+            if anula == 1:
+                self.index_L[i] = 1
             self.lambda1[i] = self.lambda1[i] * anula
-            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr4[i-counter] * anula
-            self.LR_obj_const.append(list_Constr4[i-counter]*anula)
+            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr4[i-counter]* anula
+            self.LR_obj_const.append(list_Constr4[i-counter]* anula)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 
