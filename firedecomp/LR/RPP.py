@@ -246,13 +246,13 @@ class RelaxedPrimalProblem(model.InputModel):
             self.LR_obj = self.LR_obj - self.lambda1[i] * list_Constr2[i-counter]
             self.LR_obj_const.append(list_Constr2[i-counter])
         counter=counter+len(list_Constr2)
-        for i in range(counter,counter+len(list_Constr3)):
-            self.LR_obj = self.LR_obj - self.lambda1[i] * list_Constr3[i-counter]
-            self.LR_obj_const.append(list_Constr3[i-counter])
-        counter=counter+len(list_Constr3)
-        for i in range(counter,counter+len(list_Constr4)):
-            self.LR_obj = self.LR_obj - self.lambda1[i] * list_Constr4[i-counter]
-            self.LR_obj_const.append(list_Constr4[i-counter])
+        #for i in range(counter,counter+len(list_Constr3)):
+        #    self.LR_obj = self.LR_obj - self.lambda1[i] * list_Constr3[i-counter]
+        #    self.LR_obj_const.append(list_Constr3[i-counter])
+        #counter=counter+len(list_Constr3)
+        #for i in range(counter,counter+len(list_Constr4)):
+        #    self.LR_obj = self.LR_obj - self.lambda1[i] * list_Constr4[i-counter]
+        #    self.LR_obj_const.append(list_Constr4[i-counter])
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 ################################################################################
@@ -273,9 +273,9 @@ class RelaxedPrimalProblem(model.InputModel):
 
         self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
 
-        #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
-        #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
-        #        name='wildfire_containment_1')
+#        self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+#                sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
+#                name='wildfire_containment_1')
 
         #self.m.addConstrs(
         #(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
@@ -284,7 +284,7 @@ class RelaxedPrimalProblem(model.InputModel):
 
         self.m.addConstrs( (self.y[t-1] >= self.y[t] for t in self.T) ,name='aux_constraint_y1')
         self.m.addConstrs( (self.w[i,t] <= self.y[t-1] for i in self.I for t in self.T) ,name='aux_constraint_y2')
-        self.m.addConstrs( (sum([self.tr[i,t] for t in self.T]) >= 1 for i in self.I), name='aux_constraint_t2')
+        #self.m.addConstrs( (sum([self.tr[i,t] for t in self.T]) >= 1 for i in self.I), name='aux_constraint_t2')
 
         # Start of activity
         # -----------------
