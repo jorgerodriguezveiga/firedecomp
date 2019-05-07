@@ -945,7 +945,7 @@ def solve_GCG(problem_data, model_name = 'fireproblem', solver_options=None):
     gcg_commands += ' write solution ' + sol_file
     gcg_commands += ' q'
         
-    call_line = "./" + GCG_DIR + "gcg" + " -c " + "\'" + gcg_commands + "\'"
+    call_line = "./" + GCG_DIR + "/gcg" + " -c " + "\'" + gcg_commands + "\'"
     status = subprocess.call(call_line, shell=True)
     
     # Check if the solution file was generated:
