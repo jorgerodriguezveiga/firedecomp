@@ -10,8 +10,6 @@ import subprocess
 from firedecomp.classes import solution
 from firedecomp import config
 
-GCG_DIR = "/opt/scipoptsuite-6.0.1/gcg/bin"
-
 # Class which can have attributes set.
 class Expando(object):
     """Todo: create a class for each type of set."""
@@ -945,7 +943,7 @@ def solve_GCG(problem_data, model_name = 'fireproblem', solver_options=None):
     gcg_commands += ' write solution ' + sol_file
     gcg_commands += ' q'
         
-    call_line = "./" + GCG_DIR + "/gcg" + " -c " + "\'" + gcg_commands + "\'"
+    call_line = "gcg" + " -c " + "\'" + gcg_commands + "\'"
     status = subprocess.call(call_line, shell=True)
     
     # Check if the solution file was generated:
