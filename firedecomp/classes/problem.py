@@ -5,7 +5,8 @@ from firedecomp.original import model
 from firedecomp.benders import benders
 from firedecomp import config
 from firedecomp import plot
-import firedecomp.branchprice.model_original as scip_model
+#import firedecomp.branchprice.model_original as scip_model
+import firedecomp.branchprice.benders_scip as scip
 
 
 # Problem ---------------------------------------------------------------------
@@ -38,6 +39,7 @@ class Problem(object):
         self.min_res_penalty = min_res_penalty
         self.original_model = None
         self.benders_model = None
+        self.benders_scip_model = None
         self.branch_price_model = None
         self.lagrangian_model = None
         self.solve_status = None
@@ -167,14 +169,16 @@ class Problem(object):
             solution = self.original_model.solve(solver_options=solver_options)
             self.solve_status = solution.model.Status
             return solution
-        if method == 'scip_original':
+        if method == 'original_scip':
             if log_level is None:
                 log_level = 'WARNING'
-            self.original_model = scip_model.InputModel(
-                self, min_res_penalty=min_res_penalty)
-            solution = self.original_model.solve(solver_options=solver_options)
-            self.solve_status = solution.model.getStatus()
-            return solution
+            #self.original_model = scip_model.InputModel(
+            #    self, min_res_penalty=min_res_penalty)
+            #solution = self.original_model.solve(solver_options=solver_options)
+            #self.solve_status = solution.model.getStatus()
+            #return solution
+            self.original_model, self.solve_status = scip.solve_original(self,solver_options=solver_options)
+            return self.original_model
         elif method == 'benders':
             if log_level is None:
                 log_level = 'benders'
@@ -192,6 +196,15 @@ class Problem(object):
                 self, **default_benders_options, log_level=log_level)
             self.solve_status = benders_problem.solve()
             return benders_problem
+        elif method == 'benders_scip':
+            if log_level is None:
+                log_level = 'benders'
+            self.benders_scip_model, self.solve_status = scip.solve_benders(self,solver_options=solver_options)
+            return self.benders_scip_model
+        elif method == 'gcg_scip':
+            # Solving the problem with GCG via call to system
+            self.solve_status = scip.solve_GCG(self,model_name = 'fireproblem', solver_options=solver_options)
+            return self
         else:
             raise ValueError(
                 "Incorrect method '{}'. Options allowed: {}".format(

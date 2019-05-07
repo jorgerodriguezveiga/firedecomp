@@ -67,7 +67,7 @@ class InputModel(object):
                 Example: ``{'TimeLimit': 10}``.
         """
         if solver_options is None:
-            solver_options = {'OutputFlag': 0}
+            solver_options = {'display/verblevel': 0}
 
         m = self.model
         scip_model = m.model
