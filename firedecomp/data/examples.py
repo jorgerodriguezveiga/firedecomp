@@ -94,8 +94,6 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
                   num_periods=20, contention_factor=0.5,
                   random=False, seed=None):
     """Input example."""
-    ini_perimeter = 1  # Any number greater than 0. It is not needed
-
     if seed is not None:
         np.random.seed(seed)
     else:
@@ -120,11 +118,17 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
 
     resources = Resources(list(brigades) + list(aircraft) + list(machines))
 
+    # Ensure that at least one resource works in the wildfire
+    first_res = list(resources)[0]
+    first_res.arrival = 0
+
+    # Create Groups
     brigades_grp = Group(name='brigades', resources=brigades)
     aircraft_grp = Group(name='aircraft', resources=aircraft)
     machines_grp = Group(name='machines', resources=machines)
     groups = Groups([brigades_grp, aircraft_grp, machines_grp])
 
+    ini_perimeter = 1  # Any number greater than 0. It is not needed
     wildfire = wildfire_example(
         num_periods=num_periods, ini_perimeter=ini_perimeter, random=random,
         seed=seed)
@@ -176,6 +180,13 @@ def input_example(num_brigades=5, num_aircraft=5, num_machines=5,
                     )[:gp.max_res_groups]
                 ) for gp in p.__group_period__]),
                 2)
+
+    # Change perimeter in periods with performance 0
+    min_per = min([v for v in max_performance.values() if v != 0])
+    num_per = sum([v == 0 for v in max_performance.values()])
+    for k, v in max_performance.items():
+        if v == 0:
+            max_performance[k] = min_per / (1 + num_per)
 
     def get_perimeter(max_perf, min_per, proportion=1.1):
         return round(max(min_per, max_perf * proportion), 2)
