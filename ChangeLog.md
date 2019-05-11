@@ -10,16 +10,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
-v2.0.0 - 01/05/2019
--------------------
-
 ### Added ###
 - Add original_scip solve method.
 - Add benders_scip solve method.
 - Add gcg_scip solve method.
 
+### Changed ###
+- Update instances generation to try to avoid infeasible problems.
+
 ### Fixed ###
 - Fix error when no solution is found.
+- Fix error writing None object in csv.
+- Fix error try to write results when there are not.
 
 v2.0.0 - 01/05/2019
 -------------------
