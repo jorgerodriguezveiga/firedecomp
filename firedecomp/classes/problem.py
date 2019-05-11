@@ -8,6 +8,8 @@ from firedecomp.original import model as _model
 from firedecomp.fix_work import fix_work
 from firedecomp import config
 from firedecomp import plot
+#import firedecomp.branchprice.model_original as scip_model
+import firedecomp.branchprice.benders_scip as scip
 
 
 # Problem ---------------------------------------------------------------------
@@ -41,6 +43,7 @@ class Problem(object):
         self.original_model = None
         self.fix_work_model = None
         self.branch_price_model = None
+        self.benders_scip_model = None
         self.lagrangian_model = None
         self.solve_status = None
         self.mipgap = None
@@ -214,13 +217,13 @@ class Problem(object):
             solution = self.original_model.solve(
                 solver_options=solver_options)
             self.solve_status = solution.model.Status
-            self.mipgap = solution.model.mipgap
-            if solution.model.SolCount >= 1:
-                self.constrvio = solution.model.constrvio
-            else:
-                self.constrvio = None
-            self.solve_time = solution.model.runtime
             model = solution
+        elif method == 'original_scip':
+            if log_level is None:
+                log_level = 'WARNING'
+            self.original_model, self.solve_status = scip.solve_original(
+                self, solver_options=original_options)
+            model = self.original_model
         elif method == 'fix_work':
             if log_level is None:
                 log_level = 'fix_work'
@@ -242,10 +245,23 @@ class Problem(object):
                 self.constrvio = float('inf')
             self.solve_time = self.fix_work_model.runtime
             model = self.fix_work_model
+        elif method == 'benders_scip':
+            if log_level is None:
+                log_level = 'benders'
+            self.benders_scip_model, self.solve_status = scip.solve_benders(
+                self, solver_options=original_options)
+            model = self.benders_scip_model
+        elif method == 'gcg_scip':
+            # Solving the problem with GCG via call to system
+            self.solve_status = scip.solve_GCG(
+                self, model_name='fireproblem', solver_options=original_options)
+            model = None
         else:
             raise ValueError(
                 "Incorrect method '{}'. Options allowed: {}".format(
-                    method, ["original"]
+                    method,
+                    ["original", "original_scip", "fix_work", "benders_scip",
+                     "gcg_scip"]
                 ))
 
         self.time = time.time() - start_time
