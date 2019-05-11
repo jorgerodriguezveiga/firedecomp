@@ -14,6 +14,17 @@ v2.0.0 - 01/05/2019
 -------------------
 
 ### Added ###
+- Add original_scip solve method.
+- Add benders_scip solve method.
+- Add gcg_scip solve method.
+
+### Fixed ###
+- Fix error when no solution is found.
+
+v2.0.0 - 01/05/2019
+-------------------
+
+### Added ###
 - Add notebook to represent simulations information.
 - Add timelimit to benders method option.
 - Use initial solution and add max_obj constraint in the iteration period method to improve solving time.
