@@ -207,7 +207,8 @@ def parse_args():
         default=None,
         nargs='+',
         type=str,
-        choices=['original', 'fix_work'],
+        choices=['original', 'original_scip', 'fix_work', 'benders_scip',
+                 'gcg_scip'],
         help="List of execution modes. "
              "Options allowed: original fix_work. "
              "If None: original fix_work."
