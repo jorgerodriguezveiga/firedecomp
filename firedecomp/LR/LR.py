@@ -90,7 +90,7 @@ class LagrangianRelaxation(object):
         self.index_best = -1
 
         self.UB=1000
-        init_value=self.NL
+        init_value=self.NL*100
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
             self.lambda1_prev.append(init_value+1)
@@ -220,8 +220,7 @@ class LagrangianRelaxation(object):
             # (1) Solve DPP problems
             print("ITERATION -> "+str(self.v))
             for i in range(0,self.y_master_size-1):
-                if i == 1:
-                    print("### START Y -> "+str(self.problem_DPP[i][0].list_y))
+                print("### START Y -> "+str(self.problem_DPP[i][0].list_y))
                 DPP_sol_row = []
                 L_obj_down_local=0
 
@@ -248,8 +247,7 @@ class LagrangianRelaxation(object):
                     LR_pen_local = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
                     pen_all_local = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
                     inf_sol = self.extract_infeasibility(LR_pen_local)
-                    if i == 1:
-                        print("Resource"+str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol) + "  ||  " + str(LR_pen_local))
+                    print("Resource"+str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol) + "  ||  " + str(LR_pen_local))
 
                 # update lambda
                 for j in range(0,self.N):

@@ -284,7 +284,6 @@ class RelaxedPrimalProblem(model.InputModel):
 
         self.m.addConstrs( (self.y[t-1] >= self.y[t] for t in self.T) ,name='aux_constraint_y1')
         self.m.addConstrs( (self.w[i,t] <= self.y[t-1] for i in self.I for t in self.T) ,name='aux_constraint_y2')
-        #self.m.addConstrs( (sum([self.tr[i,t] for t in self.T]) >= 1 for i in self.I), name='aux_constraint_t2')
 
         # Start of activity
         # -----------------
