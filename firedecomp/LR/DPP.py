@@ -13,7 +13,7 @@ from firedecomp.LR import RPP
 
 # Subproblem ------------------------------------------------------------------
 class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
-    def __init__(self, problem_data, lambda1, resource_i, list_y, sol, NL, relaxed=False,
+    def __init__(self, problem_data, lambda1, resource_i, list_y, sol, nproblems, NL, relaxed=False,
                  min_res_penalty=1000000):
         """Initialize the DecomposedPrimalProblem.
 
@@ -31,8 +31,9 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         self.list_y = list_y
         self.solution = sol
         self.index_L = []
+        self.nproblems = nproblems
         self.NL = NL
-        for i in range(0,NL):
+        for i in range(0,self.NL):
             self.index_L.append(0.0)
 
 
@@ -178,21 +179,23 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 ################################################################################
     def __create_objfunc__(self):
 # Wildfire Containment (2) and (3)
-        Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+        Constr1 = []
+        Constr1.append(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
                     sum([self.PR[i, t]*self.w[i, t]
                      for i in self.I for t in self.T]))
-
 
         list_Constr2 = list(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
                     - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
                     for t in self.T)
 
+        list_Constr = Constr1 + list_Constr2
+
 
 # Non-Negligence of Fronts (14) and (15)
-        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-                    for g in self.G for t in self.T)
-        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
-                    for g in self.G for t in self.T)
+#        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+#                    for g in self.G for t in self.T)
+#        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
+#                    for g in self.G for t in self.T)
 
 # Objective
 # =========
@@ -201,45 +204,19 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
                        sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
                        sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
                        0.001*self.y[self.max_t])
-# CERO
-        self.index_L[0] =  1
-        self.lambda1[0] = self.lambda1[0]
-        self.LR_obj = self.lambda1[0] * Constr1
+
+        self.LR_obj = 0
         self.LR_obj_const = []
-        self.LR_obj_const.append(Constr1)
-# UNO
-        anula=1
-#        if self.resource_i != 0 :
-#            anula=0
-        counter=1
-        for i in range(counter,counter+len(list_Constr2)):
-            if anula == 1:
-                self.index_L[i] = 1
+        for i in range(0,len(list_Constr)):
+            Constr1 = list_Constr[i]
+            anula=1
+            self.index_L[i] = 1
+            #if i % self.nproblems != self.resource_i :
+            #    anula=0
+            #    self.index_L[i] = 0
             self.lambda1[i] = self.lambda1[i] * anula
-            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr2[i-counter]* anula
-            self.LR_obj_const.append(list_Constr2[i-counter])
-        counter=counter+len(list_Constr2)
-# DOS
-        anula=1
-#        if self.resource_i != 1 :
-#            anula=0
-#        for i in range(counter,counter+len(list_Constr3)):
-#            if anula == 1:
-#                self.index_L[i] = 1
-#            self.lambda1[i] = self.lambda1[i] * anula
-#            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr3[i-counter]* anula
-#            self.LR_obj_const.append(list_Constr3[i-counter])
-#        counter=counter+len(list_Constr3)
-# TRES
-#        anula=1
-#        if self.resource_i != 2 :
-#            anula=0
-#        for i in range(counter,counter+len(list_Constr4)):
-#            if anula == 1:
-#                self.index_L[i] = 1
-#            self.lambda1[i] = self.lambda1[i] * anula
-#            self.LR_obj = self.LR_obj + self.lambda1[i] * list_Constr4[i-counter]* anula
-#            self.LR_obj_const.append(list_Constr4[i-counter])
+            self.LR_obj = self.LR_obj + self.lambda1[i] * Constr1 * anula
+            self.LR_obj_const.append(Constr1 * anula)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 

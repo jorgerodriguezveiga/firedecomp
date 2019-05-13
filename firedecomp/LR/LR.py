@@ -62,8 +62,8 @@ class LagrangianRelaxation(object):
         # Gurobi options
         if solver_options == None:
             solver_options = {
-                'MIPGap': 0.0,
-                'MIPGapAbs': 0.0,
+                #'MIPGap': 0.01,
+                #'MIPGapAbs': 0.01,
                 'OutputFlag': 0,
                 'LogToConsole': 0,
             }
@@ -90,7 +90,7 @@ class LagrangianRelaxation(object):
         self.index_best = -1
 
         self.UB=1000
-        init_value=self.NL
+        init_value=10
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
             self.lambda1_prev.append(init_value+1)
@@ -132,7 +132,7 @@ class LagrangianRelaxation(object):
             if (index[i]==1):
                 LRpen = LR_pen_v[i]
                 part1 = LRpen
-                minimum_step = 0.0001
+                minimum_step = 0.000001
                 if LRpen > 0:
                     if counterh[i] < 0:
                         counterh[i] = 1
@@ -149,15 +149,15 @@ class LagrangianRelaxation(object):
                 part1 = 2**abs(counterh[i])*minimum_step
                 part2 = 0
                 if (LRpen != 0):
-                    part2 = LRpen
+                    part2 = LRpen #(self.UB - L_obj_down) * LRpen / total_LRpen
                 lambda_vector[i] = lambda_old[i] + part1 * part2
 
                 if (lambda_vector[i] < 0.0):
                     lambda_vector[i] = 0
-#                if ii == 1:
-#                    print(str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) + " " +str(counterh[i]) )
-#        if ii == 1:
-#            print("")
+                if ii == 1:
+                    print(str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) + " " +str(counterh[i]) )
+        if ii == 1:
+            print("")
         return lambda_vector
 
 ###############################################################################
@@ -389,7 +389,7 @@ class LagrangianRelaxation(object):
             for j in range(0,self.N):
                 problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
                                        self.lambda_matrix[i][j], j,
-                                       self.y_master, self.DPP_sol[i],  self.NL))
+                                       self.y_master, self.DPP_sol[i],  self.N, self.NL))
             self.problem_DPP.append(problem_DPP_row)
 
 ###############################################################################
