@@ -62,8 +62,8 @@ class LagrangianRelaxation(object):
         # Gurobi options
         if solver_options == None:
             solver_options = {
-                'MIPGap': 0.0,
-                'MIPGapAbs': 0.0,
+                #'MIPGap': 0.01,
+                #'MIPGapAbs': 0.01,
                 'OutputFlag': 0,
                 'LogToConsole': 0,
             }
@@ -88,9 +88,7 @@ class LagrangianRelaxation(object):
         self.inf_sol = float("inf")
         self.pen_all = float("inf")
         self.index_best = -1
-
-        self.UB=1000
-        init_value=self.NL*100
+        init_value=1
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
             self.lambda1_prev.append(init_value+1)
@@ -132,7 +130,7 @@ class LagrangianRelaxation(object):
             if (index[i]==1):
                 LRpen = LR_pen_v[i]
                 part1 = LRpen
-                minimum_step = 0.0001
+                minimum_step = 0.01#0.000001
                 if LRpen > 0:
                     if counterh[i] < 0:
                         counterh[i] = 1
@@ -154,10 +152,10 @@ class LagrangianRelaxation(object):
 
                 if (lambda_vector[i] < 0.0):
                     lambda_vector[i] = 0
-#                if ii == 1:
-#                    print(str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) + " " +str(counterh[i]) )
-#        if ii == 1:
-#            print("")
+                if ii == 1:
+                    print(str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) + " " +str(counterh[i]) )
+        if ii == 1:
+            print("")
         return lambda_vector
 
 ###############################################################################
@@ -198,8 +196,12 @@ class LagrangianRelaxation(object):
         #for keys,values in isol.get_variables().tr.items():
         #    print(str(keys)+" "+str(values))
         #print("")
-
-        isol = self.problem_RPP.solve()
+        init_options = {
+                #'IterationLimit': 1,
+                'OutputFlag': 0,
+                'LogToConsole': 0,
+        }
+        isol = self.problem_RPP.solve(solver_options=init_options)
         initial_solution = self.create_initial_solution(isol)
         for i in range(0,self.y_master_size-1):
             self.DPP_sol.append(initial_solution)
@@ -238,8 +240,8 @@ class LagrangianRelaxation(object):
                     if (DPP_sol_row[j].model.Status == 3):
                         stop_inf = True
                         break
-                    #for keys,values in DPP_sol_row[j].get_variables().tr.items():
-                    #    print(str(keys)+" "+str(values))
+                    #for keys,values in DPP_sol_row[j].get_variables().y.items():
+                    #    print(str(keys)+" "+str(values.LB)+"/"+str(values.UB))
                     #print("")
 
                     L_obj_down_local = DPP_sol_row[j].get_objfunction()
@@ -290,7 +292,7 @@ class LagrangianRelaxation(object):
                     self.DPP_sol.append( initial_solution )
 
             # (3) Check termination criteria
-            termination_criteria = self.convergence_checking()
+            ##termination_criteria = self.convergence_checking()
             self.v = self.v + 1
 
             # Destroy DPP
@@ -387,7 +389,7 @@ class LagrangianRelaxation(object):
             for j in range(0,self.N):
                 problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
                                        self.lambda_matrix[i][j], j,
-                                       self.y_master, self.DPP_sol[i],  self.NL))
+                                       self.y_master, self.DPP_sol[i],  self.N, self.NL))
             self.problem_DPP.append(problem_DPP_row)
 
 ###############################################################################

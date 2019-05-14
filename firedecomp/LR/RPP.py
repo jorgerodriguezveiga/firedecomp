@@ -181,7 +181,7 @@ class RelaxedPrimalProblem(model.InputModel):
             (i, t):
                 self.s.sum(i, self.T_int.get_names(p_max=t))
                 - self.e.sum(i, self.T_int.get_names(p_max=t-1))
-            for i in  self.I for t in  self.T}
+            for i in  self.I for t in  self.T }
         self.w = {(i, t):  self.u[i, t] -  self.r[i, t] -  self.tr[i, t] for i in self.I for t in self.T}
         self.z = {i:  self.e.sum(i, '*') for i in self.I}
 
@@ -213,22 +213,25 @@ class RelaxedPrimalProblem(model.InputModel):
 # PRIVATE METHOD: __create_objfunc__()
 ################################################################################
     def __create_objfunc__(self):
-        #self.div = gurobipy.LinExpr(self.divRes)
-
 # Wildfire Containment (2) and (3)
-        Constr1 = (sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+        Constr1 = []
+        Constr1.append(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
                     sum([self.PR[i, t]*self.w[i, t]
                      for i in self.I for t in self.T]))
+
 
         list_Constr2 = list(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
                     - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
                     for t in self.T)
 
+        list_Constr = Constr1 + list_Constr2
+
+
 # Non-Negligence of Fronts (14) and (15)
-        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-                    for g in self.G for t in self.T)
-        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
-                    for g in self.G for t in self.T)
+#        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+#                    for g in self.G for t in self.T)
+#        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
+#                    for g in self.G for t in self.T)
 
 # Objective
 # =========
@@ -238,28 +241,21 @@ class RelaxedPrimalProblem(model.InputModel):
                        sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
                        0.001*self.y[self.max_t])
 
-        self.LR_obj = (-1) * self.lambda1[0] * Constr1
+        self.LR_obj = 0
         self.LR_obj_const = []
-        self.LR_obj_const.append(Constr1)
-        counter=1
-        for i in range(counter,counter+len(list_Constr2)):
-            self.LR_obj = self.LR_obj - self.lambda1[i] * list_Constr2[i-counter]
-            self.LR_obj_const.append(list_Constr2[i-counter])
-        counter=counter+len(list_Constr2)
-        #for i in range(counter,counter+len(list_Constr3)):
-        #    self.LR_obj = self.LR_obj - self.lambda1[i] * list_Constr3[i-counter]
-        #    self.LR_obj_const.append(list_Constr3[i-counter])
-        #counter=counter+len(list_Constr3)
-        #for i in range(counter,counter+len(list_Constr4)):
-        #    self.LR_obj = self.LR_obj - self.lambda1[i] * list_Constr4[i-counter]
-        #    self.LR_obj_const.append(list_Constr4[i-counter])
+        for i in range(0,len(list_Constr)):
+            Constr1 = list_Constr[i]
+            anula=1
+            self.lambda1[i] = self.lambda1[i] * anula
+            self.LR_obj = self.LR_obj + self.lambda1[i] * Constr1 * anula
+            self.LR_obj_const.append(Constr1)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 ################################################################################
 # METHOD: return_lambda_size()
 ################################################################################
     def return_lambda_size(self):
-        num=1+len(list_Constr2)+len(list_Constr3)+len(list_Constr4)
+        num=1+len(list_Constr2)#+len(list_Constr3)+len(list_Constr4)
         return num
 
 ################################################################################
@@ -273,14 +269,14 @@ class RelaxedPrimalProblem(model.InputModel):
 
         self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
 
-#        self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
-#                sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
-#                name='wildfire_containment_1')
+        #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+        #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
+        #        name='wildfire_containment_1')
 
         #self.m.addConstrs(
-        #(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
-        #  - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
-        #  <= 0 for t in self.T), name='wildfire_containment_2')
+        #        (-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+        #        - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+        #        <= 0 for t in self.T), name='wildfire_containment_2')
 
         self.m.addConstrs( (self.y[t-1] >= self.y[t] for t in self.T) ,name='aux_constraint_y1')
         self.m.addConstrs( (self.w[i,t] <= self.y[t-1] for i in self.I for t in self.T) ,name='aux_constraint_y2')
@@ -416,74 +412,33 @@ class RelaxedPrimalProblem(model.InputModel):
             w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
 
 ################################################################################
-# METHOD: divResources
-################################################################################
-#    def divResources(self):
-#        self.divRes = 1
-
-################################################################################
 # METHOD: return_LR_obj()
 ################################################################################
     def return_LR_obj(self, solution):
-
-        self.s = solution.get_variables().get_variable('s')
-        self.tr = solution.get_variables().get_variable('tr')
-        self.r = solution.get_variables().get_variable('r')
-        self.er = solution.get_variables().get_variable('er')
-        self.e = solution.get_variables().get_variable('e')
-
-        self.__create_auxiliar_vars__()
-
-        self.y = solution.get_variables().get_variable('y')
-        self.mu = solution.get_variables().get_variable('mu')
-        self.m.update()
         return self.LR_obj.getValue()
 
 ################################################################################
 # METHOD: return_LR_obj2()
 ################################################################################
     def return_LR_obj2(self, solution):
-
-        self.s = solution.get_variables().get_variable('s')
-        self.tr = solution.get_variables().get_variable('tr')
-        self.r = solution.get_variables().get_variable('r')
-        self.er = solution.get_variables().get_variable('er')
-        self.e = solution.get_variables().get_variable('e')
-
-        self.__create_auxiliar_vars__()
-
-        self.y = solution.get_variables().get_variable('y')
-        self.mu = solution.get_variables().get_variable('mu')
-        self.m.update()
-
         total = []
         num=len(self.LR_obj_const)
         for i in range(0,num):
             total.append(self.LR_obj_const[i].getValue())
-
         return total
 
 ################################################################################
 # METHOD: return_function_obj()
 ################################################################################
     def return_function_obj(self, solution):
-
-        self.s = solution.get_variables().get_variable('s')
-        self.tr = solution.get_variables().get_variable('tr')
-        self.r = solution.get_variables().get_variable('r')
-        self.er = solution.get_variables().get_variable('er')
-        self.e = solution.get_variables().get_variable('e')
-
-        self.__create_auxiliar_vars__()
-
-        self.y = solution.get_variables().get_variable('y')
-        self.mu = solution.get_variables().get_variable('mu')
-        self.m.update()
         return self.function_obj.getValue()
 
-
+################################################################################
+# METHOD: return_sizey
+################################################################################
     def return_sizey(self):
         return  len(self.T + [self.min_t-1])
+
 ################################################################################
 # METHOD: __set_solution_in_RPP__
 ################################################################################
