@@ -36,7 +36,6 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         for i in range(0,self.NL):
             self.index_L.append(0.0)
 
-
         super().__init__(problem_data, lambda1, relaxed, min_res_penalty)
 
     def return_index_L(self):
@@ -126,34 +125,6 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
                     self.mu[gro,tt].Start  = self.solution.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start
 
 
-##########################################################################################
-# PRIVATE METHOD: __extract_set_data_problem_by_resources__ ()
-##########################################################################################
-#    def __extract_set_data_problem_by_resources__(self, relaxed=False):
-#        """ Extract SET fields from data problem
-#        """
-#        #  SETS
-#        self.I = self.problem_data.get_names("resources")
-#        self.RI = [self.problem_data.get_names("resources")[self.resource_i]]
-#        self.T = self.problem_data.get_names("wildfire")
-#        self.G = self.problem_data.get_names("groups")
-#        key_res = self.RI[0]
-#        key_group = ''
-#        for group in self.problem_data.groups.elements:
-#            for res in group.resources:
-#                if res.name == key_res:
-#                    key_group = group.name
-#                    break
-#        if key_group == '':
-#            print("ERROR: the model is wrong implemented\n")
-#        resource_i = self.problem_data.groups.get_info('resources')[key_group].get_element(key_res)
-#        dic_group = { key_group : [resource_i] }
-#        self.resource_g = [key_group]
-#        self.Ig = {
-#            k: [e.name for e in v]
-#            for k, v in dic_group.items()}
-#        self.T_int = self.problem_data.wildfire
-
 ################################################################################
 # METHOD: UPDATE LAMBDA1
 ################################################################################
@@ -199,21 +170,26 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 
 # Objective
 # =========
-        self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
-                       sum([self.P[i] * self.z[i] for i in self.I]) +
+
+#        self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
+#                       sum([self.P[i] * self.z[i] for i in self.I]) +
+#                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+#                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+#                       0.001*self.y[self.max_t])
+        self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]) +
                        sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
                        sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
                        0.001*self.y[self.max_t])
-
         self.LR_obj = 0
         self.LR_obj_const = []
         for i in range(0,len(list_Constr)):
             Constr1 = list_Constr[i]
             anula=1
             self.index_L[i] = 1
-            if i % self.nproblems != self.resource_i :
-                anula=0
-                self.index_L[i] = 0
+        #    if i % self.nproblems != self.resource_i :
+        #        anula=0
+        #        self.index_L[i] = 0
             self.lambda1[i] = self.lambda1[i] * anula
             self.LR_obj = self.LR_obj + self.lambda1[i] * Constr1 * anula
             self.LR_obj_const.append(Constr1 * anula)
@@ -242,83 +218,78 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         #        <= 0 for t in self.T), name='wildfire_containment_2')
 
         self.m.addConstrs( (self.y[t-1] >= self.y[t] for t in self.T) ,name='aux_constraint_y1')
-        self.m.addConstrs( (self.w[i,t] <= self.y[t-1] for i in self.I for t in self.T) ,name='aux_constraint_y2')
+        #self.m.addConstrs( (self.w[i,t] <= self.y[t-1] for i in self.I for t in self.T) ,name='aux_constraint_y2')
 
         # Start of activity
         # -----------------
         self.m.addConstrs(
-            (self.A[i]*self.w[i, t] <=
-             sum([self.tr[i, t1] for t1 in self.T_int.get_names(p_max=t)])
-             for i in self.I for t in self.T),
+            (self.A[self.I[self.resource_i]]*self.w[self.I[self.resource_i], t] <=
+             sum([self.tr[self.I[self.resource_i], t1] for t1 in self.T_int.get_names(p_max=t)])
+             for t in self.T),
             name='start_activity_1')
 
-        self.m.addConstrs(
-            (self.s[i, self.min_t] +
-             sum([(self.max_t + 1)*self.s[i, t]
-                  for t in self.T_int.get_names(p_min=self.min_t+1)]) <=
-             self.max_t*self.z[i]
-             for i in self.I if self.ITW[i] == True),
-            name='start_activity_2')
+        if self.ITW[self.I[self.resource_i]] == True:
+            self.m.addConstr(
+                (self.s[self.I[self.resource_i], self.min_t] +
+                sum([(self.max_t + 1)*self.s[self.I[self.resource_i], t]
+                for t in self.T_int.get_names(p_min=self.min_t+1)]) <=
+                self.max_t*self.z[self.I[self.resource_i]]),
+                name='start_activity_2')
 
-        self.m.addConstrs(
-            (sum([self.s[i, t] for t in self.T]) <= self.z[i]
-             for i in self.I if self.ITW[i] == False),
-            name='start_activity_3')
+        if self.ITW[self.I[self.resource_i]] == True:
+            self.m.addConstr(
+                (sum([self.s[self.I[self.resource_i], t] for t in self.T]) <=
+                self.z[self.I[self.resource_i]]),
+                name='start_activity_3')
 
         # End of Activity
         # ---------------
         self.m.addConstrs(
-            (sum([self.tr[i, t1] for t1 in self.T_int.get_names(p_min=t-self.TRP[i]+1,
-                                                           p_max=t)
-                  ]) >= self.TRP[i]*self.e[i, t]
-             for i in self.I for t in self.T),
+            (sum([self.tr[self.I[self.resource_i], t1]
+            for t1 in self.T_int.get_names(p_min=t-self.TRP[self.I[self.resource_i]]+1,p_max=t)]) >=
+            self.TRP[self.I[self.resource_i]]*self.e[self.I[self.resource_i], t] for t in self.T),
             name='end_activity')
 
         # Breaks
         # ------
         self.m.addConstrs(
-            (0 <= self.cr[i, t]
-             for i in self.I for t in self.T),
+            (0 <= self.cr[self.I[self.resource_i], t] for t in self.T),
             name='Breaks_1_lb')
 
         self.m.addConstrs(
-            (self.cr[i, t] <= self.WP[i]
-             for i in self.I for t in self.T),
+            (self.cr[self.I[self.resource_i], t] <= self.WP[self.I[self.resource_i]] for t in self.T),
             name='Breaks_1_ub')
 
         self.m.addConstrs(
-            (self.r[i, t] <= sum([self.er[i, t1]
-                             for t1 in self.T_int.get_names(p_min=t,
-                                                            p_max=t+self.RP[i]-1)])
-             for i in self.I for t in self.T),
+            (self.r[self.I[self.resource_i], t] <= sum([self.er[self.I[self.resource_i], t1]
+            for t1 in self.T_int.get_names(p_min=t,p_max=t+self.RP[self.I[self.resource_i]]-1)])
+            for t in self.T),
             name='Breaks_2')
 
         self.m.addConstrs(
-            (sum([
-                self.r[i, t1]
-                for t1 in self.T_int.get_names(p_min=t-self.RP[i]+1, p_max=t)]) >=
-             self.RP[i]*self.er[i, t]
-             if t >= self.min_t - 1 + self.RP[i] else
-             self.CRP[i]*self.s[i, self.min_t] +
-             sum([self.r[i, t1] for t1 in self.T_int.get_names(p_max=t)]) >=
-             self.RP[i]*self.er[i, t]
-             for i in self.I for t in self.T),
+            (sum([self.r[self.I[self.resource_i], t1]
+                for t1 in self.T_int.get_names(p_min=t-self.RP[self.I[self.resource_i]]+1, p_max=t)]) >=
+             self.RP[self.I[self.resource_i]]*self.er[self.I[self.resource_i], t]
+             if t >= self.min_t - 1 + self.RP[self.I[self.resource_i]] else
+             self.CRP[self.I[self.resource_i]]*self.s[self.I[self.resource_i], self.min_t] +
+             sum([self.r[self.I[self.resource_i], t1] for t1 in self.T_int.get_names(p_max=t)]) >=
+             self.RP[self.I[self.resource_i]]*self.er[self.I[self.resource_i], t]
+             for t in self.T),
             name='Breaks_3')
 
         self.m.addConstrs(
-            (sum([self.r[i, t1]+self.tr[i, t1]
-                  for t1 in self.T_int.get_names(p_min=t-self.TRP[i],
-                                                 p_max=t+self.TRP[i])]) >=
-             len(self.T_int.get_names(p_min=t-self.TRP[i],
-                                      p_max=t+self.TRP[i]))*self.r[i, t]
-             for i in self.I for t in self.T),
+            (sum([self.r[self.I[self.resource_i], t1]+self.tr[self.I[self.resource_i], t1]
+                  for t1 in self.T_int.get_names(p_min=t-self.TRP[self.I[self.resource_i]],
+                                                 p_max=t+self.TRP[self.I[self.resource_i]])]) >=
+             len(self.T_int.get_names(p_min=t-self.TRP[self.I[self.resource_i]],
+                                      p_max=t+self.TRP[self.I[self.resource_i]]))*self.r[self.I[self.resource_i], t]
+             for t in self.T),
             name='Breaks_4')
 
         # Maximum Number of Usage Periods in a Day
         # ----------------------------------------
-        self.m.addConstrs(
-            (sum([self.u[i, t] for t in self.T]) <= self.UP[i] - self.CUP[i]
-             for i in self.I),
+        self.m.addConstr(
+            (sum([self.u[self.I[self.resource_i], t] for t in self.T]) <= self.UP[self.I[self.resource_i]] - self.CUP[self.I[self.resource_i]]),
             name='max_usage_periods')
 
         # Non-Negligence of Fronts
@@ -335,24 +306,21 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 
         # Logical constraints
         # ------------------------
-        self.m.addConstrs(
-            (sum([t*self.e[i, t] for t in self.T]) >= sum([t*self.s[i, t] for t in self.T])
-             for i in self.I),
+        self.m.addConstr(
+            (sum([t*self.e[self.I[self.resource_i], t] for t in self.T]) >= sum([t*self.s[self.I[self.resource_i], t] for t in self.T])),
             name='logical_1')
 
-        self.m.addConstrs(
-            (sum([self.e[i, t] for t in self.T]) <= 1
-             for i in self.I),
+        self.m.addConstr(
+            (sum([self.e[self.I[self.resource_i], t] for t in self.T]) <= 1),
             name='logical_2')
 
         self.m.addConstrs(
-            (self.r[i, t] + self.tr[i, t] <= self.u[i, t]
-             for i in self.I for t in self.T),
+            (self.r[self.I[self.resource_i], t] + self.tr[self.I[self.resource_i], t] <= self.u[self.I[self.resource_i], t]
+             for t in self.T),
             name='logical_3')
 
-        self.m.addConstrs(
-            (sum([self.w[i, t] for t in self.T]) >= self.z[i]
-             for i in self.I),
+        self.m.addConstr(
+            (sum([self.w[self.I[self.resource_i], t] for t in self.T]) >= self.z[self.I[self.resource_i]]),
             name='logical_4')
 
         self.m.update()

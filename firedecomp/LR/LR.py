@@ -88,7 +88,7 @@ class LagrangianRelaxation(object):
         self.inf_sol = float("inf")
         self.pen_all = float("inf")
         self.index_best = -1
-        init_value=1
+        init_value=1000
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
             self.lambda1_prev.append(init_value+1)
@@ -102,17 +102,13 @@ class LagrangianRelaxation(object):
         self.groupR = []
         self.y_master_size = self.problem_RPP.return_sizey()
         self.counterh_matrix = []
+        init_value=1000
         for i in range(0,self.y_master_size):
             lambda_row = []
             counterh_row = []
-            for j in range(0,self.N):
-                lambda_col = []
-                counterh_col = []
-                for z in range(0,self.NL):
-                    lambda_col.append(init_value*(j+1))
-                    counterh_col.append(0)
-                lambda_row.append(lambda_col)
-                counterh_row.append(counterh_col)
+            for j in range(0,self.NL):
+                lambda_row.append(init_value)
+                counterh_row.append(0)
             self.lambda_matrix.append(lambda_row)
             self.counterh_matrix.append(counterh_row)
 
@@ -120,27 +116,33 @@ class LagrangianRelaxation(object):
 ###############################################################################
 # PUBLIC METHOD subgradient()
 ###############################################################################
-    def subgradient(self, lambda_vector, L_obj_down, LR_pen_v, ii, index, counterh):
+    def subgradient(self, lambda_vector, L_obj, f_obj, LR_pen_v, ii, index, counterh):
         # solution, lambda, mi
         # update lambda and mi
         #feas = all([val <= 0 for val in self.LR_pen])
         total_LRpen = sum([LR_pen_v[i]**2 for i in range(0,self.NL)])
         lambda_old = lambda_vector.copy()
+        distance_rel = abs(L_obj-f_obj)/abs(L_obj)
+        if distance_rel == 0:
+            distance_rel = 1e-2
+        maximum = 10
+        minimum_step = 1e-2 * (distance_rel)
         for i in range(0,self.NL):
             if (index[i]==1):
                 LRpen = LR_pen_v[i]
                 part1 = LRpen
-                minimum_step = 0.01#0.000001
                 if LRpen > 0:
                     if counterh[i] < 0:
                         counterh[i] = 1
                     else:
-                        counterh[i] = counterh[i] + 1
+                        if abs(counterh[i]) < maximum :
+                            counterh[i] = counterh[i] + 1
                 elif LRpen < 0:
                     if counterh[i] > 0:
                         counterh[i] = -1
                     else:
-                        counterh[i] = counterh[i] - 1
+                        if abs(counterh[i]) < maximum :
+                            counterh[i] = counterh[i] - 1
                 else:
                     counterh[i] = 0
 
@@ -244,13 +246,16 @@ class LagrangianRelaxation(object):
                     #    print(str(keys)+" "+str(values.LB)+"/"+str(values.UB))
                     #print("")
 
-                    L_obj_down_local = DPP_sol_row[j].get_objfunction()
-                    obj_local = self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
-                    LR_pen_local = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
+                    L_obj_down_local = L_obj_down_local + DPP_sol_row[j].get_objfunction()
+                    obj_local = obj_local + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
+                    for z in range(0, len(LR_pen_local)):
+                        LR_pen_local[z] = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])[z]
                     pen_all_local = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
-                    inf_sol = self.extract_infeasibility(LR_pen_local)
-                    print("Resource"+str(j)+" "+str(i)+" UB "+str(L_obj_down_local)+" fobj "+str(obj_local)+" Infeas "+str(inf_sol) + "  ||  " + str(LR_pen_local))
-
+                    inf_sol = self.extract_infeasibility(self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j]))
+                    print("Resource"+str(j)+" "+str(i)+
+                        " UB "+str(DPP_sol_row[j].get_objfunction())+
+                        " fobj "+str(self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j]))+
+                        " Infeas "+str(inf_sol) + "  ||  " + str(self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])))
                 # update lambda
                 for j in range(0,self.N):
                     if (DPP_sol_row[j].model.Status == 3):
@@ -259,7 +264,7 @@ class LagrangianRelaxation(object):
                     UB_local = DPP_sol_row[j].get_objfunction()
                     LR_pen_local = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
                     index = self.problem_DPP[i][j].return_index_L()
-                    self.lambda_matrix[i][j] = self.subgradient( self.lambda_matrix[i][j], UB_local, LR_pen_local, i, index, self.counterh_matrix[i][j])
+
                 if (self.L_obj_down < L_obj_down_local and (inf_sol <= 0)):
                     self.L_obj_down  = L_obj_down_local
                     self.obj = obj_local
@@ -273,11 +278,17 @@ class LagrangianRelaxation(object):
                     #print("BEST" + str(self.L_obj_down) )
                     #print("")
                     #print("")
+                    print("")
+                    print("")
+                    print("TOTAL = UB "+str(L_obj_down_local)+" fobj "+str(obj_local))
+                    print("")
+                    print("")
+                    self.lambda_matrix[i] = self.subgradient( self.lambda_matrix[i], L_obj_down_local, obj_local, LR_pen_local, i, index, self.counterh_matrix[i])
                     self.DPP_sol.append(self.gather_solution(DPP_sol_row, initial_solution))
                     # (2) Calculate new values of lambda and update
                     if (changes != 0):
                         self.lambda1_prev = self.lambda1.copy()
-                        self.lambda1_next = self.lambda_matrix[self.index_best_i][self.index_best_j]
+                        self.lambda1_next = self.lambda_matrix[self.index_best_i]
 
                     if (self.L_obj_down > self.L_obj_down_prev):
                         self.L_obj_down_prev = self.L_obj_down
@@ -388,46 +399,9 @@ class LagrangianRelaxation(object):
                 self.y_master[p] = 0
             for j in range(0,self.N):
                 problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
-                                       self.lambda_matrix[i][j], j,
+                                       self.lambda_matrix[i], j,
                                        self.y_master, self.DPP_sol[i],  self.N, self.NL))
             self.problem_DPP.append(problem_DPP_row)
-
-###############################################################################
-# PRIVATE init_solution()
-###############################################################################
-    def init_solution(self):
-        counter = 0
-        s = gurobipy.tupledict()
-        tr = gurobipy.tupledict()
-        r = gurobipy.tupledict()
-        er = gurobipy.tupledict()
-        e = gurobipy.tupledict()
-        Tlen = self.problem_data.get_names("wildfire")
-        Ilen = self.problem_data.get_names("resources")
-        first=1
-        for res in Ilen:
-            for tt in Tlen:
-                if (first == 1) :
-                    value = 1
-                else:
-                    value = 0
-
-                s[res,tt] = value
-                tr[res,tt] = value
-                r[res,tt] = value
-                er[res,tt] = value
-                e[res,tt] = value
-            counter = counter + 1
-        variables = gurobipy.tupledict()
-        variables["s"] = s
-        variables["tr"] = tr
-        variables["r"] = r
-        variables["er"] = er
-        variables["e"] = e
-        model = gurobipy.Model("Init")
-        solution = _sol.Solution(model, variables)
-        #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
-        return solution
 
 ###############################################################################
 # PRIVATE extract_infeasibility()
