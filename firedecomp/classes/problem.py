@@ -319,13 +319,18 @@ class Problem(object):
         else:
             contention_period = None
 
+        if objfun is not None and self.mipgap is not None:
+            mipgapabs = self.mipgap*objfun
+        else:
+            mipgapabs = None
+
         return {
             'obj_fun': objfun,
             'res_cost': res_cost,
             'wildfire_cost': wildfire_cost,
             'resources_penalty': res_penalty,
             'mipgap': self.mipgap,
-            'mipgapabs': self.mipgap*objfun if objfun and self.mipgap else None,
+            'mipgapabs': mipgapabs,
             'constrvio': self.constrvio,
             'status': self.solve_status,
             'solve_time': self.solve_time,
