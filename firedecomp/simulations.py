@@ -100,7 +100,7 @@ def simulations(
             instance = examples.input_example(
                 num_brigades=brigades, num_aircraft=aircraft,
                 num_machines=machines, num_periods=periods,
-                contention_factor=10,
+                contention_factor=0.5,
                 random=False, seed=i)
 
             for m in modes:
