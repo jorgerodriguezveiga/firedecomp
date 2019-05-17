@@ -18,10 +18,10 @@ class FixWorkAlgorithm(object):
             problem_data,
             mip_gap_obj=0.01, max_iters=10, max_time=3600,
             n_start_info=0,
-            start_period=None,
+            start_period=20,
             step_period=6,
             valid_constraints=None,
-            solver_options_master=None,
+            solver_options=None,
             log_level="fix_work"
     ):
         """Initialize the Benders object.
@@ -40,14 +40,13 @@ class FixWorkAlgorithm(object):
                 to the high number of cuts. Defaults to 0.
             start_period (:obj:`int`): number of periods to start the algorithm.
                 Iterations over the number of periods are done until to reach
-                the global optimal solution. If ``None`` the maximum period is
-                taken. Defaults to ``None``.
+                the global optimal solution. Defaults to 20.
             step_period (:obj:`int`): step between the start_period and the
                 next period to solve the period_problem. Defaults to ``5``.
             valid_constraints: list with desired valid constraints. Options
                 allowed: 'contention', 'work', 'max_obj'. If None all are
                 considered. Defaults to None.
-            solver_options_master (:obj:`dict`): dictionary with solver options
+            solver_options (:obj:`dict`): dictionary with solver options
                 for the master problem. If ``None`` no options. Defaults to
                 ``None``.
             log_level (:obj:`str`): logging level. Defaults to ``'fix_work'``.
@@ -67,7 +66,7 @@ class FixWorkAlgorithm(object):
         self.start_period = start_period
         self.step_period = step_period
         self.valid_constraints = valid_constraints
-        self.solver_options_master = solver_options_master
+        self.solver_options = {} if solver_options is None else solver_options
 
         self.num_cuts_prev = 0
         self.best_obj_period = float("inf")
@@ -165,8 +164,8 @@ class FixWorkAlgorithm(object):
         self.runtime = 0
         self.__start_time__ = time.time()
         data = self.problem_data.data
-        if 'TimeLimit' not in self.solver_options_master:
-            self.solver_options_master['TimeLimit'] = max(1, self.max_time)
+        if 'TimeLimit' not in self.solver_options:
+            self.solver_options['TimeLimit'] = max(1, self.max_time)
 
         header = utils.format_fix_work([
             "PER",
@@ -197,8 +196,8 @@ class FixWorkAlgorithm(object):
             if self.best_obj_period < float('inf'):
                 self.master.max_obj = self.best_obj_period
 
-            self.solver_options_master['TimeLimit'] = \
-                max(min(self.solver_options_master['TimeLimit'],
+            self.solver_options['TimeLimit'] = \
+                max(min(self.solver_options['TimeLimit'],
                         self.max_time - (time.time() - self.__start_time__)),
                     0)
             status = self.solve_periods(max_period=int(period),
@@ -257,7 +256,7 @@ class FixWorkAlgorithm(object):
             # Solve Master problem
             log.debug("\t[MASTER]:")
             master_status = master.solve(
-                solver_options=self.solver_options_master)
+                solver_options=self.solver_options)
             self.runtime += master.model.runtime
 
             if master_status == 3:
