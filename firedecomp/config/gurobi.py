@@ -1,6 +1,7 @@
 """Module with guroi information."""
 
 status_info = {
+    0: {"status_code": "UNKNOWN", "description": "Unknown status code."},
     1: {"status_code": "LOADED", "description": "Model is loaded, but no solution information is available."},
     2: {"status_code": "OPTIMAL", "description": "Model was solved to optimality (subject to tolerances), and an optimal solution is available."},
     3: {"status_code": "INFEASIBLE", "description": "Model was proven to be infeasible."},

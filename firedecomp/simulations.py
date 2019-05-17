@@ -112,8 +112,11 @@ def simulations(
                 solution_dict['mode'] = m
 
                 # Solver options
-                orig_options = None
-                fix_work_options = None
+                orig_options = {}
+                original_scip_options = {}
+                fix_work_options = {}
+                benders_scip_options = {}
+                gcg_scip_options = {}
 
                 if solver_options is not None:
                     if 'original' in solver_options:
@@ -123,13 +126,25 @@ def simulations(
                         if 'valid_constraints' not in orig_options:
                             orig_options['valid_constraints'] = None
 
+                    if 'original_scip' in solver_options:
+                        original_scip_options = solver_options['original_scip']
+
                     if 'fix_work' in solver_options:
                         fix_work_options = solver_options['fix_work']
+
+                    if 'benders_scip' in solver_options:
+                        benders_scip_options = solver_options['benders_scip']
+
+                    if 'gcg_scip' in solver_options:
+                        gcg_scip_options = solver_options['gcg_scip']
 
                 instance.solve(
                     method=m,
                     original_options=orig_options,
+                    original_scip_options=original_scip_options,
                     fix_work_options=fix_work_options,
+                    benders_scip_options=benders_scip_options,
+                    gcg_scip_options=gcg_scip_options,
                     min_res_penalty=1000000,
                     log_level=None)
 
