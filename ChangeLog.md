@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Add gcg_scip solve method.
 
 ### Changed ###
+- Update documentation.
 - Update instances generation to try to avoid infeasible problems.
 
 ### Fixed ###
