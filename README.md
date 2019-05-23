@@ -19,6 +19,7 @@ The following software is needed:
 
 + **GUROBI**: Register and install the solver [gurobi](http://www.gurobi.com/registration/general-reg).
 + **SCIP**: download and install the software [scip](https://scip.zib.de/index.php#download).
++ **GCG**: only available on Linux [GCG](http://gcg.or.rwth-aachen.de/doc/INSTALL.html).
 
 #### Python packages.
 
