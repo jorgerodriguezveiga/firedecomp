@@ -1,7 +1,11 @@
 """Module with wildfire suppression model definition."""
 
 # Python packages
-import pyscipopt as scip
+try:
+    import pyscipopt as scip
+except ModuleNotFoundError:
+    pass
+
 import logging as log
 
 # Package modules

@@ -1,7 +1,13 @@
 """Module with wildfire suppression model definition."""
 
 # Python packages
-import pyscipopt as scip
+try:
+    import pyscipopt as scip
+    import pyscipopt.Pricer as Pricer
+except ModuleNotFoundError:
+    Pricer = object
+    pass
+    
 import logging as log
 
 # Package modules
@@ -286,7 +292,7 @@ def convexSolution(solutionlist,usol):
     return finalsol
 
 
-class CutPricer(scip.Pricer):
+class CutPricer(Pricer):
 
     # The reduced cost function for the variable pricer
     def pricerredcost(self):

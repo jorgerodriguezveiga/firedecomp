@@ -2,5 +2,5 @@ numpy
 bson
 plotly
 pandas
-pyscipopt
+#pyscipopt
 #gurobipy
