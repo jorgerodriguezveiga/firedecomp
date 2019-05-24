@@ -4,6 +4,7 @@ import pyscipopt as scip
 import logging as log
 import re as re
 import subprocess
+import os
 
 # Package modules
 from firedecomp.classes import solution
