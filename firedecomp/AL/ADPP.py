@@ -8,12 +8,12 @@ import copy
 # Package modules
 from firedecomp.classes import solution
 from firedecomp import config
-from firedecomp.LR import RPP
+from firedecomp.AL import ARPP
 
 
 # Subproblem ------------------------------------------------------------------
-class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
-    def __init__(self, problem_data, lambda1, resource_i, list_y, sol, nproblems, NL, relaxed=False,
+class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
+    def __init__(self, problem_data, lambda1, beta1, resource_i, list_y, sol, nproblems, NL, relaxed=False,
                  min_res_penalty=1000000):
         """Initialize the DecomposedPrimalProblem.
 
@@ -36,7 +36,7 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         for i in range(0,self.NL):
             self.index_L.append(0.0)
 
-        super().__init__(problem_data, lambda1, relaxed, min_res_penalty)
+        super().__init__(problem_data, lambda1, beta1, relaxed, min_res_penalty)
 
     def return_index_L(self):
         return self.index_L
@@ -186,13 +186,9 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         for i in range(0,len(list_Constr)):
             Constr1 = list_Constr[i]
             anula=1
-            self.index_L[i] = 1
-        #    if i % self.nproblems != self.resource_i :
-        #        anula=0
-        #        self.index_L[i] = 0
             self.lambda1[i] = self.lambda1[i] * anula
-            self.LR_obj = self.LR_obj + self.lambda1[i] * Constr1 * anula
-            self.LR_obj_const.append(Constr1 * anula)
+            self.LR_obj = anula*self.LR_obj+1/self.beta[i]*(max(0, self.lambda1[i] + self.beta[i] * Constr1)**2 - self.lambda1[i]**2)
+            self.LR_obj_const.append(Constr1)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 

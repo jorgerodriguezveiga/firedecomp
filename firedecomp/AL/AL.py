@@ -3,12 +3,12 @@
 
 # Package modules
 import logging as log
-from firedecomp import LR
+from firedecomp import AL
 from firedecomp import original
 from firedecomp import logging
-from firedecomp.LR import RPP
-from firedecomp.LR import DPP
-from firedecomp.LR import RDP
+from firedecomp.AL import ARPP
+from firedecomp.AL import ADPP
+from firedecomp.AL import ARDP
 from firedecomp.classes import solution as _sol
 import time
 import math
@@ -18,7 +18,7 @@ import copy
 ###############################################################################
 # CLASS LagrangianRelaxation()
 ###############################################################################
-class LagrangianRelaxation(object):
+class AugmentedLagrangian(object):
     def __init__(
         self,
         problem_data,
@@ -79,9 +79,11 @@ class LagrangianRelaxation(object):
         #self.NL = (len(problem_data.get_names("wildfire"))  +
         #    len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
         self.lambda1 = []
+        self.beta = []
         self.lambda1_prev = []
         self.lambda1_next = []
         self.lambda_matrix = []
+        self.beta_matrix = []
         self.L_obj_down  = -1e16
         self.obj = float("inf")
         self.LR_pen = []
@@ -91,10 +93,11 @@ class LagrangianRelaxation(object):
         init_value=1000
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
+            self.beta.append(0.3)
             self.lambda1_prev.append(init_value+1)
             self.lambda1_next.append(init_value-1)
         # Create Relaxed Primal Problem
-        self.problem_RPP = RPP.RelaxedPrimalProblem(problem_data, self.lambda1);
+        self.problem_RPP = ARPP.RelaxedPrimalProblem(problem_data, self.lambda1, self.beta);
         self.solution_RPP = float("inf")
         # Initialize Decomposite Primal Problem Variables
         self.problem_DPP = []
@@ -102,58 +105,39 @@ class LagrangianRelaxation(object):
         self.groupR = []
         self.y_master_size = self.problem_RPP.return_sizey()
         self.counterh_matrix = []
-        init_value=1000
+        init_value=10
         for i in range(0,self.y_master_size):
             lambda_row = []
+            beta_row = []
             counterh_row = []
             for j in range(0,self.NL):
                 lambda_row.append(init_value)
+                beta_row.append(0.1)
                 counterh_row.append(0)
             self.lambda_matrix.append(lambda_row)
+            self.beta_matrix.append(beta_row)
             self.counterh_matrix.append(counterh_row)
 
 
 ###############################################################################
 # PUBLIC METHOD subgradient()
 ###############################################################################
-    def subgradient(self, lambda_vector, L_obj, f_obj, LR_pen_v, ii, index, counterh):
+    def subgradient(self, lambda_vector, beta_vector, ii, index):
         # solution, lambda, mi
         # update lambda and mi
         #feas = all([val <= 0 for val in self.LR_pen])
-        total_LRpen = sum([LR_pen_v[i]**2 for i in range(0,self.NL)])
         lambda_old = lambda_vector.copy()
-        distance_rel = abs(L_obj-f_obj)/abs(L_obj)
-        if distance_rel == 0:
-            distance_rel = 1e-2
+        beta_old = beta_vector.copy()
         maximum = 10
-        minimum_step = 1e-3 * distance_rel
+        minimum_step = 1e-3
         for i in range(0,self.NL):
             if (index[i]==1):
                 LRpen = LR_pen_v[i]
-                part1 = LRpen
-                if LRpen > 0:
-                    if counterh[i] < 0:
-                        counterh[i] = 1
-                    else:
-                        if abs(counterh[i]) < maximum :
-                            counterh[i] = counterh[i] + 1
-                elif LRpen < 0:
-                    if counterh[i] > 0:
-                        counterh[i] = -1
-                    else:
-                        if abs(counterh[i]) < maximum :
-                            counterh[i] = counterh[i] - 1
-                else:
-                    counterh[i] = 0
 
-                part1 = 2**abs(counterh[i])*minimum_step
-                part2 = 0
-                if (LRpen != 0):
-                    part2 = LRpen
-                lambda_vector[i] = lambda_old[i] + part1 * part2
+                lambda_vector[i] = max ( 0, lambda_old[i] + beta_old[i] * LRpen)
+                if abs(abs(lambda_vector[i])-abs(lambda_old[i])) > 0.1:
+                    beta_vector[i] = beta_vector[i] * 1.2
 
-                if (lambda_vector[i] < 0.0):
-                    lambda_vector[i] = 0
                 if ii == 1:
                     print(str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) + " " +str(counterh[i]) )
         if ii == 1:
@@ -283,7 +267,8 @@ class LagrangianRelaxation(object):
                     print("TOTAL = UB "+str(L_obj_down_local)+" fobj "+str(obj_local))
                     print("")
                     print("")
-                    self.lambda_matrix[i] = self.subgradient( self.lambda_matrix[i], L_obj_down_local, obj_local, LR_pen_local, i, index, self.counterh_matrix[i])
+
+                    self.subgradient( self.lambda_matrix[i], self.beta_vector[i], i, index)
                     self.DPP_sol.append(self.gather_solution(DPP_sol_row, initial_solution))
                     # (2) Calculate new values of lambda and update
                     if (changes != 0):
@@ -398,8 +383,8 @@ class LagrangianRelaxation(object):
             for p in range(self.y_master_size - (1+i), self.y_master_size):
                 self.y_master[p] = 0
             for j in range(0,self.N):
-                problem_DPP_row.append(DPP.DecomposedPrimalProblem(self.problem_data,
-                                       self.lambda_matrix[i], j,
+                problem_DPP_row.append(ADPP.DecomposedPrimalProblem(self.problem_data,
+                                       self.lambda_matrix[i], self.beta_matrix[i], j,
                                        self.y_master, self.DPP_sol[i],  self.N, self.NL))
             self.problem_DPP.append(problem_DPP_row)
 

@@ -213,6 +213,22 @@ class Problem(object):
                 self, **default_LR_options, log_level=log_level)
             self.solve_status = LR_problem.solve()
             model = LR_problem
+        elif method == 'AL':
+            if log_level is None:
+                log_level = 'AL'
+
+            default_AL_options = {
+                'min_res_penalty': 1000000,
+                'gap': 0.0,
+                'max_iters': 100,
+                'max_time': 60
+            }
+            if isinstance(method_options, dict):
+                default_AL_options.update(method_options)
+            AL_problem = AL.AugmentedLagrangian(
+                self, **default_AL_options, log_level=log_level)
+            self.solve_status = AL_problem.solve()
+            model = AL_problem
         else:
             raise ValueError(
                 "Incorrect method '{}'. Options allowed: {}".format(
