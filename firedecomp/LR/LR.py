@@ -69,7 +69,7 @@ class LagrangianRelaxation(object):
             }
         self.solver_options = solver_options
         # Log level
-        self.__log__(log_level)
+        #self.__log__(log_level)
         # Subgradient vars
         self.a = 0.1
         self.b = 0.1
@@ -430,33 +430,33 @@ class LagrangianRelaxation(object):
 ###############################################################################
 # PRIVATE METHOD __log__()
 ###############################################################################
-    def __log__(self, level="LR"):
-        log.addLevelName(80, "LR")
-        log.Logger.LR = logging.LR
+#    def __log__(self, level="LR"):
+#        log.addLevelName(80, "LR")
+#        log.Logger.LR = logging.LR
 
-        if level != 'LR':
-            log_level = getattr(log, level)
-            logger = log.getLogger('LR_logging')
-            logger.setLevel(log_level)
-            logger.addFilter(logging.LRFilter())
-            if len(logger.handlers) == 0:
-                ch = log.StreamHandler()
-                ch.setLevel(log_level)
-                # create formatter and add it to the handlers
-                formatter = log.Formatter("%(levelname)8s: %(message)s")
-                ch.setFormatter(formatter)
-                logger.addHandler(ch)
-        else:
-            log_level = 80
-            logger = log.getLogger('LR')
-            logger.setLevel(log_level)
-            if len(logger.handlers) == 0:
-                ch = log.StreamHandler()
-                ch.setLevel(log_level)
-                # create formatter and add it to the handlers
-                formatter = log.Formatter("%(message)s")
-                ch.setFormatter(formatter)
-                logger.addHandler(ch)
-
-        self.log = logger
-        return 1
+#        if level != 'LR':
+#            log_level = getattr(log, level)
+#            logger = log.getLogger('LR_logging')
+#            logger.setLevel(log_level)
+#            logger.addFilter(logging.LRFilter())
+#            if len(logger.handlers) == 0:
+#                ch = log.StreamHandler()
+#                ch.setLevel(log_level)
+#                # create formatter and add it to the handlers
+#                formatter = log.Formatter("%(levelname)8s: %(message)s")
+#                ch.setFormatter(formatter)
+#                logger.addHandler(ch)
+#        else:
+#            log_level = 80
+#            logger = log.getLogger('LR')
+#            logger.setLevel(log_level)
+#            if len(logger.handlers) == 0:
+#                ch = log.StreamHandler()
+#                ch.setLevel(log_level)
+#                # create formatter and add it to the handlers
+#                formatter = log.Formatter("%(message)s")
+#                ch.setFormatter(formatter)
+#                logger.addHandler(ch)
+#
+#        self.log = logger
+#        return 1

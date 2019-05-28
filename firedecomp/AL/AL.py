@@ -26,7 +26,7 @@ class AugmentedLagrangian(object):
         gap=0.01,
         max_iters=100000,
         max_time=60,
-        log_level="LR",
+        log_level="AL",
         solver_options=None,
     ):
         """Initialize the Lagrangian Relaxation object.
@@ -69,7 +69,7 @@ class AugmentedLagrangian(object):
             }
         self.solver_options = solver_options
         # Log level
-        self.__log__(log_level)
+        #self.__log__(log_level)
         # Subgradient vars
         self.a = 0.1
         self.b = 0.1
@@ -90,10 +90,10 @@ class AugmentedLagrangian(object):
         self.inf_sol = float("inf")
         self.pen_all = float("inf")
         self.index_best = -1
-        init_value=1000
+        init_value=1e10
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
-            self.beta.append(0.3)
+            self.beta.append(0.5)
             self.lambda1_prev.append(init_value+1)
             self.lambda1_next.append(init_value-1)
         # Create Relaxed Primal Problem
@@ -105,14 +105,14 @@ class AugmentedLagrangian(object):
         self.groupR = []
         self.y_master_size = self.problem_RPP.return_sizey()
         self.counterh_matrix = []
-        init_value=10
+        init_value=self.y_master_size
         for i in range(0,self.y_master_size):
             lambda_row = []
             beta_row = []
             counterh_row = []
             for j in range(0,self.NL):
                 lambda_row.append(init_value)
-                beta_row.append(0.1)
+                beta_row.append(0.5)
                 counterh_row.append(0)
             self.lambda_matrix.append(lambda_row)
             self.beta_matrix.append(beta_row)
@@ -122,27 +122,26 @@ class AugmentedLagrangian(object):
 ###############################################################################
 # PUBLIC METHOD subgradient()
 ###############################################################################
-    def subgradient(self, lambda_vector, beta_vector, ii, index):
-        # solution, lambda, mi
-        # update lambda and mi
-        #feas = all([val <= 0 for val in self.LR_pen])
+    def subgradient(self, LR_pen_v, lambda_vector, beta_vector, ii):
+
         lambda_old = lambda_vector.copy()
         beta_old = beta_vector.copy()
-        maximum = 10
-        minimum_step = 1e-3
+
         for i in range(0,self.NL):
-            if (index[i]==1):
-                LRpen = LR_pen_v[i]
 
-                lambda_vector[i] = max ( 0, lambda_old[i] + beta_old[i] * LRpen)
-                if abs(abs(lambda_vector[i])-abs(lambda_old[i])) > 0.1:
-                    beta_vector[i] = beta_vector[i] * 1.2
+            LRpen = LR_pen_v[i]
 
-                if ii == 1:
-                    print(str(LRpen)+" ->"+str(lambda_old[i])+ " + "+str(part1 * part2) + " = " + str(lambda_vector[i]) + " " +str(counterh[i]) )
+            lambda_vector[i] = max ( 0, lambda_old[i] + beta_old[i] * LRpen)
+            if abs(abs(lambda_vector[i])-abs(lambda_old[i])) > 0.1:
+                beta_vector[i] = beta_vector[i] * 1.2
+
+            if ii == 1:
+                print(str(LRpen)+" -> lambda "+str(lambda_old[i])+ " + "+str(beta_old[i] * LRpen) + " = " + str(lambda_vector[i]) + " update " + str(beta_old[i]) )
         if ii == 1:
             print("")
-        return lambda_vector
+
+        del lambda_old
+        del beta_old
 
 ###############################################################################
 # PUBLIC METHOD convergence_checking()
@@ -226,17 +225,13 @@ class AugmentedLagrangian(object):
                     if (DPP_sol_row[j].model.Status == 3):
                         stop_inf = True
                         break
-                    #for keys,values in DPP_sol_row[j].get_variables().y.items():
-                    #    print(str(keys)+" "+str(values.LB)+"/"+str(values.UB))
-                    #print("")
-
                     L_obj_down_local = L_obj_down_local + DPP_sol_row[j].get_objfunction()
                     obj_local = obj_local + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
                     for z in range(0, len(LR_pen_local)):
                         LR_pen_local[z] = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])[z]
                     pen_all_local = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
                     inf_sol = self.extract_infeasibility(self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j]))
-                    print("Resource"+str(j)+" "+str(i)+
+                    print("XResource"+str(j)+" "+str(i)+
                         " UB "+str(DPP_sol_row[j].get_objfunction())+
                         " fobj "+str(self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j]))+
                         " Infeas "+str(inf_sol) + "  ||  " + str(self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])))
@@ -247,7 +242,6 @@ class AugmentedLagrangian(object):
                         break
                     UB_local = DPP_sol_row[j].get_objfunction()
                     LR_pen_local = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
-                    index = self.problem_DPP[i][j].return_index_L()
 
                 if (self.L_obj_down < L_obj_down_local and (inf_sol <= 0)):
                     self.L_obj_down  = L_obj_down_local
@@ -268,15 +262,15 @@ class AugmentedLagrangian(object):
                     print("")
                     print("")
 
-                    self.subgradient( self.lambda_matrix[i], self.beta_vector[i], i, index)
+                    self.subgradient( LR_pen_local, self.lambda_matrix[i], self.beta_matrix[i], i)
                     self.DPP_sol.append(self.gather_solution(DPP_sol_row, initial_solution))
                     # (2) Calculate new values of lambda and update
-                    if (changes != 0):
-                        self.lambda1_prev = self.lambda1.copy()
-                        self.lambda1_next = self.lambda_matrix[self.index_best_i]
+                    #if (changes != 0):
+                    #    self.lambda1_prev = self.lambda1.copy()
+                    #    self.lambda1_next = self.lambda_matrix[self.index_best_i]
 
-                    if (self.L_obj_down > self.L_obj_down_prev):
-                        self.L_obj_down_prev = self.L_obj_down
+                    #if (self.L_obj_down > self.L_obj_down_prev):
+                    #    self.L_obj_down_prev = self.L_obj_down
 
                     # Show iteration results
                     #if i == 1:
@@ -415,33 +409,33 @@ class AugmentedLagrangian(object):
 ###############################################################################
 # PRIVATE METHOD __log__()
 ###############################################################################
-    def __log__(self, level="LR"):
-        log.addLevelName(80, "LR")
-        log.Logger.LR = logging.LR
+#    def __log__(self, level="AL"):
+#        log.addLevelName(80, "AL")
+#        log.Logger.LR = logging.LR
 
-        if level != 'LR':
-            log_level = getattr(log, level)
-            logger = log.getLogger('LR_logging')
-            logger.setLevel(log_level)
-            logger.addFilter(logging.LRFilter())
-            if len(logger.handlers) == 0:
-                ch = log.StreamHandler()
-                ch.setLevel(log_level)
-                # create formatter and add it to the handlers
-                formatter = log.Formatter("%(levelname)8s: %(message)s")
-                ch.setFormatter(formatter)
-                logger.addHandler(ch)
-        else:
-            log_level = 80
-            logger = log.getLogger('LR')
-            logger.setLevel(log_level)
-            if len(logger.handlers) == 0:
-                ch = log.StreamHandler()
-                ch.setLevel(log_level)
-                # create formatter and add it to the handlers
-                formatter = log.Formatter("%(message)s")
-                ch.setFormatter(formatter)
-                logger.addHandler(ch)
-
-        self.log = logger
-        return 1
+#        if level != 'AL':
+#            log_level = getattr(log, level)
+#            logger = log.getLogger('AL_logging')
+#            logger.setLevel(log_level)
+#            logger.addFilter(logging.LRFilter())
+#            if len(logger.handlers) == 0:
+#                ch = log.StreamHandler()
+#                ch.setLevel(log_level)
+#                # create formatter and add it to the handlers
+#                formatter = log.Formatter("%(levelname)8s: %(message)s")
+#                ch.setFormatter(formatter)
+#                logger.addHandler(ch)
+#        else:
+#            log_level = 80
+#            logger = log.getLogger('AL')
+#            logger.setLevel(log_level)
+#            if len(logger.handlers) == 0:
+#                ch = log.StreamHandler()
+#                ch.setLevel(log_level)
+#                # create formatter and add it to the handlers
+#                formatter = log.Formatter("%(message)s")
+#                ch.setFormatter(formatter)
+#                logger.addHandler(ch)
+#
+#        self.log = logger
+#        return 1

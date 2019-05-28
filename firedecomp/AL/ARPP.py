@@ -244,20 +244,20 @@ class RelaxedPrimalProblem(model.InputModel):
 
         self.LR_obj = 0
         self.LR_obj_const = []
-        self.aux_var = self.m.addVars(len(list_Constr),vtype=gurobipy.GRB.CONTINUOUS, name="aux_AL")
-        #print(self.aux_var)
-        #print(len(list_Constr))
+        self.aux_total  = self.m.addVars(len(list_Constr),vtype=gurobipy.GRB.CONTINUOUS, name="aux_total_AL")
+        self.aux_mult = self.m.addVars(len(list_Constr),vtype=gurobipy.GRB.CONTINUOUS, name="aux_mult_AL")
+
         for i in range(0, len(list_Constr)):
-            print(i)
             Constr1 = list_Constr[i]
-            self.m.addConstr((self.aux_var[i] == gurobipy.max_(0, self.lambda1[i] + self.beta[i] * Constr1)) ,name='aux_AL_constraint')
+            self.aux_mult[i] = self.lambda1[i] + self.beta[i] * Constr1
+            self.m.addConstr((self.aux_total[i] >= 0))
+            self.m.addConstr((self.aux_total[i] <= self.aux_mult[i]) ,name='aux_AL_constraint')
 
         for i in range(0,len(list_Constr)):
             Constr1 = list_Constr[i]
             anula=1
             self.lambda1[i] = self.lambda1[i] * anula
-            div = gurobipy.LinExpr(1/(2*self.beta[i]))
-            self.LR_obj = anula*self.LR_obj + div * (self.aux_var[i]*self.aux_var[i] - self.lambda1[i]*self.lambda1[i])
+            self.LR_obj = anula*self.LR_obj + 1/(2*self.beta[i]) * (self.aux_total[i]*self.aux_total[i] - self.lambda1[i]*self.lambda1[i])
             self.LR_obj_const.append(Constr1)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)

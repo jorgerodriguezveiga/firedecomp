@@ -30,16 +30,11 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
         self.resource_i = resource_i
         self.list_y = list_y
         self.solution = sol
-        self.index_L = []
         self.nproblems = nproblems
         self.NL = NL
-        for i in range(0,self.NL):
-            self.index_L.append(0.0)
 
         super().__init__(problem_data, lambda1, beta1, relaxed, min_res_penalty)
 
-    def return_index_L(self):
-        return self.index_L
 ##########################################################################################
 # PRIVATE METHOD: __extract_set_data_problem__ ()
 # OVERWRITE RelaxedPrimalProblem.__extract_set_data_problem__()
@@ -183,11 +178,20 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
                        0.001*self.y[self.max_t])
         self.LR_obj = 0
         self.LR_obj_const = []
+        self.aux_total  = self.m.addVars(len(list_Constr),vtype=gurobipy.GRB.CONTINUOUS, name="aux_total_AL")
+        self.aux_mult = self.m.addVars(len(list_Constr),vtype=gurobipy.GRB.CONTINUOUS, name="aux_mult_AL")
+
+        for i in range(0, len(list_Constr)):
+            Constr1 = list_Constr[i]
+            self.aux_mult[i] = self.lambda1[i] + self.beta[i] * Constr1
+            self.m.addConstr((self.aux_total[i] >= 0))
+            self.m.addConstr((self.aux_total[i] <= self.aux_mult[i]) ,name='aux_AL_constraint')
+
         for i in range(0,len(list_Constr)):
             Constr1 = list_Constr[i]
             anula=1
             self.lambda1[i] = self.lambda1[i] * anula
-            self.LR_obj = anula*self.LR_obj+1/self.beta[i]*(max(0, self.lambda1[i] + self.beta[i] * Constr1)**2 - self.lambda1[i]**2)
+            self.LR_obj = anula*self.LR_obj + 1/(2*self.beta[i]) * (self.aux_total[i]*self.aux_total[i] - self.lambda1[i]*self.lambda1[i])
             self.LR_obj_const.append(Constr1)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
