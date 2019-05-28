@@ -93,7 +93,7 @@ class AugmentedLagrangian(object):
         init_value=1e10
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
-            self.beta.append(0.5)
+            self.beta.append(0.1)
             self.lambda1_prev.append(init_value+1)
             self.lambda1_next.append(init_value-1)
         # Create Relaxed Primal Problem

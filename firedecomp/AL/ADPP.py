@@ -185,7 +185,7 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
             Constr1 = list_Constr[i]
             self.aux_mult[i] = self.lambda1[i] + self.beta[i] * Constr1
             self.m.addConstr((self.aux_total[i] >= 0))
-            self.m.addConstr((self.aux_total[i] <= self.aux_mult[i]) ,name='aux_AL_constraint')
+            self.m.addConstr((self.aux_total[i] >= self.aux_mult[i]) ,name='aux_AL_constraint')
 
         for i in range(0,len(list_Constr)):
             Constr1 = list_Constr[i]
