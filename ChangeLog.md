@@ -10,7 +10,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
+v3.0.0 - 29/05/2019
+-------------------
+
 ### Added ###
+- Add MANIFEST.in.
 - Add original_scip solve method.
 - Add benders_scip solve method.
 - Add gcg_scip solve method.

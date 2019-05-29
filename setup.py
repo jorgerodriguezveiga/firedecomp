@@ -51,9 +51,13 @@ same type (continuous or binary).
 # =====
 setup(
     name='firedecomp',
-    version='2.0.0',
-    author='Jorge Rodriguez-Veiga, David Rodriguez-Penas, Angel Gonzalez-Rueda',
-    author_email='jorge.rodriguez.veiga@usc.es, david.rodriguez.penas@usc.es, angelmanuel.rueda@gmail.com',
+    version='3.0.0',
+    author='Jorge Rodriguez-Veiga, '
+           'David Rodriguez-Penas, '
+           'Angel Gonzalez-Rueda',
+    author_email='jorge.rodriguez.veiga@usc.es, '
+                 'david.rodriguez.penas@usc.es, '
+                 'angelmanuel.rueda@gmail.com',
     description=description,
     classifiers=['Programming Language :: Python :: 3.6'],
     long_description=readme(),
