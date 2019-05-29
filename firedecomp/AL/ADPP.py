@@ -189,9 +189,8 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
 
         for i in range(0,len(list_Constr)):
             Constr1 = list_Constr[i]
-            anula=1
-            self.lambda1[i] = self.lambda1[i] * anula
-            self.LR_obj = anula*self.LR_obj + 1/(2*self.beta[i]) * (self.aux_total[i]*self.aux_total[i] - self.lambda1[i]*self.lambda1[i])
+            self.lambda1[i] = self.lambda1[i]
+            self.LR_obj = self.LR_obj + 1.0/(2.0*self.beta[i]) * (self.aux_total[i]*self.aux_total[i] - self.lambda1[i]*self.lambda1[i])
             self.LR_obj_const.append(Constr1)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)

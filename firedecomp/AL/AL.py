@@ -7,6 +7,7 @@ from firedecomp import AL
 from firedecomp import original
 from firedecomp import logging
 from firedecomp.AL import ARPP
+from firedecomp.LR import RPP
 from firedecomp.AL import ADPP
 from firedecomp.AL import ARDP
 from firedecomp.classes import solution as _sol
@@ -70,9 +71,6 @@ class AugmentedLagrangian(object):
         self.solver_options = solver_options
         # Log level
         #self.__log__(log_level)
-        # Subgradient vars
-        self.a = 0.1
-        self.b = 0.1
         # Create lambda
         self.NL = (1 + len(problem_data.get_names("wildfire")))# +
         #     len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
@@ -93,7 +91,7 @@ class AugmentedLagrangian(object):
         init_value=1e10
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
-            self.beta.append(0.1)
+            self.beta.append(1)
             self.lambda1_prev.append(init_value+1)
             self.lambda1_next.append(init_value-1)
         # Create Relaxed Primal Problem
@@ -135,10 +133,8 @@ class AugmentedLagrangian(object):
             if abs(abs(lambda_vector[i])-abs(lambda_old[i])) > 0.1:
                 beta_vector[i] = beta_vector[i] * 1.2
 
-            if ii == 1:
-                print(str(LRpen)+" -> lambda "+str(lambda_old[i])+ " + "+str(beta_old[i] * LRpen) + " = " + str(lambda_vector[i]) + " update " + str(beta_old[i]) )
-        if ii == 1:
-            print("")
+            print(str(LRpen)+" -> lambda "+str(lambda_old[i])+ " + "+str(beta_old[i] * LRpen) + " = " + str(lambda_vector[i]) + " update " + str(beta_old[i]) )
+        print("")
 
         del lambda_old
         del beta_old
