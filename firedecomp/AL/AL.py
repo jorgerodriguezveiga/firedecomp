@@ -7,7 +7,6 @@ from firedecomp import AL
 from firedecomp import original
 from firedecomp import logging
 from firedecomp.AL import ARPP
-from firedecomp.LR import RPP
 from firedecomp.AL import ADPP
 from firedecomp.AL import ARDP
 from firedecomp.classes import solution as _sol
@@ -110,7 +109,7 @@ class AugmentedLagrangian(object):
             counterh_row = []
             for j in range(0,self.NL):
                 lambda_row.append(init_value)
-                beta_row.append(0.5)
+                beta_row.append(0.3)
                 counterh_row.append(0)
             self.lambda_matrix.append(lambda_row)
             self.beta_matrix.append(beta_row)
@@ -130,11 +129,13 @@ class AugmentedLagrangian(object):
             LRpen = LR_pen_v[i]
 
             lambda_vector[i] = max ( 0, lambda_old[i] + beta_old[i] * LRpen)
-            if abs(abs(lambda_vector[i])-abs(lambda_old[i])) > 0.1:
+            if abs(abs(lambda_vector[i])-abs(lambda_old[i])) > 0.5:
                 beta_vector[i] = beta_vector[i] * 1.2
 
-            print(str(LRpen)+" -> lambda "+str(lambda_old[i])+ " + "+str(beta_old[i] * LRpen) + " = " + str(lambda_vector[i]) + " update " + str(beta_old[i]) )
-        print("")
+            if ii == 1:
+                print(str(LRpen)+" -> lambda "+str(lambda_old[i])+ " + "+str(beta_old[i] * LRpen) + " = " + str(lambda_vector[i]) + " update " + str(beta_old[i]) )
+        if ii == 1:
+            print("")
 
         del lambda_old
         del beta_old
