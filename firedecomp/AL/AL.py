@@ -90,9 +90,7 @@ class AugmentedLagrangian(object):
         init_value=1e10
         for i in range(0,self.NL):
             self.lambda1.append(init_value)
-            self.beta.append(1)
-            self.lambda1_prev.append(init_value+1)
-            self.lambda1_next.append(init_value-1)
+            self.beta.append(0.1)
         # Create Relaxed Primal Problem
         self.problem_RPP = ARPP.RelaxedPrimalProblem(problem_data, self.lambda1, self.beta);
         self.solution_RPP = float("inf")
@@ -102,14 +100,14 @@ class AugmentedLagrangian(object):
         self.groupR = []
         self.y_master_size = self.problem_RPP.return_sizey()
         self.counterh_matrix = []
-        init_value=self.y_master_size
+        init_value=self.y_master_size*10
         for i in range(0,self.y_master_size):
             lambda_row = []
             beta_row = []
             counterh_row = []
             for j in range(0,self.NL):
                 lambda_row.append(init_value)
-                beta_row.append(0.3)
+                beta_row.append(0.5)
                 counterh_row.append(0)
             self.lambda_matrix.append(lambda_row)
             self.beta_matrix.append(beta_row)
@@ -129,13 +127,13 @@ class AugmentedLagrangian(object):
             LRpen = LR_pen_v[i]
 
             lambda_vector[i] = max ( 0, lambda_old[i] + beta_old[i] * LRpen)
-            if abs(abs(lambda_vector[i])-abs(lambda_old[i])) > 0.5:
+            if abs(abs(lambda_vector[i])-abs(lambda_old[i])) > 0.1:
                 beta_vector[i] = beta_vector[i] * 1.2
 
-            if ii == 1:
-                print(str(LRpen)+" -> lambda "+str(lambda_old[i])+ " + "+str(beta_old[i] * LRpen) + " = " + str(lambda_vector[i]) + " update " + str(beta_old[i]) )
-        if ii == 1:
-            print("")
+        #    if ii == 1:
+        #        print(str(LRpen)+" -> lambda "+str(lambda_old[i])+ " + "+str(beta_old[i] * LRpen) + " = " + str(lambda_vector[i]) + " update " + str(beta_old[i]) + " diff " + str(abs(abs(lambda_vector[i])-abs(lambda_old[i]))) )
+        #if ii == 1:
+        #    print("")
 
         del lambda_old
         del beta_old
@@ -169,34 +167,33 @@ class AugmentedLagrangian(object):
         changes = 0
 
         # (0) Initial solution
-        print("init solve")
         self.DPP_sol = []
         #isol = self.problem_data.solve()
-        print("end solve")
 
         #print("ORIGINAL")
         #for keys,values in isol.get_variables().tr.items():
         #    print(str(keys)+" "+str(values))
         #print("")
         init_options = {
-                #'IterationLimit': 1,
+                'IterationLimit': 1000,
                 'OutputFlag': 0,
                 'LogToConsole': 0,
         }
         isol = self.problem_RPP.solve(solver_options=init_options)
         initial_solution = self.create_initial_solution(isol)
+        DPP_sol_feasible = []
         for i in range(0,self.y_master_size-1):
+            DPP_sol_feasible.append(1)
             self.DPP_sol.append(initial_solution)
 
+
+        self.create_DPP_set()
         while (termination_criteria == False):
             # (0) Initialize DPP
             #for i in range(0,self.y_master_size-1):
             #    print("CHECK "+str(i))
             #    self.print_solution(self.DPP_sol[i])
-            print("create_DPP_set")
-            self.create_DPP_set()
-            print("end create")
-            self.DPP_sol = []
+
             if (changes != 0):
                 self.lambda1 = self.lambda1_next.copy()
                 changes=0
@@ -206,6 +203,7 @@ class AugmentedLagrangian(object):
             for i in range(0,self.y_master_size-1):
                 print("### START Y -> "+str(self.problem_DPP[i][0].list_y))
                 DPP_sol_row = []
+                DPP_sol_row_feasible = []
                 L_obj_down_local=0
 
                 LR_pen_local = []
@@ -217,9 +215,19 @@ class AugmentedLagrangian(object):
                 inf_sol=0
                 for j in range(0,self.N):
                     #print("SOLVE "+str(j))
-                    DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
+                    try:
+                        DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
+                        if (DPP_sol_row[j].model.Status == 3):
+                            DPP_sol_row_feasible.append(0)
+                        else:
+                            DPP_sol_row_feasible.append(1)
+                    except:
+                        DPP_sol_row.append(initial_solution)
+                        DPP_sol_row_feasible.append(0)
+
+
                     #print(DPP_sol_row[j].get_variables().s)
-                    if (DPP_sol_row[j].model.Status == 3):
+                    if (DPP_sol_row_feasible[j] == 0):
                         stop_inf = True
                         break
                     L_obj_down_local = L_obj_down_local + DPP_sol_row[j].get_objfunction()
@@ -234,7 +242,7 @@ class AugmentedLagrangian(object):
                         " Infeas "+str(inf_sol) + "  ||  " + str(self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])))
                 # update lambda
                 for j in range(0,self.N):
-                    if (DPP_sol_row[j].model.Status == 3):
+                    if (DPP_sol_row_feasible[j] == 0):
                         stop_inf = True
                         break
                     UB_local = DPP_sol_row[j].get_objfunction()
@@ -260,7 +268,7 @@ class AugmentedLagrangian(object):
                     print("")
 
                     self.subgradient( LR_pen_local, self.lambda_matrix[i], self.beta_matrix[i], i)
-                    self.DPP_sol.append(self.gather_solution(DPP_sol_row, initial_solution))
+                    self.DPP_sol[i]=self.gather_solution(DPP_sol_row, initial_solution)
                     # (2) Calculate new values of lambda and update
                     #if (changes != 0):
                     #    self.lambda1_prev = self.lambda1.copy()
@@ -276,15 +284,17 @@ class AugmentedLagrangian(object):
                             " LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +
                             " penL:" + str(sum(self.LR_pen)) +"\n")
                 else:
-                    self.DPP_sol.append( initial_solution )
+                    self.DPP_sol[i]= initial_solution
+                    DPP_sol_feasible[i] = 0
 
             # (3) Check termination criteria
             ##termination_criteria = self.convergence_checking()
             self.v = self.v + 1
+            # Update DPP
+            self.update_DPP_set(self.lambda_matrix, self.beta_matrix, self.DPP_sol, DPP_sol_feasible)
 
-            # Destroy DPP
-            self.destroy_DPP_set()
-
+        # DESTROY DPP
+        self.destroy_DPP_set()
         return self.solution_RPP
 
 ###############################################################################
@@ -350,9 +360,9 @@ class AugmentedLagrangian(object):
                 isol.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('r')[res,tt].X
                 isol.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('er')[res,tt].X
                 isol.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('e')[res,tt].X
-        #for gro in Glen:
-        #    for tt in Tlen:
-        #        isol.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = isol.get_variables().get_variable('mu')[gro,tt].X
+        for gro in Glen:
+            for tt in Tlen:
+                isol.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = isol.get_variables().get_variable('mu')[gro,tt].X
         isol.get_model().update()
 
         return isol
@@ -401,6 +411,15 @@ class AugmentedLagrangian(object):
                 self.problem_DPP[i]=[]
         self.problem_DPP = []
         print("DESTROY")
+
+###############################################################################
+# PRIVATE destroy_DPP_set()
+###############################################################################
+    def update_DPP_set(self, lambda_matrix, beta_matrix, solution, DPP_feasible):
+        for i in range(0,self.y_master_size-1):
+            for j in range(0,self.N):
+                if (DPP_feasible[i] == 1):
+                    self.problem_DPP[i][j].update_model(lambda_matrix[i], beta_matrix[i], solution[i])
 
 
 ###############################################################################

@@ -247,6 +247,9 @@ class RelaxedPrimalProblem(model.InputModel):
         self.aux_total  = self.m.addVars(len(list_Constr),vtype=gurobipy.GRB.CONTINUOUS, name="aux_total_AL")
         self.aux_mult = self.m.addVars(len(list_Constr),vtype=gurobipy.GRB.CONTINUOUS, name="aux_mult_AL")
 
+        zero = 0
+        #print(self.aux_var)
+        #print(len(list_Constr))
         for i in range(0, len(list_Constr)):
             Constr1 = list_Constr[i]
             self.aux_mult[i] = self.lambda1[i] + self.beta[i] * Constr1

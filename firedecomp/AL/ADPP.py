@@ -121,26 +121,6 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
 
 
 ################################################################################
-# METHOD: UPDATE LAMBDA1
-################################################################################
-    def update_lambda1(self, lambda1, sol):
-        """Update lambda in DPP model
-            Args:
-            lambda1 (:obj:`list`): Array with lambda values.
-        """
-
-        self.solution = sol
-        self.lambda1 = lambda1
-        self.__create_vars__()
-        self.__create_objfunc__()
-        self.__create_constraints__()
-        self.m.update()
-        self.model = solution.Solution(
-            self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
-            w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
-
-
-################################################################################
 # PRIVATE METHOD: __create_objfunc__()
 ################################################################################
     def __create_objfunc__(self):
@@ -190,7 +170,7 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
         for i in range(0,len(list_Constr)):
             Constr1 = list_Constr[i]
             self.lambda1[i] = self.lambda1[i]
-            self.LR_obj = self.LR_obj + 1.0/(2.0*self.beta[i]) * (self.aux_total[i]*self.aux_total[i] - self.lambda1[i]*self.lambda1[i])
+            self.LR_obj = self.LR_obj + 1.0/(2.0*self.beta[i]) * (self.aux_total[i]*self.aux_total[i]/1 - self.lambda1[i]*self.lambda1[i]/1)
             self.LR_obj_const.append(Constr1)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
@@ -323,3 +303,23 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
             name='logical_4')
 
         self.m.update()
+
+################################################################################
+# METHOD: UPDATE MODEL
+################################################################################
+    def update_model(self, lambda1, beta1, sol):
+        """Update lambda in DPP model
+            Args:
+            lambda1 (:obj:`list`): Array with lambda values.
+        """
+
+        self.solution = sol
+        self.lambda1 = lambda1
+        self.beta = beta1
+        self.__create_vars__()
+        self.__create_objfunc__()
+        self.__create_constraints__()
+        self.m.update()
+        self.model = solution.Solution(
+            self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
+            w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
