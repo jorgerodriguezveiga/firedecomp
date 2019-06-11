@@ -4,7 +4,7 @@
 from firedecomp.original import model as _model
 from firedecomp.benders import benders
 from firedecomp.LR import LR
-
+from firedecomp.AL import AL
 from firedecomp import config
 from firedecomp import plot
 import time

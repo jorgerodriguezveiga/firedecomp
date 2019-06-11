@@ -171,16 +171,24 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
 # Objective
 # =========
 
-#        self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
-#                       sum([self.P[i] * self.z[i] for i in self.I]) +
-#                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
-#                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
-#                       0.001*self.y[self.max_t])
-        self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
-                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]) +
+        self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
+                       sum([self.P[i] * self.z[i] for i in self.I]) +
                        sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
                        sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
                        0.001*self.y[self.max_t])
+#        if self.resource_i == 0:
+#            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+#                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]) +
+#                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+#                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+#                       0.001*self.y[self.max_t])
+#        else:
+#            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+#                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]])  +
+#                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+#                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+#                       0.001*self.y[self.max_t]
+#                      )
         self.LR_obj = 0
         self.LR_obj_const = []
         for i in range(0,len(list_Constr)):

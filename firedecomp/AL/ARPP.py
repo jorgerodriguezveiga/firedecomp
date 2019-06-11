@@ -225,14 +225,13 @@ class RelaxedPrimalProblem(model.InputModel):
                     - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
                     for t in self.T)
 
-        list_Constr = Constr1 + list_Constr2
-
-
 # Non-Negligence of Fronts (14) and (15)
-#        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-#                    for g in self.G for t in self.T)
-#        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
-#                    for g in self.G for t in self.T)
+        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+                    for g in self.G for t in self.T)
+        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
+                    for g in self.G for t in self.T)
+
+        list_Constr = Constr1 + list_Constr2 #Constr1 + list_Constr2 + list_Constr3 + list_Constr4
 
 # Objective
 # =========
@@ -264,12 +263,7 @@ class RelaxedPrimalProblem(model.InputModel):
             self.LR_obj_const.append(Constr1)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
-################################################################################
-# METHOD: return_lambda_size()
-################################################################################
-    def return_lambda_size(self):
-        num=1+len(list_Constr2)#+len(list_Constr3)+len(list_Constr4)
-        return num
+
 
 ################################################################################
 # PRIVATE METHOD: __create_constraints__()
@@ -292,7 +286,6 @@ class RelaxedPrimalProblem(model.InputModel):
         #        <= 0 for t in self.T), name='wildfire_containment_2')
 
         self.m.addConstrs( (self.y[t-1] >= self.y[t] for t in self.T) ,name='aux_constraint_y1')
-        self.m.addConstrs( (self.w[i,t] <= self.y[t-1] for i in self.I for t in self.T) ,name='aux_constraint_y2')
 
         # Start of activity
         # -----------------

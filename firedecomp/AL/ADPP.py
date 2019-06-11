@@ -134,28 +134,32 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
                     - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
                     for t in self.T)
 
-        list_Constr = Constr1 + list_Constr2
-
-
 # Non-Negligence of Fronts (14) and (15)
-#        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-#                    for g in self.G for t in self.T)
-#        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
-#                    for g in self.G for t in self.T)
+        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+                    for g in self.G for t in self.T)
+        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
+                    for g in self.G for t in self.T)
+
+        list_Constr = Constr1 + list_Constr2 #Constr1 + list_Constr2 + list_Constr3 + list_Constr4
 
 # Objective
 # =========
 
-#        self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
-#                       sum([self.P[i] * self.z[i] for i in self.I]) +
-#                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
-#                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
-#                       0.001*self.y[self.max_t])
-        self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
-                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]) +
-                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
-                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
-                       0.001*self.y[self.max_t])
+        #self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
+        #               sum([self.P[i] * self.z[i] for i in self.I]) +
+        #               sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+        #               sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+        #               0.001*self.y[self.max_t])
+        if (self.resource_i == 0):
+            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+                   sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]) +
+                   sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+                   sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+                   0.001*self.y[self.max_t])
+        else:
+            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]))
+
         self.LR_obj = 0
         self.LR_obj_const = []
         self.aux_total  = self.m.addVars(len(list_Constr),vtype=gurobipy.GRB.CONTINUOUS, name="aux_total_AL")
@@ -170,139 +174,11 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
         for i in range(0,len(list_Constr)):
             Constr1 = list_Constr[i]
             self.lambda1[i] = self.lambda1[i]
-            self.LR_obj = self.LR_obj + 1.0/(2.0*self.beta[i]) * (self.aux_total[i]*self.aux_total[i]/1 - self.lambda1[i]*self.lambda1[i]/1)
+            self.LR_obj = self.LR_obj + 1.0/(2.0*self.beta[i]) * (self.aux_total[i]*self.aux_total[i] - self.lambda1[i]*self.lambda1[i])
             self.LR_obj_const.append(Constr1)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 
-
-################################################################################
-# PRIVATE METHOD: __create_constraints__()
-################################################################################
-    def __create_constraints__(self):
-    # Constraints
-    # ===========
-    # Wildfire Containment
-    # --------------------
-
-        self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
-
-        #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
-        #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
-        #        name='wildfire_containment_1')
-
-        #self.m.addConstrs(
-        #        (-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
-        #        - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
-        #        <= 0 for t in self.T), name='wildfire_containment_2')
-
-        self.m.addConstrs( (self.y[t-1] >= self.y[t] for t in self.T) ,name='aux_constraint_y1')
-        #self.m.addConstrs( (self.w[i,t] <= self.y[t-1] for i in self.I for t in self.T) ,name='aux_constraint_y2')
-
-        # Start of activity
-        # -----------------
-        self.m.addConstrs(
-            (self.A[self.I[self.resource_i]]*self.w[self.I[self.resource_i], t] <=
-             sum([self.tr[self.I[self.resource_i], t1] for t1 in self.T_int.get_names(p_max=t)])
-             for t in self.T),
-            name='start_activity_1')
-
-        if self.ITW[self.I[self.resource_i]] == True:
-            self.m.addConstr(
-                (self.s[self.I[self.resource_i], self.min_t] +
-                sum([(self.max_t + 1)*self.s[self.I[self.resource_i], t]
-                for t in self.T_int.get_names(p_min=self.min_t+1)]) <=
-                self.max_t*self.z[self.I[self.resource_i]]),
-                name='start_activity_2')
-
-        if self.ITW[self.I[self.resource_i]] == True:
-            self.m.addConstr(
-                (sum([self.s[self.I[self.resource_i], t] for t in self.T]) <=
-                self.z[self.I[self.resource_i]]),
-                name='start_activity_3')
-
-        # End of Activity
-        # ---------------
-        self.m.addConstrs(
-            (sum([self.tr[self.I[self.resource_i], t1]
-            for t1 in self.T_int.get_names(p_min=t-self.TRP[self.I[self.resource_i]]+1,p_max=t)]) >=
-            self.TRP[self.I[self.resource_i]]*self.e[self.I[self.resource_i], t] for t in self.T),
-            name='end_activity')
-
-        # Breaks
-        # ------
-        self.m.addConstrs(
-            (0 <= self.cr[self.I[self.resource_i], t] for t in self.T),
-            name='Breaks_1_lb')
-
-        self.m.addConstrs(
-            (self.cr[self.I[self.resource_i], t] <= self.WP[self.I[self.resource_i]] for t in self.T),
-            name='Breaks_1_ub')
-
-        self.m.addConstrs(
-            (self.r[self.I[self.resource_i], t] <= sum([self.er[self.I[self.resource_i], t1]
-            for t1 in self.T_int.get_names(p_min=t,p_max=t+self.RP[self.I[self.resource_i]]-1)])
-            for t in self.T),
-            name='Breaks_2')
-
-        self.m.addConstrs(
-            (sum([self.r[self.I[self.resource_i], t1]
-                for t1 in self.T_int.get_names(p_min=t-self.RP[self.I[self.resource_i]]+1, p_max=t)]) >=
-             self.RP[self.I[self.resource_i]]*self.er[self.I[self.resource_i], t]
-             if t >= self.min_t - 1 + self.RP[self.I[self.resource_i]] else
-             self.CRP[self.I[self.resource_i]]*self.s[self.I[self.resource_i], self.min_t] +
-             sum([self.r[self.I[self.resource_i], t1] for t1 in self.T_int.get_names(p_max=t)]) >=
-             self.RP[self.I[self.resource_i]]*self.er[self.I[self.resource_i], t]
-             for t in self.T),
-            name='Breaks_3')
-
-        self.m.addConstrs(
-            (sum([self.r[self.I[self.resource_i], t1]+self.tr[self.I[self.resource_i], t1]
-                  for t1 in self.T_int.get_names(p_min=t-self.TRP[self.I[self.resource_i]],
-                                                 p_max=t+self.TRP[self.I[self.resource_i]])]) >=
-             len(self.T_int.get_names(p_min=t-self.TRP[self.I[self.resource_i]],
-                                      p_max=t+self.TRP[self.I[self.resource_i]]))*self.r[self.I[self.resource_i], t]
-             for t in self.T),
-            name='Breaks_4')
-
-        # Maximum Number of Usage Periods in a Day
-        # ----------------------------------------
-        self.m.addConstr(
-            (sum([self.u[self.I[self.resource_i], t] for t in self.T]) <= self.UP[self.I[self.resource_i]] - self.CUP[self.I[self.resource_i]]),
-            name='max_usage_periods')
-
-        # Non-Negligence of Fronts
-        # ------------------------
-        self.m.addConstrs(
-            ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-         <= 0 for g in self.G for t in self.T),
-        name='non-negligence_1')
-
-        self.m.addConstrs(
-        (sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
-         for g in self.G for t in self.T),
-        name='non-negligence_2')
-
-        # Logical constraints
-        # ------------------------
-        self.m.addConstr(
-            (sum([t*self.e[self.I[self.resource_i], t] for t in self.T]) >= sum([t*self.s[self.I[self.resource_i], t] for t in self.T])),
-            name='logical_1')
-
-        self.m.addConstr(
-            (sum([self.e[self.I[self.resource_i], t] for t in self.T]) <= 1),
-            name='logical_2')
-
-        self.m.addConstrs(
-            (self.r[self.I[self.resource_i], t] + self.tr[self.I[self.resource_i], t] <= self.u[self.I[self.resource_i], t]
-             for t in self.T),
-            name='logical_3')
-
-        self.m.addConstr(
-            (sum([self.w[self.I[self.resource_i], t] for t in self.T]) >= self.z[self.I[self.resource_i]]),
-            name='logical_4')
-
-        self.m.update()
 
 ################################################################################
 # METHOD: UPDATE MODEL

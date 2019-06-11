@@ -102,7 +102,7 @@ class LagrangianRelaxation(object):
         self.groupR = []
         self.y_master_size = self.problem_RPP.return_sizey()
         self.counterh_matrix = []
-        init_value=1000
+        init_value=100
         for i in range(0,self.y_master_size):
             lambda_row = []
             counterh_row = []
@@ -126,7 +126,7 @@ class LagrangianRelaxation(object):
         if distance_rel == 0:
             distance_rel = 1e-2
         maximum = 10
-        minimum_step = 1e-3 * distance_rel
+        minimum_step = 1e-2 * distance_rel
         for i in range(0,self.NL):
             if (index[i]==1):
                 LRpen = LR_pen_v[i]
@@ -191,7 +191,7 @@ class LagrangianRelaxation(object):
         # (0) Initial solution
         print("init solve")
         self.DPP_sol = []
-        #isol = self.problem_data.solve()
+        isol = self.problem_data.solve()
         print("end solve")
 
         #print("ORIGINAL")
@@ -203,7 +203,7 @@ class LagrangianRelaxation(object):
                 'OutputFlag': 0,
                 'LogToConsole': 0,
         }
-        isol = self.problem_RPP.solve(solver_options=init_options)
+        #isol = self.problem_RPP.solve(solver_options=init_options)
         initial_solution = self.create_initial_solution(isol)
         for i in range(0,self.y_master_size-1):
             self.DPP_sol.append(initial_solution)
