@@ -22,4 +22,8 @@ fix_work:
     LogToConsole: 0
     TimeLimit: 600
 benders_scip:
+  limits/time: 600
+  display/verblevel: 0
 gcg_scip:
+  limits/time: 600
+  display/verblevel: 0
