@@ -5,6 +5,8 @@ import logging as log
 import re
 import time
 import numpy as np
+import sys
+from table_logger import TableLogger
 
 # Package modules
 from firedecomp import fix_work
@@ -54,11 +56,37 @@ class FixWorkAlgorithm(object):
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
+        self.log_level = log_level
+        if self.log_level == 'fix_work':
+            self.tbl = TableLogger(
+                file=sys.stdout,
+                columns=",".join([
+                    "PER",
+                    "ITER",
+                    "P_STATUS",
+                    "SECONDS",
+                    "OBJ",
+                    "LB_PER",
+                    "START_C",
+                    "CUTS"]),
+                default_colwidth=12,
+                formatters={
+                    'SECONDS': "{:6.2f}".format,
+                    "OBJ": "{:.6E}".format,
+                    "LB_PER": "{:.6E}".format,
+                }
+            )
+        else:
+            self.tbl = lambda *args: args
+
         self.problem_data = problem_data
 
         # Benders info
         self.obj_lb = -float("inf")
+        self.obj = float("inf")
         self.obj_ub = float("inf")
+        self.gap = float('inf')
+
         self.mip_gap_obj = mip_gap_obj
         self.max_iters = max_iters
         self.max_time = max_time
@@ -69,8 +97,6 @@ class FixWorkAlgorithm(object):
         self.solver_options = {} if solver_options is None else solver_options
 
         self.num_cuts_prev = 0
-        self.best_obj_period = float("inf")
-        self.obj = float("inf")
         self.status = 1
         self.period_status = 1
         self.iter = 0
@@ -167,22 +193,11 @@ class FixWorkAlgorithm(object):
         if 'TimeLimit' not in self.solver_options:
             self.solver_options['TimeLimit'] = max(1, self.max_time)
 
-        header = utils.format_fix_work([
-            "PER",
-            "ITER",
-            "SECONDS",
-            "OBJ",
-            "LB_PER",
-            "START_C",
-            "FEA_CONT_C",
-            "FEA_SING_C"
-        ])
-        sep = "-+-".join(["-"*10]*8)
+        self.obj_lb = float('-inf')
+        self.obj = float("inf")
+        self.obj_ub = float('inf')
+        self.gap = float('inf')
 
-        log.info(header)
-        log.info(sep)
-
-        new_obj = float('inf')
         periods = [
             p
             for p in np.arange(self.start_period, data.max_t, self.step_period)
@@ -190,11 +205,19 @@ class FixWorkAlgorithm(object):
 
         warm_start = False
 
-        for period in periods:
+        for enum, period in enumerate(periods):
             log.debug("Period: {}".format(period))
-            self.best_obj_period = new_obj
-            if self.best_obj_period < float('inf'):
-                self.master.max_obj = self.best_obj_period
+            if self.obj_ub < float('inf'):
+                self.master.max_obj = self.obj
+                log.debug("Indicate max_obj: {}".format(self.master.max_obj))
+            # Si el status del periodo es 3 entonces indicamos que el incendio
+            # no se puede contener antes de el periodo anterior
+            if self.period_status == 3:
+                max_tbr = max([r.time_between_rests
+                               for r in self.problem_data.resources])
+                self.master.no_contention_periods = periods[enum-1] - max_tbr
+                log.debug("Indicate no contention periods: {}".format(
+                    self.master.no_contention_periods))
 
             self.solver_options['TimeLimit'] = \
                 max(min(self.solver_options['TimeLimit'],
@@ -204,25 +227,30 @@ class FixWorkAlgorithm(object):
                                         warm_start=warm_start)
             warm_start = True
             if status == 2:
-                new_obj = self.problem_data.get_cost()
-                if abs(self.best_obj_period - new_obj) <= self.mip_gap_obj:
+                # Compute GAP with respect to UB
+                self.gap = self.obj_ub - self.obj
+
+                # Update UB
+                self.obj_ub = self.obj
+                if abs(self.gap) <= self.mip_gap_obj:
                     log.info("\nConvergence.")
+                    self.obj = self.obj_ub
                     self.status = 2
                     break
                 else:
                     if period == data.max_t:
                         self.status = 2
+                        break
                     else:
-                        log.info(sep)
                         self.status = 1
             else:
-                log.info("")
                 self.status = status
 
         return self.status
 
     def solve_periods(self, max_period=None, warm_start=False):
 
+        self.obj_lb = float("-Inf")
         self.period_status = 1
         if max_period is None:
             max_period = self.start_period
@@ -255,65 +283,100 @@ class FixWorkAlgorithm(object):
 
             # Solve Master problem
             log.debug("\t[MASTER]:")
-            master_status = master.solve(
+            self.period_status = master.solve(
                 solver_options=self.solver_options)
+
             self.runtime += master.model.runtime
 
-            if master_status == 3:
+            if self.period_status == 3:
                 log.debug("\t - Not optimal solution.")
-                self.period_status = 3
+                self.tbl(
+                    max_period,
+                    self.iter,
+                    str(self.period_status),
+                    self.time,
+                    self.obj_ub,
+                    self.obj_lb,
+                    len(master.constraints.opt_start_int),
+                    len(master.constraints.content_feas_int) +
+                    len(master.constraints.feas_int)
+                )
+                break
+            elif master.model.SolCount == 0:
+                log.debug("\t - Not solution.")
+                self.period_status = 1
+                self.tbl(
+                    max_period,
+                    self.iter,
+                    str(self.period_status),
+                    self.time,
+                    self.obj_ub,
+                    self.obj_lb,
+                    len(master.constraints.opt_start_int),
+                    len(master.constraints.content_feas_int) +
+                    len(master.constraints.feas_int)
+                )
                 break
             else:
+                # Feasible solution
                 log.debug("\t - Optimal")
                 start = self.problem_data.resources_wildfire.get_info("start")
+
+                obj_lb = self.problem_data.get_cost()
+                if obj_lb is not None:
+                    self.obj_lb = obj_lb
+
                 log.debug(
                     "\t - Solution: " +
                     ", ".join([str(k) for k, v in start.items() if v == 1]))
 
-            # Get start info and add cuts if they are needed
-            self.get_start_info(
-                list_resorce_period=[k for k, v in start.items() if v is True]
-            )
+                # Get start info and add cuts if they are needed
+                self.get_start_info(
+                    list_resorce_period=[k for k, v in start.items()
+                                         if v is True]
+                )
 
-            num_cuts = \
-                len(master.constraints.opt_start_int) + \
-                len(master.constraints.content_feas_int) + \
-                len(master.constraints.feas_int)
+                num_cuts = \
+                    len(master.constraints.opt_start_int) + \
+                    len(master.constraints.content_feas_int) + \
+                    len(master.constraints.feas_int)
 
-            if (self.obj_ub - self.obj_lb)/self.obj_ub <= self.mip_gap_obj:
-                log.debug("\t - Convergence.")
-                self.obj = self.obj_lb
-                self.period_status = 2
-            elif self.max_iters == self.iter:
-                log.debug("\t - Maximum number of iterations exceeded.")
-                self.period_status = 7
-            elif self.time > self.max_time:
-                log.debug("\t - Maximum time exceeded.")
-                self.period_status = 9
-            elif self.num_cuts_prev == num_cuts:
-                log.debug("\t - Convergence. No cuts added.")
-                self.obj = self.obj_lb
-                self.period_status = 2
+                stop = False
+                if self.max_iters == self.iter:
+                    log.debug("\t - Maximum number of iterations exceeded.")
+                    self.period_status = 7
+                    stop = True
+                elif self.time > self.max_time:
+                    log.debug("\t - Maximum time exceeded.")
+                    self.period_status = 9
+                    stop = True
+                elif self.num_cuts_prev == num_cuts:
+                    log.debug("\t - Convergence. No cuts added.")
+                    # Update objective
+                    self.obj = self.obj_lb
+                    self.period_status = 2
+                    stop = True
 
-            self.time = time.time() - self.__start_time__
+                self.time = time.time() - self.__start_time__
 
-            log.debug("[STOP CRITERIA]:")
-            log.debug("\t - lb: %s", self.obj_lb)
+                log.debug("[STOP CRITERIA]:")
+                log.debug("\t - lb: %s", self.obj_lb)
 
-            log.info(utils.format_fix_work([
-                max_period,
-                self.iter,
-                self.time,
-                self.obj,
-                self.obj_lb,
-                len(master.constraints.opt_start_int),
-                len(master.constraints.content_feas_int),
-                len(master.constraints.feas_int)
-            ]))
+                self.num_cuts_prev = num_cuts
 
-            if self.period_status != 1:
-                break
-            self.num_cuts_prev = num_cuts
+                self.tbl(
+                    max_period,
+                    self.iter,
+                    str(self.period_status),
+                    self.time,
+                    self.obj,
+                    self.obj_lb,
+                    len(master.constraints.opt_start_int),
+                    len(master.constraints.content_feas_int) +
+                    len(master.constraints.feas_int)
+                )
+                if stop:
+                    break
 
         self.time = time.time() - self.__start_time__
         return self.period_status
