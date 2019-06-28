@@ -10,6 +10,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
+### Added ###
+- Display fix_work algorithm behaviour.
+
+### Changed ###
+- Updated default solver options.
+
+### Fixed ###
+- Fixed problems in fix_work algorithm.
+
 v3.0.0 - 29/05/2019
 -------------------
 
