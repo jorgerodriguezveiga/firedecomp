@@ -89,6 +89,9 @@ def plot_scheduling(problem):
                 None
                 for p in [0] + per_names]
             for i in res_names}
+        first_legend_info = min(
+            [i for i, p in scatter_dict.items() if
+             not all(v is None for v in p)])
         return [
             go.Scatter(
                 x=p,
@@ -97,7 +100,7 @@ def plot_scheduling(problem):
                 name=info,
                 legendgroup=info,
                 line=line)
-            if t == 0 else
+            if i == first_legend_info else
             go.Scatter(
                 x=p,
                 y=[i] * len(p),
@@ -110,13 +113,14 @@ def plot_scheduling(problem):
             not all(v is None for v in p)]
 
     data = []
-    data += get_resources_wildfire_scatters(problem, 'work')
     data += get_resources_wildfire_scatters(problem, 'rest')
     data += get_resources_wildfire_scatters(problem, 'travel')
+    data += get_resources_wildfire_scatters(problem, 'work')
 
     layout = dict(title='Resources Scheduling',
                   xaxis=dict(title='Periods'),
                   yaxis=dict(title='Resources'),
+                  showlegend=True
                   )
     plotly.offline.iplot({'data': data, 'layout': layout},
                          filename='scatter-mode')
