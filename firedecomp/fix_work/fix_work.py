@@ -5,8 +5,6 @@ import logging as log
 import re
 import time
 import numpy as np
-import sys
-from table_logger import TableLogger
 
 # Package modules
 from firedecomp import fix_work
@@ -24,7 +22,7 @@ class FixWorkAlgorithm(object):
             step_period=6,
             valid_constraints=None,
             solver_options=None,
-            log_level="fix_work"
+            log_level="debug"
     ):
         """Initialize the Benders object.
 
@@ -58,26 +56,7 @@ class FixWorkAlgorithm(object):
 
         self.log_level = log_level
         if self.log_level == 'fix_work':
-            self.tbl = TableLogger(
-                file=sys.stdout,
-                columns=",".join([
-                    "PER",
-                    "ITER",
-                    "P_STATUS",
-                    "SECONDS",
-                    "OBJ",
-                    "LB_PER",
-                    "START_C",
-                    "CUTS"]),
-                default_colwidth=12,
-                formatters={
-                    'SECONDS': "{:6.2f}".format,
-                    "OBJ": "{:.6E}".format,
-                    "LB_PER": "{:.6E}".format,
-                }
-            )
-        else:
-            self.tbl = lambda *args: args
+            self.tbl = lambda *args: print(utils.format_fix_work(*args))
 
         self.problem_data = problem_data
 
@@ -204,6 +183,19 @@ class FixWorkAlgorithm(object):
         ] + [data.max_t]
 
         warm_start = False
+
+        self.tbl("-+-".join(["----------"]*8))
+        self.tbl(
+            "PER",
+            "ITER",
+            "P_STATUS",
+            "SECONDS",
+            "OBJ",
+            "LB_PER",
+            "START_C",
+            "CUTS"
+        )
+        self.tbl("-+-".join(["----------"]*8))
 
         for enum, period in enumerate(periods):
             log.debug("Period: {}".format(period))
@@ -364,17 +356,19 @@ class FixWorkAlgorithm(object):
 
                 self.num_cuts_prev = num_cuts
 
-                self.tbl(
-                    max_period,
-                    self.iter,
-                    str(self.period_status),
-                    self.time,
-                    self.obj,
-                    self.obj_lb,
-                    len(master.constraints.opt_start_int),
-                    len(master.constraints.content_feas_int) +
-                    len(master.constraints.feas_int)
-                )
+                if self.log_level == 'fix_work':
+                    self.tbl(
+                        max_period,
+                        self.iter,
+                        str(self.period_status),
+                        self.time,
+                        self.obj,
+                        self.obj_lb,
+                        len(master.constraints.opt_start_int),
+                        len(master.constraints.content_feas_int) +
+                        len(master.constraints.feas_int)
+                    )
+
                 if stop:
                     break
 
