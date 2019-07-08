@@ -12,12 +12,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added ###
 - Display fix_work algorithm behaviour.
+- Add method to get initial solution. If an initial solution is not founded the function returns False, otherwise True.
 
 ### Changed ###
 - Updated default solver options.
 
 ### Fixed ###
 - Fixed problems in fix_work algorithm.
+- Fix error in scheduling plot.
 
 v3.0.0 - 29/05/2019
 -------------------
