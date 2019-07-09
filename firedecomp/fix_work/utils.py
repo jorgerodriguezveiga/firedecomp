@@ -249,62 +249,67 @@ def get_initial_sol(problem_data):
             for res in max_performance_resources[p_key]]
         )
 
-    con_p = None
+    feas = False
+    con_p = problem_data.data.max_t
     for p in problem_data.wildfire:
         if p.perimeter <= max_performance[p.get_index()]:
             con_p = p.get_index()
+            feas = True
             break
+    z = {
+        r: r in max_performance_resources[con_p]
+        for r in problem_data.data.I
+    }
+    problem_data.resources.update_select(z)
 
-    if con_p is not None:
-        z = {
-            r: r in max_performance_resources[con_p]
-            for r in problem_data.data.I
-        }
-        problem_data.resources.update_select(z)
+    s = {
+        (i, t): t == problem_data.data.min_t if z[i] else False
+        for i in problem_data.data.I for t in problem_data.data.T
+     }
 
-        s = {
-            (i, t): t == problem_data.data.min_t if z[i] else False
-            for i in problem_data.data.I for t in problem_data.data.T
-         }
+    u = {
+        (i, t): True
+        if t <= con_p + problem_data.data.TRP[i] and z[i] else False
+        for i in problem_data.data.I for t in problem_data.data.T
+    }
 
-        u = {
-            (i, t): True
-            if t <= con_p + problem_data.data.TRP[i] and z[i] else False
-            for i in problem_data.data.I for t in problem_data.data.T
-        }
+    e = {
+        (i, t): True
+        if t == con_p + problem_data.data.TRP[i] and z[i] else False
+        for i in problem_data.data.I for t in problem_data.data.T
+    }
 
-        e = {
-            (i, t): True
-            if t == con_p + problem_data.data.TRP[i] and z[i] else False
-            for i in problem_data.data.I for t in problem_data.data.T
-        }
+    if feas is False:
+        e.update({(i, problem_data.data.max_t): True
+                  for i in problem_data.data.I if z[i]})
 
-        w = {
-            k: info['work'][k] * v == 1 for k, v in u.items()
-        }
+    w = {
+        k: info['work'][k] * v == 1 for k, v in u.items()
+    }
 
-        r = {
-            k: info['rest'][k] * v == 1 for k, v in u.items()
-        }
+    r = {
+        k: info['rest'][k] * v == 1 for k, v in u.items()
+    }
 
-        er = {
-            (i, t): True
-            if (r[i, t] is True) and (r[i, t + 1] is not True)
-            else False
-            for i in problem_data.data.I
-            for t in problem_data.data.T_int(p_max=problem_data.data.max_t - 1)
-        }
+    er = {
+        (i, t): True
+        if (r[i, t] is True) and (r[i, t + 1] is not True)
+        else False
+        for i in problem_data.data.I
+        for t in problem_data.data.T_int(p_max=problem_data.data.max_t - 1)
+    }
 
-        er.update({
-            (i, problem_data.data.max_t): True
-            if r[i, problem_data.data.max_t] is True else False
-            for i in problem_data.data.I
-        })
+    er.update({
+        (i, problem_data.data.max_t): True
+        if r[i, problem_data.data.max_t] is True else False
+        for i in problem_data.data.I
+    })
 
-        tr = {
-            k: info['travel'][k] * v == 1 for k, v in u.items()
-        }
+    tr = {
+        k: info['travel'][k] * v == 1 for k, v in u.items()
+    }
 
+    if feas:
         tr.update({
             (i, t): True
             for i in problem_data.data.I for t in problem_data.data.T
@@ -322,38 +327,59 @@ def get_initial_sol(problem_data):
             for i in problem_data.data.I for t in problem_data.data.T
             if u[(i, t)] is True and t > con_p
         })
-
-        problem_data.resources_wildfire.update(
-            {(i, t): {
-                'start': s[i, t],
-                'use': u[i, t],
-                'end': e[i, t],
-                'work': w[i, t],
-                'travel': tr[i, t],
-                'rest': r[i, t],
-                'end_rest': er[i, t]
-            }
-                for i in problem_data.data.I for t in problem_data.data.T}
-        )
-
-        problem_data.groups_wildfire.update({
-            gt.get_index():
-                {'num_left_resources': max(
-                    0,
-                    gt.min_res_groups -
-                    sum([w[i, gt.get_index()[1]]
-                         for i in gt.group.resources.get_names()])
-                )}
-                if gt.get_index()[1] <= con_p else
-                {'num_left_resources': 0}
-            for gt in problem_data.groups_wildfire
+    else:
+        tr.update({
+            (i, t): True
+            for i in problem_data.data.I for t in problem_data.data.T
+            if u[(i, t)] is True and t > problem_data.data.max_t - problem_data.data.TRP[i]
         })
 
+        r.update({
+            (i, t): False
+            for i in problem_data.data.I for t in problem_data.data.T
+            if u[(i, t)] is True and t > problem_data.data.max_t - problem_data.data.TRP[i]
+        })
+
+        w.update({
+            (i, t): False
+            for i in problem_data.data.I for t in problem_data.data.T
+            if u[(i, t)] is True and t > problem_data.data.max_t - problem_data.data.TRP[i]
+        })
+
+    problem_data.resources_wildfire.update(
+        {(i, t): {
+            'start': s[i, t],
+            'use': u[i, t],
+            'end': e[i, t],
+            'work': w[i, t],
+            'travel': tr[i, t],
+            'rest': r[i, t],
+            'end_rest': er[i, t]
+        }
+            for i in problem_data.data.I for t in problem_data.data.T}
+    )
+
+    problem_data.groups_wildfire.update({
+        gt.get_index():
+            {'num_left_resources': max(
+                0,
+                gt.min_res_groups -
+                sum([w[i, gt.get_index()[1]]
+                     for i in gt.group.resources.get_names()])
+            )}
+            if gt.get_index()[1] <= con_p else
+            {'num_left_resources': 0}
+        for gt in problem_data.groups_wildfire
+    })
+
+    if feas:
         problem_data.wildfire.update(
             {t: {'contained': t >= con_p}
              for t in problem_data.data.T})
-
-        return True
     else:
-        return False
+        problem_data.wildfire.update(
+            {t: {'contained': t >= con_p+1}
+             for t in problem_data.data.T})
+
+    return feas
 # --------------------------------------------------------------------------- #

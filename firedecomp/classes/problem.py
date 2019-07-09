@@ -415,6 +415,14 @@ class Problem(object):
                 obj.__dict__[k] = v
         return obj
 
+    def get_initial_sol(self) -> bool:
+        """Update the model with an initial solution.
+
+        Return:
+            If initial solution is feasible return True otherwise False.
+        """
+        return fix_work.utils.get_initial_sol(self)
+
     def __repr__(self):
         header_start = "+-"
         header_space = "-"
