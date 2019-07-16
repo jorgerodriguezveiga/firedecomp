@@ -10,6 +10,9 @@ from firedecomp.AL import ARPP
 from firedecomp.AL import ADPP
 from firedecomp.AL import ARDP
 from firedecomp.classes import solution as _sol
+from firedecomp.fix_work import utils as _utils
+from firedecomp.original import model as _model
+
 import time
 import math
 import gurobipy
@@ -46,20 +49,14 @@ class AugmentedLagrangian(object):
         if problem_data.period_unit is False:
             raise ValueError("Time unit of the problem is not a period.")
         self.problem_data = problem_data
-        # OBJECTIVE FUNCTION
-        self.obj = float("inf")
-        self.L_obj_up = float("inf")
-        self.L_obj_up_prev = float("inf")
-        self.L_obj_down = float("-inf")
-        self.L_obj_down_prev = float("-inf")
-        self.gap = float("inf")
-        # OPTIONS LR
+
+        # GLOBAL VARIABLES
         self.max_iters = max_iters
         self.max_time = max_time
-        self.epsilon = 0.000001
-        self.v = 1
-        self.RPP_obj_prev = float("inf")
-        # Gurobi options
+        self.v = 1 # iterations
+        self.NL =  1 + len(problem_data.get_names("wildfire"))
+
+        # GUROBI OPTIONS
         if solver_options == None:
             solver_options = {
                 #'MIPGap': 0.01,
@@ -68,35 +65,35 @@ class AugmentedLagrangian(object):
                 'LogToConsole': 0,
             }
         self.solver_options = solver_options
-        # Log level
-        #self.__log__(log_level)
-        # Create lambda
-        #self.NL = (1 + len(problem_data.get_names("wildfire")) +
-        #        len(problem_data.get_names("wildfire"))*len(problem_data.get_names("groups"))*2)
 
-        self.NL =  1 + len(problem_data.get_names("wildfire"))
-        self.lambda1 = []
-        self.lambda1_change = []
-        self.beta = []
-        self.lambda1_prev = []
-        self.lambda1_next = []
-        self.lambda_matrix = []
+        # PARAMETERS INNER METHODS
         self.beta_matrix = []
-        self.L_obj_down  = -1e16
-        self.obj = float("inf")
-        self.LR_pen = []
-        self.inf_sol = float("inf")
-        self.pen_all = float("inf")
+        self.lambda_matrix = []
+        self.lambda_matrix_prev = []
+        self.upperbound_matrix =[]
+        self.lobj_global = float("-inf")
+        self.fobj_global = float("inf")
+        self.infeas_global = float("inf")
+        self.subgradient_global = []
+        self.penalties_global = []
         self.index_best = -1
-        init_value=1e3
+
+        # CREATE ORIGINAL Problem
+        self.original_problem = _model.InputModel(problem_data)
+
+        # INITIALIZE RPP PROBLEM
+        self.lambda1_RRP = []
+        self.beta_RRP = []
+        init_value=1000
         for i in range(0,self.NL):
-            self.lambda1.append(init_value)
-            self.lambda1_change.append(init_value)
-            self.beta.append(0.5)
-            self.LR_pen.append(0)
+            self.lambda1_RRP.append(init_value)
+            self.beta_RRP.append(0.1)
+
         # Create Relaxed Primal Problem
-        self.problem_RPP = ARPP.RelaxedPrimalProblem(problem_data, self.lambda1, self.beta);
+        self.problem_RPP = ARPP.RelaxedPrimalProblem(problem_data, self.lambda1_RRP, self.beta_RRP);
         self.solution_RPP = float("inf")
+
+        # INITIALIZE DPP PROBLEM
         # Initialize Decomposite Primal Problem Variables
         self.problem_DPP = []
         self.N = len(self.problem_RPP.I)
@@ -104,40 +101,58 @@ class AugmentedLagrangian(object):
         self.y_master_size = self.problem_RPP.return_sizey()
         self.counterh_matrix = []
         init_value=100
+
+        self.lobj_local=[]
+        self.lobj_local_prev=[]
+        self.fobj_local=[]
+        self.infeas_local=[]
+        self.subgradient_local=[]
+        self.penalties_local=[]
+        self.upperbound_matrix=[]
+        self.termination_counter = []
+
+        for i in range(0,self.y_master_size):
+            self.termination_counter.append(0)
+            self.lobj_local.append(float("inf"))
+            self.lobj_local_prev.append(float("inf"))
+            self.fobj_local.append(float("inf"))
+            self.infeas_local.append(float("inf"))
+            self.subgradient_local.append([])
+            self.penalties_local.append([])
+            self.upperbound_matrix.append(float("inf"))
+
+        # INITIALIZE LAMBDA AND BETA
         for i in range(0,self.y_master_size):
             lambda_row = []
+            lambda_row_inf = []
             beta_row = []
-            counterh_row = []
             for j in range(0,self.NL):
                 lambda_row.append(init_value+j)
+                lambda_row_inf.append(float("inf"))
                 beta_row.append(0.5)
-                counterh_row.append(0)
             self.lambda_matrix.append(lambda_row)
+            self.lambda_matrix_prev.append(lambda_row_inf)
             self.beta_matrix.append(beta_row)
-            self.counterh_matrix.append(counterh_row)
-
 
 ###############################################################################
 # PUBLIC METHOD subgradient()
 ###############################################################################
-    def subgradient(self, LR_pen_v, lambda_vector, beta_vector, ii):
+    def subgradient(self, subgradient, lambda_vector, beta_vector, ii):
 
         lambda_old = lambda_vector.copy()
         beta_old = beta_vector.copy()
 
         for i in range(0,self.NL):
 
-            LRpen = LR_pen_v[i]
+            LRpen = subgradient[i]
 
-            lambda_vector[i] = max ( 0, lambda_old[i] + beta_old[i] * LRpen )
+            lambda_vector[i] = max ( 0, (lambda_old[i] + LRpen * beta_old[i])/self.v  )
             if abs(lambda_vector[i]) > 0:
-                change_per = abs(abs(lambda_vector[i])-abs(self.lambda1_change[i]))
-                #change_per = abs(abs(lambda_vector[i])-abs(self.lambda1_change[i]))/abs(lambda_vector[i])
+                change_per = abs(abs(lambda_vector[i])-abs(lambda_old[i]))/abs(lambda_vector[i])
             else:
                 change_per = 0
-            if change_per >= 1 and beta_vector[i] <= 5:
-                #self.lambda1_change[i] = lambda_vector[i]
-                beta_vector[i] = beta_vector[i] * 1.2
+            if change_per >= 0.2 : #and beta_vector[i] <= 5:
+                beta_vector[i] = beta_vector[i] * 1.1
 
             if ii == 1:
                 print(str(LRpen)+" -> lambda "+str(lambda_old[i])+ " + "+str(beta_old[i] * LRpen) + " = " + str(lambda_vector[i]) + " update " + str(beta_old[i]) + " diff " + str(abs(abs(lambda_vector[i])-abs(lambda_old[i]))) + " beta " + str(beta_vector[i]) + "change_per "+str(change_per) )
@@ -153,141 +168,180 @@ class AugmentedLagrangian(object):
     def convergence_checking(self):
         stop = bool(False)
         result = 0
-        for i in range(0,len(self.lambda1)):
-            rr = abs(self.lambda1_prev[i]-self.lambda1_next[i])/abs(self.lambda1[i]+self.epsilon)
-            if (rr <= self.epsilon) :
-                result = result + 1
+        optimal_solution_found = 0
+
+# CHECK PREVIOUS LAMBDAS CHANGES
+        for i in range(0,len(self.lambda_matrix)-1):
+            if self.termination_counter[i] < 2 :
+                check = 0
+                lobj_diff = abs((abs(self.lobj_local[i]) - abs(self.lobj_local_prev[i]))/abs(self.lobj_local[i]))*100
+                print(str(i) + "self.lobj_local[i] - self.lobj_local_prev[i] " + str(lobj_diff) + "% ")
+                if (lobj_diff < 0.1):
+                    self.termination_counter[i]  = self.termination_counter[i] + 1
+                else:
+                    self.termination_counter[i]  = 0
+                self.lobj_local_prev[i] = self.lobj_local[i]
+            elif self.termination_counter[i] == 2 :
+                # TEST WITH GUROBI IF IT IS A OPTIMAL SOLUTION
+                solver_options = {
+                    'OutputFlag': 0,
+                    'LogToConsole': 0,
+                }
+                self.original_problem.update_model(self.DPP_sol[i])
+                solution = self.original_problem.solve(solver_options=solver_options)
+                print(solution.get_model().Status)
+                print(solution.get_objfunction())
+                print(self.fobj_local[i])
+                print(i)
+                if (self.original_problem.model.model.Status == 2) and (solution.get_objfunction()==self.fobj_local[i]):
+                    optimal_solution_found = 1
+                    self.termination_counter[i] = 3
+                self.termination_counter[i]  = self.termination_counter[i] + 1
+
+# CHECK TERMINATION COUNTER MATRIX
+        counter = 0
+        all_termination_counter_finished = 0
+        for i in range(0,self.y_master_size):
+            if self.termination_counter[i] == 3:
+                counter = counter + 1
+        if counter == self.y_master_size:
+            all_termination_counter_finished = 1
+
+# STOPPING CRITERIA CASES
         # check convergence
         if (self.v >= self.max_iters):
             print("[STOP] Max iters achieved!")
             stop = bool(True)
-        elif (result >=  len(self.lambda1)):
-            print("[STOP] Lambda epsilion achieved!")
+        elif (all_termination_counter_finished ==  1):
+            print("[STOP] Convergence achieved, optimal local point searched!")
             stop = bool(True)
-
+        elif (optimal_solution_found == 1):
+            print("[STOP] Convergence achieved, optimal solution found!")
+            stop = bool(True)
         return stop
 
 ###############################################################################
 # PUBLIC METHOD solve()
 ###############################################################################
     def solve(self, max_iters=100):
-
         termination_criteria = bool(False)
         changes = 0
 
-        # (0) Initial solution
+        # (0) Calc initial solution and create DPP problems
         self.DPP_sol = []
-
         init_options = {
-                'IterationLimit': 1000,
+                'IterationLimit': 1,
                 'OutputFlag': 0,
                 'LogToConsole': 0,
         }
-        #isol = self.problem_data.solve(solver_options=init_options)
-        isol = self.problem_RPP.solve(solver_options=init_options)
-        initial_solution = self.create_initial_solution(isol)
+        _utils.get_initial_sol(self.problem_data)
+        isol = self.problem_data.get_variables_solution()
+        osol = self.problem_RPP.solve(solver_options=init_options)
+        initial_solution = self.create_initial_solution(isol, osol)
         DPP_sol_feasible = []
         for i in range(0,self.y_master_size-1):
             DPP_sol_feasible.append(1)
             self.DPP_sol.append(initial_solution)
 
-        # (0) Initialize DPP
+        # (1) Initialize DPP
+        print("CREATE SET DPP")
         self.create_DPP_set()
+        print("END CREATE DPP")
         while (termination_criteria == False):
             # (1) Solve DPP problems
-            print("ITERATION -> "+str(self.v))
             for i in range(0,self.y_master_size-1):
-                print("### START Y -> "+str(self.problem_DPP[i][0].list_y))
-                DPP_sol_row = []
-                DPP_sol_row_feasible = []
-                L_obj_down_local=0
-
-                LR_pen_local = []
-                for j in range(0,self.NL):
-                    LR_pen_local.append(0.0)
-                obj_local=0
-                pen_all_local=0
-                stop_inf = False
-                inf_sol=0
-                for j in range(0,self.N):
-                    #print("SOLVE "+str(j))
-                    try:
-                        DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
-                        if (DPP_sol_row[j].model.Status == 3):
-                            DPP_sol_row_feasible.append(0)
-                            print("Error Solver: Status 3")
-                        else:
-                            DPP_sol_row_feasible.append(1)
-                    except:
-                        print("Error Solver: Lambda/beta error")
-                        DPP_sol_row.append(initial_solution)
-                        DPP_sol_row_feasible.append(0)
-
-                    if (DPP_sol_row_feasible[j] == 0):
-                        stop_inf = True
-                        break
-                    L_obj_down_local = L_obj_down_local + DPP_sol_row[j].get_objfunction()
-                    obj_local = obj_local + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
-                    LR_pen_local = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
-                    pen_all_local = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
-                    inf_sol = self.extract_infeasibility(LR_pen_local)
-                    print("XResource"+str(j)+" "+str(i)+
-                        " UB "+str(DPP_sol_row[j].get_objfunction())+
-                        " fobj "+str(self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j]))+
-                        " Infeas "+str(inf_sol) + "  ||  " + str(self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])))
-                # update lambda
-                for j in range(0,self.N):
-                    if (DPP_sol_row_feasible[j] == 0):
-                        stop_inf = True
-                        break
-                    UB_local = DPP_sol_row[j].get_objfunction()
-                    LR_pen_local = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
-
-                if (self.L_obj_down < L_obj_down_local and (inf_sol <= 0) and (DPP_sol_row_feasible[j] != 0)):
-                    self.L_obj_down  = L_obj_down_local
-                    self.obj = obj_local
-                    self.LR_pen = LR_pen_local
-                    self.inf_sol = inf_sol
-                    self.pen_all = pen_all_local
-                    self.index_best_i = i
-                    self.index_best_j = j
-                    change=1
-
-                if (stop_inf == False):
-                    print("")
-                    print("")
-                    print("TOTAL = UB "+str(L_obj_down_local)+" fobj "+str(obj_local))
-                    print("")
-                    print("")
-
-                    print("subgradient")
-                    self.subgradient( LR_pen_local, self.lambda_matrix[i], self.beta_matrix[i], i)
-
-                    if (inf_sol <= 0):
-                        self.DPP_sol[i]=self.gather_solution(DPP_sol_row, initial_solution)
-                    # (2) Calculate new values of lambda and update
-                    #if (changes != 0):
-                    #    self.lambda1_prev = self.lambda1.copy()
-                    #    self.lambda1_next = self.lambda_matrix[self.index_best_i]
-
-                    #if (self.L_obj_down > self.L_obj_down_prev):
-                    #    self.L_obj_down_prev = self.L_obj_down
-
-                    # Show iteration results
-                    #if i == 1:
+            # Show iteration results
+                if i == 1:
                     log.info("Iteration # mi lambda f(x) L(x,mi,lambda) penL")
-                    print("Iter: "+str(self.v)+ " Lambda: "+str(self.lambda1[0])+
-                            " LR(x): "+str(self.L_obj_down)+" f(x):"+ str(self.obj) +
-                            " penL:" + str(self.LR_pen) +"\n")
-                else:
-                    self.DPP_sol[i]= initial_solution
-                    DPP_sol_feasible[i] = 0
+                    print("\n\n\n\n\n\nIter: " + str(self.v) + " " +
+                          "LR(x): "+ str(self.lobj_global) + " " +
+                          "f(x):"  + str(self.fobj_global) + " " +
+                          "penL:"  + str(self.subgradient_global) +"\n")
+                print(str(i) + "- termination_counter "+str(self.termination_counter[i]))
+                if self.termination_counter[i] < 2 :
+                    print("### START Y -> "+str(self.problem_DPP[i][0].list_y))
+                    DPP_sol_row = []
+                    DPP_sol_row_feasible = []
+                    stop_inf = False
+                    inf_sol=0
+                    self.lobj_local[i]=0
+                    self.fobj_local[i]=0
+                    self.subgradient_local[i] = []
+                    self.penalties_local[i] = []
+                    self.infeas_local[i] = 0
+                    for j in range(0,self.N):
+                        try:
+                            DPP_sol_row.append(self.problem_DPP[i][j].solve(self.solver_options))
+                            if (DPP_sol_row[j].model.Status == 3):
+                                DPP_sol_row_feasible.append(0)
+                                print("Error Solver: Status 3")
+                            else:
+                                DPP_sol_row_feasible.append(1)
+                        except:
+                            print("Error Solver: Lambda/beta error")
+                            DPP_sol_row.append(initial_solution)
+                            DPP_sol_row_feasible.append(0)
+
+                        if (DPP_sol_row_feasible[j] == 0):
+                            stop_inf = True
+                            break
+                        self.lobj_local[i] = self.lobj_local[i] + DPP_sol_row[j].get_objfunction()
+                        self.fobj_local[i] = self.fobj_local[i] + self.problem_DPP[i][j].return_function_obj(DPP_sol_row[j])
+                        self.subgradient_local[i] = self.problem_DPP[i][j].return_LR_obj2(DPP_sol_row[j])
+                        self.penalties_local[i] = self.problem_DPP[i][j].return_LR_obj(DPP_sol_row[j])
+                        self.infeas_local[i] = self.infeas_local[i] + self.extract_infeasibility(self.subgradient_local[i])
+                        print("XResource"+  str(j)  +   " " +   str(i)+
+                            " UB "       +  str(self.lobj_local[i])+
+                            " fobj "     +  str(self.fobj_local[i])+
+                            " Infeas "+str(self.infeas_local[i]) + "  ||  " + str(self.subgradient_local[i]))
+                    # update lambda
+                    for j in range(0,self.N):
+                        if (DPP_sol_row_feasible[j] == 0):
+                            stop_inf = True
+                            self.termination_counter[i] = 3
+                            break
+
+                    # check Upper Bound
+                    if self.infeas_local[i] <= 0 and self.upperbound_matrix[i] < self.fobj_local[i]:
+                        self.upperbound_matrix[i] = self.fobj_local[i]
+
+
+                    if (self.lobj_global < self.lobj_local[i] and (self.infeas_local[i] <= 0) and (DPP_sol_row_feasible[j] != 0)):
+                        self.lobj_global  = self.lobj_local[i]
+                        self.fobj_global = self.fobj_local[i]
+                        self.subgradient_global = self.subgradient_local[i]
+                        self.penalties_global = self.penalties_local[i]
+                        self.infeas_global = self.infeas_local[i]
+                        self.index_best_i = i
+                        self.index_best_j = j
+                        change=1
+
+                    if (stop_inf == False):
+                        print("")
+                        print("")
+                        print("TOTAL = UB "+str(self.lobj_local[i])+" fobj "+str(self.fobj_local[i]))
+                        print("")
+                        print("")
+
+                        self.subgradient( self.subgradient_local[i] , self.lambda_matrix[i], self.beta_matrix[i], i)
+
+                        if (inf_sol <= 0):
+                            self.DPP_sol[i]=self.gather_solution(DPP_sol_row, self.DPP_sol[i])
+
+                    else:
+                        self.termination_counter[i] = 3
+                        self.DPP_sol[i]= initial_solution
+                        DPP_sol_feasible[i] = 0
 
             # (3) Check termination criteria
-            ##termination_criteria = self.convergence_checking()
+            termination_criteria = self.convergence_checking()
             self.v = self.v + 1
             # Update DPP
-            self.update_DPP_set(self.lambda_matrix, self.beta_matrix, self.DPP_sol, DPP_sol_feasible)
+            print("update")
+            self.update_DPP_set(self.lambda_matrix, self.beta_matrix, self.DPP_sol, DPP_sol_feasible, self.upperbound_matrix)
+            # COPY CURRENT LAMBDAS
+            for i in range(0,len(self.lambda_matrix)):
+                self.lambda_matrix_prev[i] = self.lambda_matrix[i].copy()
 
         # DESTROY DPP
         self.destroy_DPP_set()
@@ -323,45 +377,56 @@ class AugmentedLagrangian(object):
         vars["er"] = er
         vars["e"] = e
         modelcopy = initial_solution.get_model().copy()
-        modelcopy.update()
-        sol1 = _sol.Solution(modelcopy, vars)
+
         counter=0
         for res in Ilen:
             DPP = DPP_sol_row[counter]
             for tt in Tlen:
-                sol1.get_model().getVarByName("start["+res+","+str(tt)+"]").start = DPP.get_variables().get_variable('s')[res,tt].X
-                sol1.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('tr')[res,tt].X
-                sol1.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('r')[res,tt].X
-                sol1.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('er')[res,tt].X
-                sol1.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('e')[res,tt].X
+                modelcopy.getVarByName("start["+res+","+str(tt)+"]").start = DPP.get_variables().get_variable('s')[res,tt].X
+                modelcopy.getVarByName("travel["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('tr')[res,tt].X
+                modelcopy.getVarByName("rest["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('r')[res,tt].X
+                modelcopy.getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('er')[res,tt].X
+                modelcopy.getVarByName("end["+str(res)+","+str(tt)+"]").start = DPP.get_variables().get_variable('e')[res,tt].X
             counter = counter + 1
-        #for gro in Glen:
-        #    for tt in Tlen:
-        #        sol1.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = DPP.get_variables().get_variable('mu')[gro,tt].X
-        sol1.get_model().update()
-        #print(sol1.get_model().getVars())
-        #   mu[res,tt] = DPP.get_variables().get_variable('mu')[res,tt]
+        for gro in Glen:
+            for tt in Tlen:
+                modelcopy.getVarByName("missing_resources["+gro+","+str(tt)+"]").start = DPP.get_variables().get_variable('mu')[gro,tt].X
+
+        modelcopy.update()
+        sol1 = _sol.Solution(modelcopy, vars)
+
         return sol1
 
-    def create_initial_solution(self, isol):
+    def create_initial_solution(self, isol, osol):
         Tlen = self.problem_data.get_names("wildfire")
         Ilen = self.problem_data.get_names("resources")
         Glen = self.problem_data.get_names("groups")
 
         for res in Ilen:
             for tt in Tlen:
-                isol.get_model().getVarByName("start["+res+","+str(tt)+"]")
-                isol.get_model().getVarByName("start["+res+","+str(tt)+"]").start = isol.get_variables().get_variable('s')[res,tt].X
-                isol.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('tr')[res,tt].X
-                isol.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('r')[res,tt].X
-                isol.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('er')[res,tt].X
-                isol.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('e')[res,tt].X
+                if isinstance(isol, dict):
+                    osol.get_model().getVarByName("start["+res+","+str(tt)+"]").start = isol['s'][res,tt]
+                    osol.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = isol['tr'][res,tt]
+                    osol.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = isol['r'][res,tt]
+                    osol.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = isol['er'][res,tt]
+                    osol.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = isol['e'][res,tt]
+                elif isinstance(isol, _sol.Solution):
+                    print(isol.get_model().getVarByName("start["+res+","+str(tt)+"]").start)
+                    osol.get_model().getVarByName("start["+res+","+str(tt)+"]").start = isol.get_variables().get_variable('s')[res,tt].X
+                    osol.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('tr')[res,tt].X
+                    osol.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('r')[res,tt].X
+                    osol.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('er')[res,tt].X
+                    osol.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = isol.get_variables().get_variable('e')[res,tt].X
         for gro in Glen:
             for tt in Tlen:
-                isol.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = isol.get_variables().get_variable('mu')[gro,tt].X
-        isol.get_model().update()
+                if isinstance(isol, dict):
+                    osol.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = isol['mu'][gro,tt]
+                elif isinstance(isol, _sol.Solution):
+                    osol.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = isol.get_variables().get_variable('mu')[gro,tt].X
 
-        return isol
+        osol.get_model().update()
+
+        return osol
 
     def print_solution(self, solution):
         Tlen = self.problem_data.get_names("wildfire")
@@ -375,6 +440,7 @@ class AugmentedLagrangian(object):
 ###############################################################################
     def create_DPP_set(self):
         for i in range(0,self.y_master_size-1):
+            print("Create problem ("+str(i)+")")
             problem_DPP_row = []
             self.y_master = dict([ (p, 1) for p in range(0,self.y_master_size)])
             for p in range(self.y_master_size - (1+i), self.y_master_size):
@@ -382,17 +448,17 @@ class AugmentedLagrangian(object):
             for j in range(0,self.N):
                 problem_DPP_row.append(ADPP.DecomposedPrimalProblem(self.problem_data,
                                        self.lambda_matrix[i], self.beta_matrix[i], j,
-                                       self.y_master, self.DPP_sol[i],  self.N, self.NL))
+                                       self.y_master, self.DPP_sol[i],  self.N, self.NL, self.upperbound_matrix[i]))
             self.problem_DPP.append(problem_DPP_row)
 
 ###############################################################################
 # PRIVATE extract_infeasibility()
 ###############################################################################
-    def extract_infeasibility(self, LR_pen_local):
+    def extract_infeasibility(self, subgradient):
         infeas = 0
-        for i in range(0, len(LR_pen_local)):
-            if (LR_pen_local[i] > 0):
-                infeas = infeas + LR_pen_local[i]
+        for i in range(0, len(subgradient)):
+            if (subgradient[i] > 0):
+                infeas = infeas + subgradient[i]
         return infeas
 
 ###############################################################################
@@ -411,11 +477,11 @@ class AugmentedLagrangian(object):
 ###############################################################################
 # PRIVATE destroy_DPP_set()
 ###############################################################################
-    def update_DPP_set(self, lambda_matrix, beta_matrix, solution, DPP_feasible):
+    def update_DPP_set(self, lambda_matrix, beta_matrix, solution, DPP_feasible, upperbound_matrix):
         for i in range(0,self.y_master_size-1):
             for j in range(0,self.N):
                 if (DPP_feasible[i] == 1):
-                    self.problem_DPP[i][j].update_model(lambda_matrix[i], beta_matrix[i], solution[i])
+                    self.problem_DPP[i][j].update_model(lambda_matrix[i], beta_matrix[i], solution[i], upperbound_matrix[i])
 
 
 ###############################################################################

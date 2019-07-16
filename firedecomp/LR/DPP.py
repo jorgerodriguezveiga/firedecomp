@@ -33,6 +33,7 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
         self.index_L = []
         self.nproblems = nproblems
         self.NL = NL
+        self.UB_value = float("inf")
         for i in range(0,self.NL):
             self.index_L.append(0.0)
 
@@ -215,6 +216,12 @@ class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
     # --------------------
 
         self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
+
+        self.m.addConstr(sum([data.C[i]*u[i, t] for i in data.I for t in data.T]) +
+               sum([data.P[i] * z[i] for i in data.I]) +
+               sum([data.NVC[t] * y[t-1] for t in data.T]) +
+               sum([data.Mp*mu[g, t] for g in data.G for t in data.T]) +
+               0.001*y[data.max_t] < self.UB_value, name='UB_constraint')
 
         #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
         #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,

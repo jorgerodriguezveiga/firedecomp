@@ -2,6 +2,8 @@
 
 # Package modules
 from firedecomp.classes import general as gc
+from firedecomp.classes import resources_wildfire as rw
+from firedecomp.classes import groups as g
 
 
 # Resource --------------------------------------------------------------------
@@ -16,7 +18,6 @@ class Resource(gc.Element):
                  select=None
                  ):
         """Initialization of the class.
-
         Args:
             name (:obj:`str`): resource name.
             working_this_wildfire (:obj:`bool`): if True the resource is
@@ -40,12 +41,10 @@ class Resource(gc.Element):
                 (including rests, ...) (min). Defaults to ``480``.
             select (:obj:`bool`): ``True`` if resource is used in the wildfire.
                 Defaults to ``None``.
-
         Example:
             >>> from firedecomp.classes.resources import Resource
             >>> Air1 = Resource(
             >>>     "Air1", fix_cost=1000, variable_cost=100, performance=100)
-
         TODO: Check input: integrality, positivity, ...
         """
         super(Resource, self).__init__(name=name)
@@ -63,10 +62,20 @@ class Resource(gc.Element):
         self.necessary_rest_time = necessary_rest_time
         self.max_work_daily = max_work_daily
         self.select = select
+        self.__group__ = g.Groups([])
+        self.__resource_period__ = rw.ResourcesWildfire([])
+
+    def get_total_performance(self):
+        return sum(v.get_performance() for v in self.__resource_period__)
+
+    def update_select(self, value):
+        if isinstance(value, bool):
+            self.select = value
+        else:
+            raise TypeError("Value must be bool.")
 
     def update_units(self, time, period_unit, inplace=True):
         """Update resource attributes units.
-
         Args:
             period_unit (:obj:`bool`): if ``True`` period units. Defaults to
                 ``True``.
@@ -86,16 +95,18 @@ class Resource(gc.Element):
             prop_time_min = time
             prop_time_hour = time/60
 
-        resource.arrival = self.arrival*prop_time_min
-        resource.work = self.work*prop_time_min
-        resource.rest = self.rest*prop_time_min
-        resource.total_work = self.total_work*prop_time_min
-        resource.performance = self.performance/prop_time_hour
-        resource.variable_cost = self.variable_cost/prop_time_hour
-        resource.time_between_rests = self.time_between_rests*prop_time_min
-        resource.max_work_time = self.max_work_time*prop_time_min
-        resource.necessary_rest_time = self.necessary_rest_time*prop_time_min
-        resource.max_work_daily = self.max_work_daily*prop_time_min
+        resource.arrival = round(self.arrival*prop_time_min, 3)
+        resource.work = round(self.work*prop_time_min, 3)
+        resource.rest = round(self.rest*prop_time_min, 3)
+        resource.total_work = round(self.total_work*prop_time_min, 3)
+        resource.performance = round(self.performance/prop_time_hour, 3)
+        resource.variable_cost = round(self.variable_cost/prop_time_hour, 3)
+        resource.time_between_rests = round(
+            self.time_between_rests*prop_time_min, 3)
+        resource.max_work_time = round(self.max_work_time*prop_time_min, 3)
+        resource.necessary_rest_time = round(
+            self.necessary_rest_time*prop_time_min, 3)
+        resource.max_work_daily = round(self.max_work_daily*prop_time_min, 3)
 
         if inplace is not True:
             return resource
@@ -108,10 +119,8 @@ class Resources(gc.Set):
 
     def __init__(self, resources):
         """Initialization of the class.
-
         Args:
             resources (:obj:`list`): list of resources (:obj:`Resource`).
-
         Example:
             >>> from firedecomp.classes.resources import Resources, Resource
             >>> Air1 = Resource("Air1", fix_cost=1000,
@@ -127,7 +136,6 @@ class Resources(gc.Set):
 
     def update_units(self, time, period_unit=True, inplace=False):
         """Update resources attributes units.
-
         Args:
             time (:obj:`int`): minutes corresponding a period.
             period_unit (:obj:`bool`): if ``True`` period units. Defaults to
@@ -137,4 +145,8 @@ class Resources(gc.Set):
         """
         for e in self:
             e.update_units(time=time, period_unit=period_unit, inplace=inplace)
+
+    def update_select(self, values):
+        for r, v in values.items():
+            self[r].update_select(v)
 # --------------------------------------------------------------------------- #

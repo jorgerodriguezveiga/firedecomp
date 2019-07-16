@@ -56,6 +56,23 @@ class InputModel(object):
         self.max_t = int(max(self.T))
         self.model = self.__get_model__()
 
+    def update_model(self, solution):
+        Tlen = self.T
+        Ilen = self.I
+        Glen = self.G
+        sol1 = solution.get_model()
+        for res in Ilen:
+            for tt in Tlen:
+                self.model.get_model().getVarByName("start["+res+","+str(tt)+"]").start = sol1.getVarByName("start["+str(res)+","+str(tt)+"]").start
+                self.model.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = sol1.getVarByName("travel["+str(res)+","+str(tt)+"]").start
+                self.model.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = sol1.getVarByName("rest["+str(res)+","+str(tt)+"]").start
+                self.model.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = sol1.getVarByName("end_rest["+str(res)+","+str(tt)+"]").start
+                self.model.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = sol1.getVarByName("end["+str(res)+","+str(tt)+"]").start
+            for gro in Glen:
+                for tt in Tlen:
+                    self.model.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = sol1.getVarByName("missing_resources["+gro+","+str(tt)+"]").start
+        self.model.get_model().update()
+
     def __get_model__(self):
         return model(self, relaxed=self.relaxed)
 

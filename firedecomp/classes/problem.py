@@ -142,6 +142,19 @@ class Problem(object):
         self.update_units()
         self.data = Data(self)
 
+    def get_variables_solution(self)->dict:
+        """Get variable solution as a dictionary."""
+        solution_dict = {
+            's': {k: float(v) for k, v in self.resources_wildfire.get_info("start").items()},
+            'tr': {k: float(v) for k, v in self.resources_wildfire.get_info("travel").items()},
+            'r': {k: float(v) for k, v in self.resources_wildfire.get_info("rest").items()},
+            'e': {k: float(v) for k, v in self.resources_wildfire.get_info("end").items()},
+            'er': {k: float(v) for k, v in self.resources_wildfire.get_info("end_rest").items()},
+            'mu': {k: float(v) for k, v in self.groups_wildfire.get_info("num_left_resources").items()},
+            'y': {k: float(v) for k, v in self.wildfire.get_info("contained").items()}
+        }
+        return solution_dict
+
     def solve(self, method='original',
               solver_options=None, method_options=None,
               min_res_penalty=1000000,

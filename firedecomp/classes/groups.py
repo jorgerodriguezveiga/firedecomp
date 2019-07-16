@@ -2,6 +2,7 @@
 
 # Package modules
 from firedecomp.classes import general as gc
+from firedecomp.classes import groups_wildfire as gw
 
 
 # Group -----------------------------------------------------------------------
@@ -10,14 +11,11 @@ class Group(gc.Element):
 
     def __init__(self, name, resources):
         """Group of resources.
-
          Group of resources with similar characteristics.
-
         Args:
             name (:obj:`str` or `int`): group name.
             resources (:obj:`firedecomp.classes.resources.Resources`):
                 resources group.
-
         Example:
             >>> import firedecomp
             >>> res = firedecomp.data.examples.resources_example(
@@ -27,9 +25,18 @@ class Group(gc.Element):
         super(Group, self).__init__(name=name)
         self.resources = resources
 
+        # Add group information in resource object.
+        for res in self.resources:
+            res.__group__.add(self)
+
+        self.__group_period__ = gw.GroupsWildfire([])
+
     def size(self):
         """Return the number of members of the group."""
         return len(list(self.resources))
+
+    def __iter__(self):
+        return (r for r in self.resources)
 # --------------------------------------------------------------------------- #
 
 
@@ -39,10 +46,8 @@ class Groups(gc.Set):
 
     def __init__(self, groups):
         """Collection of groups.
-
         Args:
             groups (:obj:`list`): list of groups (:obj:`Group`).
-
         Example:
             >>> import firedecomp
             >>> brigades = firedecomp.data.examples.resources_example(

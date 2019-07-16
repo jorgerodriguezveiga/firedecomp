@@ -13,7 +13,7 @@ from firedecomp.AL import ARPP
 
 # Subproblem ------------------------------------------------------------------
 class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
-    def __init__(self, problem_data, lambda1, beta1, resource_i, list_y, sol, nproblems, NL, relaxed=False,
+    def __init__(self, problem_data, lambda1, beta1, resource_i, list_y, sol, nproblems, NL, upperbound, relaxed=False,
                  min_res_penalty=1000000):
         """Initialize the DecomposedPrimalProblem.
 
@@ -32,6 +32,7 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
         self.solution = sol
         self.nproblems = nproblems
         self.NL = NL
+        self.UB_value = upperbound
 
         super().__init__(problem_data, lambda1, beta1, relaxed, min_res_penalty)
 
@@ -183,8 +184,8 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
 ################################################################################
 # METHOD: UPDATE MODEL
 ################################################################################
-    def update_model(self, lambda1, beta1, sol):
-        """Update lambda in DPP model
+    def update_model(self, lambda1, beta1, sol, ub):
+        """ Update lambda in DPP model
             Args:
             lambda1 (:obj:`list`): Array with lambda values.
         """
@@ -192,6 +193,7 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
         self.solution = sol
         self.lambda1 = lambda1
         self.beta = beta1
+        self.UB_value = ub
         self.__create_vars__()
         self.__create_objfunc__()
         self.__create_constraints__()
