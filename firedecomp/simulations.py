@@ -100,7 +100,7 @@ def simulations(
             instance = examples.input_example(
                 num_brigades=brigades, num_aircraft=aircraft,
                 num_machines=machines, num_periods=periods,
-                contention_factor=10,
+                contention_factor=0.5,
                 random=False, seed=i)
 
             for m in modes:
@@ -112,8 +112,11 @@ def simulations(
                 solution_dict['mode'] = m
 
                 # Solver options
-                orig_options = None
-                fix_work_options = None
+                orig_options = {}
+                original_scip_options = {}
+                fix_work_options = {}
+                benders_scip_options = {}
+                gcg_scip_options = {}
 
                 if solver_options is not None:
                     if 'original' in solver_options:
@@ -123,13 +126,25 @@ def simulations(
                         if 'valid_constraints' not in orig_options:
                             orig_options['valid_constraints'] = None
 
+                    if 'original_scip' in solver_options:
+                        original_scip_options = solver_options['original_scip']
+
                     if 'fix_work' in solver_options:
                         fix_work_options = solver_options['fix_work']
+
+                    if 'benders_scip' in solver_options:
+                        benders_scip_options = solver_options['benders_scip']
+
+                    if 'gcg_scip' in solver_options:
+                        gcg_scip_options = solver_options['gcg_scip']
 
                 instance.solve(
                     method=m,
                     original_options=orig_options,
+                    original_scip_options=original_scip_options,
                     fix_work_options=fix_work_options,
+                    benders_scip_options=benders_scip_options,
+                    gcg_scip_options=gcg_scip_options,
                     min_res_penalty=1000000,
                     log_level=None)
 
@@ -207,7 +222,8 @@ def parse_args():
         default=None,
         nargs='+',
         type=str,
-        choices=['original', 'fix_work'],
+        choices=['original', 'original_scip', 'fix_work', 'benders_scip',
+                 'gcg_scip'],
         help="List of execution modes. "
              "Options allowed: original fix_work. "
              "If None: original fix_work."

@@ -39,6 +39,7 @@ class Master(object):
         self.obj_wildfire = None
         self.obj_law = None
         self.max_obj = None
+        self.no_contention_periods = None
         self.valid_constraints = valid_constraints
 
         self.__start_info__ = {}
@@ -101,8 +102,16 @@ class Master(object):
 
         # Wildfire
         # --------
+        if self.no_contention_periods is None:
+            y_lb = 0
+        else:
+            y_lb = {
+                t: 1 if t < self.no_contention_periods else 0
+                for t in data.T + [data.min_t - 1]
+            }
+        log.debug("Y lower bounds: {}".format(y_lb))
         self.variables.y = self.model.addVars(
-            data.T + [data.min_t - 1], vtype=gurobipy.GRB.BINARY, lb=0, ub=1,
+            data.T + [data.min_t - 1], vtype=gurobipy.GRB.BINARY, lb=y_lb, ub=1,
             name="contention")
         self.variables.y[data.min_t - 1].lb = 1
 
@@ -529,6 +538,11 @@ class Master(object):
             solver_options (:obj:`dict`): gurobi options. Default ``None``.
                 Example: ``{'TimeLimit': 10}``.
         """
+        from io import StringIO
+        import sys
+
+        old_stdout = sys.stdout
+        sys.stdout = StringIO()
         if solver_options is None:
             solver_options = {'OutputFlag': 0, 'LogToConsole': 0}
 
@@ -541,6 +555,9 @@ class Master(object):
                 m.setParam(k, v)
 
         m.optimize()
+
+        # Reset standard output
+        sys.stdout = old_stdout
 
         # Check if exist a solution
         if m.SolCount >= 1 and m.Status != 3:

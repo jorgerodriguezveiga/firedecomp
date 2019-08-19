@@ -8,6 +8,9 @@ from firedecomp.original import model as _model
 from firedecomp.fix_work import fix_work
 from firedecomp import config
 from firedecomp import plot
+import firedecomp.branchprice.model_original as scip_model
+import firedecomp.branchprice.benders_scip as scip
+from firedecomp.config import scip as scip_status
 
 
 # Problem ---------------------------------------------------------------------
@@ -39,9 +42,10 @@ class Problem(object):
         self.period_unit = period_unit
         self.min_res_penalty = min_res_penalty
         self.original_model = None
+        self.original_scip_model = None
         self.fix_work_model = None
-        self.branch_price_model = None
-        self.lagrangian_model = None
+        self.benders_scip_model = None
+        self.gcg_scip_model = None
         self.solve_status = None
         self.mipgap = None
         self.constrvio = None
@@ -109,6 +113,14 @@ class Problem(object):
             period_performance[k] = cum
         return period_performance
 
+    def get_num_selected_resources(self) -> int:
+        """Get the number of selected resources."""
+        return sum([r.select for r in self.resources])
+
+    def get_contention_period(self) -> int:
+        """Get the contention period."""
+        return sum([p.contained is False for p in self.wildfire])
+
     def get_cost(self, resources=True, wildfire=True,
                  resources_penalty=True, per_period=False):
         """Return objective function value."""
@@ -172,7 +184,9 @@ class Problem(object):
         self.data = Data(self)
 
     def solve(self, method='original',
-              original_options=None, fix_work_options=None,
+              original_options=None, original_scip_options=None,
+              fix_work_options=None, benders_scip_options=None,
+              gcg_scip_options=None,
               min_res_penalty=1000000,
               log_level=None):
         """Solve mathematical model.
@@ -182,10 +196,15 @@ class Problem(object):
                 Options: ``'original'``, ``'fix_work'``. Defaults to
                 ``'original'``.
             original_options (:obj:`dict`): gurobi options. Default ``None``.
-                Example: ``{'TimeLimit': 10}``.
+                If ``None`` defaults options.
+            original_scip_options(:obj:`dict`): scip options. Defaults to
+                ``None``. If ``None`` defaults options.
             fix_work_options (:obj:`dict`): fix work method options. Default
-                ``None``. If None:
-                ``{'max_iters': 100, 'min_res_penalty':1000000, 'gap':0.01}``.
+                ``None``. If ``None`` default options.
+            benders_scip_options(:obj:`dict`): benders_scip options. Defaults to
+                ``None``. If ``None`` defaults options.
+            gcg_scip_options(:obj:`dict`): gcg_scip options. Defaults to
+                ``None``. If ``None`` defaults options.
             min_res_penalty (:obj:`float`): positive value that penalize the
                 breach of the minimum number of resources in each period.
                 Defaults to ``1000000``.
@@ -196,11 +215,8 @@ class Problem(object):
         self.solve_time = None
         start_time = time.time()
         if method == 'original':
-            if log_level is None:
-                log_level = 'WARNING'
-
-            valid_constraints = None
-            solver_options = None
+            valid_constraints = []
+            solver_options = {}
             if isinstance(original_options, dict):
                 if 'valid_constraints' in original_options:
                     valid_constraints = original_options['valid_constraints']
@@ -214,67 +230,158 @@ class Problem(object):
             solution = self.original_model.solve(
                 solver_options=solver_options)
             self.solve_status = solution.model.Status
-            self.mipgap = solution.model.mipgap
             if solution.model.SolCount >= 1:
                 self.constrvio = solution.model.constrvio
+                self.mipgap = solution.model.mipgap
             else:
                 self.constrvio = None
-            self.solve_time = solution.model.runtime
-            model = solution
+                self.mipgap = None
+            self.solve_time = solution.model.Runtime
+        elif method == 'original_scip':
+            if original_scip_options is None:
+                original_scip_options = {}
+
+            self.original_scip_model, self.solve_status = scip.solve_original(
+                self, solver_options=original_scip_options)
+
+            # Get information
+            model = self.original_scip_model.model
+            self.solve_status = scip_status.status[model.getStatus()]
+            try:
+                self.constrvio = 0
+                for c in model.getConss():
+                    try:
+                        viol = max(0, - model.getSlack(c))
+                    except Exception:
+                        viol = 0
+                    if viol > self.constrvio:
+                        self.constrvio = viol
+                self.mipgap = model.getGap()
+            except Exception:
+                self.constrvio = None
+                self.mipgap = None
+            self.solve_time = model.getSolvingTime()
+
         elif method == 'fix_work':
             if log_level is None:
                 log_level = 'fix_work'
 
-            default_fix_work_options = {
-                'max_iters': 100,
-                'mip_gap_obj': 0.01,
-                'solver_options_master': {},
-            }
-            if isinstance(fix_work_options, dict):
-                default_fix_work_options.update(fix_work_options)
+            if fix_work_options is None:
+                fix_work_options = {}
             self.fix_work_model = fix_work.FixWorkAlgorithm(
-                self, **default_fix_work_options, log_level=log_level)
+                self, **fix_work_options, log_level=log_level)
             self.solve_status = self.fix_work_model.solve()
-            self.mipgap = self.fix_work_model.master.model.mipgap
             if self.fix_work_model.master.model.SolCount >= 1:
                 self.constrvio = self.fix_work_model.master.model.constrvio
+                self.mipgap = self.fix_work_model.master.model.mipgap
             else:
-                self.constrvio = float('inf')
+                self.constrvio = None
+                self.mipgap = None
             self.solve_time = self.fix_work_model.runtime
-            model = self.fix_work_model
+
+        elif method == 'benders_scip':
+            if benders_scip_options is None:
+                benders_scip_options = {}
+
+            self.benders_scip_model, self.solve_status = scip.solve_benders(
+                self, solver_options=benders_scip_options)
+
+            # Get information
+            model = self.benders_scip_model.model
+            self.solve_status = scip_status.status[model.getStatus()]
+            try:
+                self.constrvio = 0
+                for c in model.getConss():
+                    try:
+                        viol = max(0, - model.getSlack(c))
+                    except Exception:
+                        viol = 0
+                    if viol > self.constrvio:
+                        self.constrvio = viol
+                self.mipgap = model.getGap()
+            except Exception as e:
+                print(e)
+                self.constrvio = None
+                self.mipgap = None
+            self.solve_time = model.getSolvingTime()
+
+        elif method == 'gcg_scip':
+            if gcg_scip_options is None:
+                gcg_scip_options = {}
+
+            # Solving the problem with GCG via call to system
+            self.solve_status = scip.solve_GCG(
+                self, model_name='fireproblem', solver_options=gcg_scip_options)
+
+            # Get information
+            self.solve_status = 0
+            self.constrvio = None
+            self.mipgap = None
+            self.solve_time = None
+            self.gcg_scip_model = None
+
         else:
             raise ValueError(
                 "Incorrect method '{}'. Options allowed: {}".format(
-                    method, ["original"]
+                    method,
+                    ["original", "original_scip", "fix_work", "benders_scip",
+                     "gcg_scip"]
                 ))
-
         self.time = time.time() - start_time
-
-        return model
 
     def get_solution_info(self):
         """Get solution information."""
-        res_cost = self.get_cost(
-                resources=True, wildfire=False, resources_penalty=False)
-        wildfire_cost = self.get_cost(
-                resources=False, wildfire=True, resources_penalty=False)
-        res_penalty = self.get_cost(
-                resources=False, wildfire=False, resources_penalty=True)
-        objfun = res_cost + wildfire_cost + res_penalty
+        try:
+            res_cost = self.get_cost(
+                    resources=True, wildfire=False, resources_penalty=False)
+        except TypeError:
+            res_cost = None
+
+        try:
+            wildfire_cost = self.get_cost(
+                    resources=False, wildfire=True, resources_penalty=False)
+        except TypeError:
+            wildfire_cost = None
+
+        try:
+            res_penalty = self.get_cost(
+                    resources=False, wildfire=False, resources_penalty=True)
+        except TypeError:
+            res_penalty = None
+
+        if res_cost and wildfire_cost and res_penalty:
+            objfun = res_cost + wildfire_cost + res_penalty
+        else:
+            objfun = None
+
+        try:
+            selected_resources = self.get_num_selected_resources()
+        except TypeError:
+            selected_resources = None
+
+        if selected_resources:
+            contention_period = self.get_contention_period()
+        else:
+            contention_period = None
+
+        if objfun is not None and self.mipgap is not None:
+            mipgapabs = self.mipgap*objfun
+        else:
+            mipgapabs = None
+
         return {
             'obj_fun': objfun,
             'res_cost': res_cost,
             'wildfire_cost': wildfire_cost,
             'resources_penalty': res_penalty,
             'mipgap': self.mipgap,
-            'mipgapabs': self.mipgap*objfun,
+            'mipgapabs': mipgapabs,
             'constrvio': self.constrvio,
             'status': self.solve_status,
             'solve_time': self.solve_time,
             'elapsed_time': self.time,
-            'selected_resources': sum([r.select for r in self.resources]),
-            'contention_period': sum([p.contained is False
-                                      for p in self.wildfire])
+            'selected_resources': selected_resources,
+            'contention_period': contention_period
         }
 
     def plot(self, info='scheduling'):
@@ -307,6 +414,14 @@ class Problem(object):
             else:
                 obj.__dict__[k] = v
         return obj
+
+    def get_initial_sol(self) -> bool:
+        """Update the model with an initial solution.
+
+        Return:
+            If initial solution is feasible return True otherwise False.
+        """
+        return fix_work.utils.get_initial_sol(self)
 
     def __repr__(self):
         header_start = "+-"

@@ -10,6 +10,39 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
+v3.1.0 - 19/08/2019
+-------------------
+
+### Added ###
+- Display fix_work algorithm behaviour.
+- Add method to get initial solution. If an initial solution is not founded the function returns False, otherwise True.
+
+### Changed ###
+- Updated default solver options.
+
+### Fixed ###
+- Fixed problems in fix_work algorithm.
+- Fix error in scheduling plot.
+- Fix error updating fix_work solver options.
+
+v3.0.0 - 29/05/2019
+-------------------
+
+### Added ###
+- Add MANIFEST.in.
+- Add original_scip solve method.
+- Add benders_scip solve method.
+- Add gcg_scip solve method.
+
+### Changed ###
+- Update documentation.
+- Update instances generation to try to avoid infeasible problems.
+
+### Fixed ###
+- Fix error when no solution is found.
+- Fix error writing None object in csv.
+- Fix error try to write results when there are not.
+
 v2.0.0 - 01/05/2019
 -------------------
 

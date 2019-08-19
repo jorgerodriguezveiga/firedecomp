@@ -6,7 +6,8 @@ original:
     OutputFlag: 1
     LogToConsole: 1
     TimeLimit: 600
-fix_work_algorithm:
+original_scip:
+fix_work:
   mip_gap_obj: 0.01
   n_start_info: 20
   max_iters: 1000
@@ -14,9 +15,15 @@ fix_work_algorithm:
   start_period: 20
   step_period: 6
   valid_constraints: ['max_obj', 'work', 'contention']
-  solver_options_master:
+  solver_options:
     MIPGapAbs: 0
     MIPGap: 0
     OutputFlag: 0
     LogToConsole: 0
     TimeLimit: 600
+benders_scip:
+  limits/time: 600
+  display/verblevel: 0
+gcg_scip:
+  limits/time: 600
+  display/verblevel: 0

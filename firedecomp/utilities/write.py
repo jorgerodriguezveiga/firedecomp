@@ -37,6 +37,7 @@ def write_solution_as_csv(
             f.write(sep.join(data_dict.keys()) + '\n')
 
         f.write(sep.join([str(v).replace(".", dec)
-                          if isinstance(v, (int, float)) else v
+                          if isinstance(v, (int, float)) else
+                          v if v is not None else "None"
                           for v in data_dict.values()]) + '\n')
 # --------------------------------------------------------------------------- #
