@@ -73,7 +73,8 @@ class FixWorkAlgorithm(object):
         self.start_period = start_period
         self.step_period = step_period
         self.valid_constraints = valid_constraints
-        self.solver_options = {} if solver_options is None else solver_options
+        self.solver_options = {} if solver_options is None \
+            else solver_options.copy()
 
         self.num_cuts_prev = 0
         self.status = 1
