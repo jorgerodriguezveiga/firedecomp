@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
+v3.1.0 - 19/08/2019
+-------------------
+
 ### Added ###
 - Display fix_work algorithm behaviour.
 - Add method to get initial solution. If an initial solution is not founded the function returns False, otherwise True.
@@ -20,6 +23,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Fixed ###
 - Fixed problems in fix_work algorithm.
 - Fix error in scheduling plot.
+- Fix error updating fix_work solver options.
 
 v3.0.0 - 29/05/2019
 -------------------
