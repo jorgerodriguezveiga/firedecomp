@@ -1,0 +1,2 @@
+seed;num_brigades;num_aircraft;num_machines;num_periods;mode;obj_fun;res_cost;wildfire_cost;resources_penalty;mipgap;mipgapabs;constrvio;status;solve_time;elapsed_time;selected_resources;contention_period
+0;20;20;5;30;fix_work;10038499,749999974;35199,990000000034;3299,76;9999999,999999974;None;None;None;9;599,2958950996399;604,2633333206177;18;13
