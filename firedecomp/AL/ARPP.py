@@ -15,7 +15,7 @@ from firedecomp.original import model
 # CLASS RelaxedPrimalProblem()
 ################################################################################
 class RelaxedPrimalProblem(model.InputModel):
-    def __init__(self, problem_data, lambda1, beta1, relaxed=False, min_res_penalty=1000000):
+    def __init__(self, problem_data, lambda1, beta1, NL, relaxed=False, min_res_penalty=1000000):
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
@@ -24,6 +24,8 @@ class RelaxedPrimalProblem(model.InputModel):
         self.problem_data = problem_data
         self.relaxed = relaxed
         self.min_res_penalty = min_res_penalty
+        self.UB_value = float("inf")
+        self.NL = NL
 
         # Extract data from problem data
         self.__extract_data_problem__()
@@ -110,6 +112,7 @@ class RelaxedPrimalProblem(model.InputModel):
         self.__create_gurobi_model__()
         self.__create_vars__()
         self.__create_objfunc__()
+        self.__create_constraints_aux__()
         self.__create_constraints__()
         self.m.update()
         model = solution.Solution(
@@ -162,17 +165,20 @@ class RelaxedPrimalProblem(model.InputModel):
         # --------
         self.mu = self.m.addVars(self.G, self.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
                       name="missing_resources")
-        self.__create_var_y_and_fixed_vars__()
+        self.__create_var_y_and_aux_vars__()
 
         # (2) Auxiliar variables
         self.__create_auxiliar_vars__()
 ################################################################################
-# PRIVATE METHOD: __create_var_y__
+# PRIVATE METHOD: __create_var_y_and_aux_vars__
 ################################################################################
-    def __create_var_y_and_fixed_vars__(self):
+    def __create_var_y_and_aux_vars__(self):
         self.sizey = len(self.T + [self.min_t-1])
         self.y = self.m.addVars(self.T + [self.min_t-1], vtype=self.vtype, lb=self.lb, ub=self.ub,
                               name="contention")
+
+        self.aux_total  = self.m.addVars(self.NL,vtype=gurobipy.GRB.CONTINUOUS, name="aux_total_AL")
+        self.aux_mult = self.m.addVars(self.NL,vtype=gurobipy.GRB.CONTINUOUS, name="aux_mult_AL")
 
 ################################################################################
 # PRIVATE METHOD: create_auxiliar_vars
@@ -231,7 +237,7 @@ class RelaxedPrimalProblem(model.InputModel):
         list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
                     for g in self.G for t in self.T)
 
-        list_Constr = Constr1 + list_Constr2 #Constr1 + list_Constr2 + list_Constr3 + list_Constr4
+        list_Constr = Constr1 + list_Constr2 + list_Constr3 + list_Constr4
 
 # Objective
 # =========
@@ -241,28 +247,34 @@ class RelaxedPrimalProblem(model.InputModel):
                        sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
                        0.001*self.y[self.max_t])
 
+        self.function_obj_total = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
+                       sum([self.P[i] * self.z[i] for i in self.I]) +
+                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+                       0.001*self.y[self.max_t])
+
         self.LR_obj = 0
         self.LR_obj_const = []
-        self.aux_total  = self.m.addVars(len(list_Constr),vtype=gurobipy.GRB.CONTINUOUS, name="aux_total_AL")
-        self.aux_mult = self.m.addVars(len(list_Constr),vtype=gurobipy.GRB.CONTINUOUS, name="aux_mult_AL")
 
         zero = 0
-        #print(self.aux_var)
-        #print(len(list_Constr))
+
         for i in range(0, len(list_Constr)):
             Constr1 = list_Constr[i]
             self.aux_mult[i] = self.lambda1[i] + self.beta[i] * Constr1
-            self.m.addConstr((self.aux_total[i] >= 0))
-            self.m.addConstr((self.aux_total[i] >= self.aux_mult[i]) ,name='aux_AL_constraint')
-
-        for i in range(0,len(list_Constr)):
-            Constr1 = list_Constr[i]
-            anula=1
-            self.lambda1[i] = self.lambda1[i] * anula
-            self.LR_obj = anula*self.LR_obj + 1/(2*self.beta[i]) * (self.aux_total[i]*self.aux_total[i] - self.lambda1[i]*self.lambda1[i])
+            self.LR_obj = self.LR_obj + 1/(2*self.beta[i]) * (self.aux_total[i]*self.aux_total[i] - self.lambda1[i]*self.lambda1[i])
             self.LR_obj_const.append(Constr1)
 
         self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
+
+################################################################################
+# PRIVATE METHOD: __create_constraints_aux__()
+################################################################################
+    def __create_constraints_aux__(self):
+        self.aux_AL_constraint = []
+        for i in range(0, self.NL):
+            self.m.addConstr((self.aux_total[i] >= 0),name='aux_total_constraint'+str(i))
+            self.m.addConstr((self.aux_total[i] >= self.aux_mult[i]) ,name='aux_AL_constraint'+str(i))
+
 
 
 ################################################################################
@@ -273,8 +285,9 @@ class RelaxedPrimalProblem(model.InputModel):
     # ===========
     # Wildfire Containment
     # --------------------
-
         self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
+
+        self.upperbound_const = self.m.addConstr(self.function_obj_total<=self.UB_value, name='upperbound_const')
 
         #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
         #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
@@ -366,15 +379,15 @@ class RelaxedPrimalProblem(model.InputModel):
 
         # Non-Negligence of Fronts
         # ------------------------
-        self.m.addConstrs(
-            ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-         <= 0 for g in self.G for t in self.T),
-        name='non-negligence_1')
+        #self.m.addConstrs(
+        #    ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+        # <= 0 for g in self.G for t in self.T),
+        #name='non-negligence_1')
 
-        self.m.addConstrs(
-        (sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
-         for g in self.G for t in self.T),
-        name='non-negligence_2')
+        #self.m.addConstrs(
+        #(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
+        # for g in self.G for t in self.T),
+        #name='non-negligence_2')
 
         # Logical constraints
         # ------------------------
@@ -411,6 +424,7 @@ class RelaxedPrimalProblem(model.InputModel):
         self.lambda1 = lambda1
         self.__create_vars__()
         self.__create_objfunc__()
+        self.__create_constraints_aux__()
         self.__create_constraints__()
         self.m.update()
         self.model = solution.Solution(
