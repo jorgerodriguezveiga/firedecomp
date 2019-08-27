@@ -13,7 +13,7 @@ from firedecomp.AL import ARPP
 
 # Subproblem ------------------------------------------------------------------
 class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
-    def __init__(self, problem_data, lambda1, beta1, resource_i, list_y, sol, nproblems, NL, upperbound, relaxed=False,
+    def __init__(self, problem_data, lambda1, beta1, resource_i, list_y, sol, nproblems, NL, relaxed=False,
                  min_res_penalty=1000000):
         """Initialize the DecomposedPrimalProblem.
 
@@ -32,7 +32,6 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
         self.solution = sol
         self.nproblems = nproblems
         self.NL = NL
-        self.UB_value = upperbound
 
         super().__init__(problem_data, lambda1, beta1, NL, relaxed, min_res_penalty)
         self.__update_vars__()
@@ -154,7 +153,7 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
         list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
                     for g in self.G for t in self.T)
 
-        list_Constr = Constr1 + list_Constr2 + list_Constr3 + list_Constr4
+        list_Constr = Constr1 + list_Constr2 #+ list_Constr3 + list_Constr4
 
 # Objective
 # =========
@@ -164,15 +163,26 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
                        sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
                        0.001*self.y[self.max_t])
 
-        if (self.resource_i == 0):
-            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
-                   sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]) +
-                   sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
-                   sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
-                   0.001*self.y[self.max_t])
-        else:
-            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
-                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]))
+        self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
+                       sum([self.P[i] * self.z[i] for i in self.I]) +
+                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+                       0.001*self.y[self.max_t])
+
+        self.function_obj_total = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
+                       sum([self.P[i] * self.z[i] for i in self.I]) +
+                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+                       0.001*self.y[self.max_t])
+#        if (self.resource_i == 0):
+#            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+#                   sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]) +
+#                   sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+#                   sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+#                   0.001*self.y[self.max_t])
+#        else:
+#            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+#                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]))
 
         self.LR_obj = 0
         self.LR_obj_const = []
@@ -189,7 +199,7 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
 ################################################################################
 # METHOD: UPDATE MODEL
 ################################################################################
-    def update_model(self, lambda1, beta1, sol, ub):
+    def update_model(self, lambda1, beta1, sol):
         """ Update lambda in DPP model
             Args:
             lambda1 (:obj:`list`): Array with lambda values.
@@ -198,10 +208,10 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
         self.solution = sol
         self.lambda1 = lambda1
         self.beta = beta1
-        self.UB_value = ub
+
         self.__update_vars__()
         self.__create_objfunc__()
-        self.upperbound_const.setAttr("rhs", self.UB_value)
+        #self.upperbound_const.setAttr("rhs", self.UB_value)
         self.m.update()
         #rint("SIZE VARS "+str(len(self.m.getVars())))
         #print("SIZE CONS "+str(len(self.m.getConstrs())))

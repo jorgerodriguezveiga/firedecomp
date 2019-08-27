@@ -24,7 +24,7 @@ class RelaxedPrimalProblem(model.InputModel):
         self.problem_data = problem_data
         self.relaxed = relaxed
         self.min_res_penalty = min_res_penalty
-        self.UB_value = float("inf")
+        #self.UB_value = float("inf")
         self.NL = NL
 
         # Extract data from problem data
@@ -237,7 +237,7 @@ class RelaxedPrimalProblem(model.InputModel):
         list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
                     for g in self.G for t in self.T)
 
-        list_Constr = Constr1 + list_Constr2 + list_Constr3 + list_Constr4
+        list_Constr = Constr1 + list_Constr2 #+ list_Constr3 + list_Constr4
 
 # Objective
 # =========
@@ -287,7 +287,7 @@ class RelaxedPrimalProblem(model.InputModel):
     # --------------------
         self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
 
-        self.upperbound_const = self.m.addConstr(self.function_obj_total<=self.UB_value, name='upperbound_const')
+        #self.upperbound_const = self.m.addConstr(self.function_obj_total<=self.UB_value, name='upperbound_const')
 
         #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
         #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
@@ -379,15 +379,15 @@ class RelaxedPrimalProblem(model.InputModel):
 
         # Non-Negligence of Fronts
         # ------------------------
-        #self.m.addConstrs(
-        #    ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-        # <= 0 for g in self.G for t in self.T),
-        #name='non-negligence_1')
+        self.m.addConstrs(
+            ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+         <= 0 for g in self.G for t in self.T),
+        name='non-negligence_1')
 
-        #self.m.addConstrs(
-        #(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
-        # for g in self.G for t in self.T),
-        #name='non-negligence_2')
+        self.m.addConstrs(
+        (sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
+         for g in self.G for t in self.T),
+        name='non-negligence_2')
 
         # Logical constraints
         # ------------------------
