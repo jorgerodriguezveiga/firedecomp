@@ -379,15 +379,15 @@ class RelaxedPrimalProblem(model.InputModel):
 
         # Non-Negligence of Fronts
         # ------------------------
-        self.m.addConstrs(
-            ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-         <= 0 for g in self.G for t in self.T),
-        name='non-negligence_1')
+        #self.m.addConstrs(
+        #    ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+        # <= 0 for g in self.G for t in self.T),
+        #name='non-negligence_1')
 
-        self.m.addConstrs(
-        (sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
-         for g in self.G for t in self.T),
-        name='non-negligence_2')
+        #self.m.addConstrs(
+        #(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
+        # for g in self.G for t in self.T),
+        #name='non-negligence_2')
 
         # Logical constraints
         # ------------------------
