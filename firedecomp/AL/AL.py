@@ -49,7 +49,8 @@ class AugmentedLagrangian(object):
         if problem_data.period_unit is False:
             raise ValueError("Time unit of the problem is not a period.")
         self.problem_data = problem_data
-
+        self.solution_best = None
+        self.solution_best_original = None
         # GLOBAL VARIABLES
         self.max_iters = max_iters
         self.max_time = max_time
@@ -133,7 +134,7 @@ class AugmentedLagrangian(object):
                 lambda_row_inf.append(float("inf"))
                 beta_row.append(0.5)
             self.lambda_matrix.append(lambda_row)
-            self.lambda_matrix_prev.append(lambda_row_inf)
+            self.lambda_matrix_prev.append(lambda_row)
             self.beta_matrix.append(beta_row)
 
 ###############################################################################
@@ -222,10 +223,16 @@ class AugmentedLagrangian(object):
         elif (optimal_solution_found == 1):
             print("[STOP] Convergence achieved, optimal solution found!")
             stop = bool(True)
+
+        if stop == bool(True):
+            if self.solution_best != None:
+                self.solution_best_original = self.create_solution_DPP_to_original(self.solution_best)
         return stop
 
 ###############################################################################
 # PUBLIC METHOD solve()
+###############################################################################
+# OLLO FACELO POR GRUPO DE PERIODOS, POR EXEMPLO DE CINCO EN CINCO
 ###############################################################################
     def solve(self, max_iters=100):
         termination_criteria = bool(False)
@@ -247,7 +254,6 @@ class AugmentedLagrangian(object):
         for i in range(0,self.y_master_size-1):
             DPP_sol_feasible.append(1)
             self.DPP_sol.append(self.create_initial_solution(isol, osol))
-        solution_best=osol
         # (1) Initialize DPP
         print("CREATE SET DPP")
         self.create_DPP_set()
@@ -315,13 +321,14 @@ class AugmentedLagrangian(object):
                         print("\tlobj "+str(self.lobj_local[i])+" fobj "+str(self.fobj_local[i])+" infeas "+str(self.infeas_local[i]))
                         self.subgradient( self.subgradient_local[i] , self.lambda_matrix[i], self.beta_matrix[i], i)
                         if (inf_sol <= 0):
+                            print("Gather_solution"+str(i))
                             self.DPP_sol[i]=self.gather_solution(DPP_sol_row, self.DPP_sol[i], self.lambda_matrix[i], self.lambda_matrix_prev[i])
                     else:
                         self.termination_counter[i] = self.th_sol + 1
                         self.DPP_sol[i]= initial_solution
                         DPP_sol_feasible[i] = 0
 
-                    if (self.fobj_global > self.fobj_local[i] and (self.infeas_local[i] == 0)) or (self.fobj_global > self.fobj_local[i] and (self.infeas_local[i] < self.infeas_global)):
+                    if (self.fobj_global > self.fobj_local[i] and (self.infeas_local[i] == 0)): #or (self.fobj_global > self.fobj_local[i] and (self.infeas_local[i] < self.infeas_global)):
                         self.lobj_global  = self.lobj_local[i]
                         self.fobj_global = self.fobj_local[i]
                         self.subgradient_global = self.subgradient_local[i]
@@ -329,9 +336,7 @@ class AugmentedLagrangian(object):
                         self.infeas_global = self.infeas_local[i]
                         self.index_best_i = i
                         self.index_best_j = j
-                        solution_best = self.DPP_sol[i].copy()
-
-                        
+                        self.solution_best = self.DPP_sol[i]
                         change=1
 
             # (3) Check termination criteria
@@ -339,13 +344,42 @@ class AugmentedLagrangian(object):
             self.v = self.v + 1
             # Update DPP
             self.update_DPP_set(self.lambda_matrix, self.beta_matrix, self.DPP_sol, DPP_sol_feasible)
-            # COPY CURRENT LAMBDAS
-            for i in range(0,len(self.lambda_matrix)):
-                self.lambda_matrix_prev[i] = self.lambda_matrix[i].copy()
+
 
         # DESTROY DPP
         self.destroy_DPP_set()
-        return self.solution_best
+        return self.solution_best_original
+
+###############################################################################
+# PRIVATE SET SOLUTION RRP IN ORIGINAL Solution
+###############################################################################
+    def create_solution_DPP_to_original(self, DPP_sol):
+        counter = 0
+        Tlen = self.problem_data.get_names("wildfire")
+        Ilen = self.problem_data.get_names("resources")
+        Glen = self.problem_data.get_names("groups")
+        imodel =  _model.InputModel(self.problem_data)
+        counter=0
+        for res in Ilen:
+            for tt in Tlen:
+                imodel.model.get_model().getVarByName("start["+res+","+str(tt)+"]").start = DPP_sol.get_variables().get_variable('s')[res,tt].start
+                imodel.model.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = DPP_sol.get_variables().get_variable('tr')[res,tt].start
+                imodel.model.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = DPP_sol.get_variables().get_variable('r')[res,tt].start
+                imodel.model.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = DPP_sol.get_variables().get_variable('er')[res,tt].start
+                imodel.model.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = DPP_sol.get_variables().get_variable('e')[res,tt].start
+            counter = counter + 1
+        for gro in Glen:
+            for tt in Tlen:
+                imodel.model.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = DPP_sol.get_variables().get_variable('mu')[gro,tt].start
+        imodel.model.get_model().update()
+        init_options = {
+            'IterationLimit': 1,
+            'OutputFlag': 0,
+            'LogToConsole': 0,
+        }
+        sol1 = imodel.solve(solver_options=init_options)
+
+        return sol1
 
 ###############################################################################
 # PRIVATE gather_solution()
@@ -357,29 +391,36 @@ class AugmentedLagrangian(object):
         r = gurobipy.tupledict()
         er = gurobipy.tupledict()
         e = gurobipy.tupledict()
+        mu = gurobipy.tupledict()
         Tlen = self.problem_data.get_names("wildfire")
         Ilen = self.problem_data.get_names("resources")
         Glen = self.problem_data.get_names("groups")
-
+#####################################
         for res in Ilen:
             DPP = DPP_sol_row[counter]
-            if abs(abs(lambda_matrix_prev[counter]) - abs(lambda_matrix[counter]))/abs(lambda_matrix_prev[counter]) > 1:
-                for tt in Tlen:
-                    s[res,tt] = DPP.get_variables().get_variable('s')[res,tt].X
-                    tr[res,tt] = DPP.get_variables().get_variable('tr')[res,tt].X
-                    r[res,tt] = DPP.get_variables().get_variable('r')[res,tt].X
-                    er[res,tt] = DPP.get_variables().get_variable('er')[res,tt].X
-                    e[res,tt] = DPP.get_variables().get_variable('e')[res,tt].X
-                counter = counter + 1
+#            if abs(abs(lambda_matrix_prev[counter]) - abs(lambda_matrix[counter]))/abs(lambda_matrix_prev[counter]) > 0.0000001 :#0.1:
+#            lambda_matrix_prev[counter] = lambda_matrix[counter]
+            for tt in Tlen:
+                s[res,tt] = DPP.get_variables().get_variable('s')[res,tt]
+                tr[res,tt] = DPP.get_variables().get_variable('tr')[res,tt]
+                r[res,tt] = DPP.get_variables().get_variable('r')[res,tt]
+                er[res,tt] = DPP.get_variables().get_variable('er')[res,tt]
+                e[res,tt] = DPP.get_variables().get_variable('e')[res,tt]
+            counter = counter + 1
+        for gro in Glen:
+            for tt in Tlen:
+                mu[gro,tt] = DPP.get_variables().get_variable('mu')[gro,tt]
+
         vars = gurobipy.tupledict()
         vars["s"] = s
         vars["tr"] = tr
         vars["r"] = r
         vars["er"] = er
         vars["e"] = e
+        vars["mu"] = mu
         modelcopy = initial_solution.get_model().copy()
-
         counter=0
+#####################################
         for res in Ilen:
             DPP = DPP_sol_row[counter]
             for tt in Tlen:
@@ -394,10 +435,14 @@ class AugmentedLagrangian(object):
                 modelcopy.getVarByName("missing_resources["+gro+","+str(tt)+"]").start = DPP.get_variables().get_variable('mu')[gro,tt].X
 
         modelcopy.update()
-        sol1 = _sol.Solution(modelcopy, vars)
+        sol1 = _sol.Solution(model=modelcopy, variables=vars)
+
 
         return sol1
 
+###############################################################################
+# PRIVATE create_initial_solution()
+###############################################################################
     def create_initial_solution(self, isol, osol):
         Tlen = self.problem_data.get_names("wildfire")
         Ilen = self.problem_data.get_names("resources")
@@ -480,6 +525,7 @@ class AugmentedLagrangian(object):
 ###############################################################################
     def update_DPP_set(self, lambda_matrix, beta_matrix, solution, DPP_feasible):
         for i in range(0,self.y_master_size-1):
+            print("update_DPP_set"+str(i))
             for j in range(0,self.N):
                 if (DPP_feasible[i] == 1):
                     self.problem_DPP[i][j].update_model(lambda_matrix[i], beta_matrix[i], solution[i])
