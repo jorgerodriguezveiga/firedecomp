@@ -5,10 +5,12 @@ try:
 except ModuleNotFoundError:
     pass
 
+# Python package
+import time
 import logging as log
 import re as re
 import subprocess
-import os
+import os, shutil
 
 # Package modules
 from firedecomp.classes import solution
@@ -763,8 +765,7 @@ def solve_benders(problem_data, solver_options):
             {(g, t): {'num_left_resources': subprob.getVal(subprob_problem.variables.mu[g, t])}
              for g in data.G for t in data.T})
         contained = {t: subprob.getVal(subprob_problem.variables.y[t]) == 0 for t in data.T}
-        contained_period = [t for t, v in contained.items()
-                            if v is True]
+        contained_period = [t for t, v in contained.items() if v is True]
         if len(contained_period) > 0:
             first_contained = min(contained_period) + 1
         else:
@@ -780,39 +781,91 @@ def solve_benders(problem_data, solver_options):
 def solve_GCG(problem_data, model_name = 'fireproblem', solver_options=None):
     # Create temporal scip folder
     auxiliary_folder = os.getcwd()+"/temp_scip"
-    if not os.path.exists(auxiliary_folder):
-        os.makedirs(auxiliary_folder)
+    if os.path.exists(auxiliary_folder):
+        shutil.rmtree(auxiliary_folder)
+    os.makedirs(auxiliary_folder)
+    
+    # File names:
     model_file = auxiliary_folder + "/" + model_name + '.mps'
     decomp_file = auxiliary_folder + "/" + model_name + '_decomp.dec'
     sol_file = auxiliary_folder + "/" + 'sol_' + model_name + '.sol'
     options_file = auxiliary_folder + "/" + model_name + 'scip_options.set'
+    output_gcg = auxiliary_folder + "/" + model_name + 'output_gcg.txt'
     # Creating the model:
     original_problem = Problem_model(problem_data.data)
     # Write gcc input files (model and decomposition)
     original_problem.writeGCGfiles(model_file, decomp_file)
     # Write options to a file:
     if solver_options is None:
-        solver_options = {'display/verblevel': 0}
+        solver_options = {'display/verblevel': 3}
+    else:
+        solver_options.update({'display/verblevel': 3})
+    
+    # Write GCG file options    
     with open(options_file, "w") as scip_options:
       for option in solver_options:
         scip_options.write(str(option) + '= ' + str(solver_options[option]) + "\n")
     # Call to system:
     gcg_commands = 'set load ' + options_file
     gcg_commands += ' r ' + model_file
-    gcg_commands += ' r ' + decomp_file
+    #gcg_commands += ' r ' + decomp_file
     gcg_commands += ' optimize '
     gcg_commands += ' write solution ' + sol_file
+    gcg_commands += ' checksol '
     gcg_commands += ' q'
-    call_line = "gcg" + " -c " + "\'" + gcg_commands + "\'"
+    call_line = "gcg" + " -c " + "\'" + gcg_commands + "\'" + " > " + output_gcg
+    start_time = time.time()
     status = subprocess.call(call_line, shell=True)
     # Check if the solution file was generated:
-    exists = os.path.isfile(sol_file)
-    if exists:
+    solve_time = None
+    mipgap = None 
+    max_vio = None
+    # Leemos output GCG
+    if os.path.isfile(output_gcg):
+        status = 2
+        solve_time, mipgap, max_vio = readOutputGGC(output_gcg)
+    else:
+        status = 0
+    # Leemos fichero con la solucion 
+    if os.path.isfile(sol_file):
+        status = 2
         readSolFileAndUpdate(sol_file, problem_data)
     else:
         status = 0
-    return status
+        
+    return status, solve_time, mipgap, max_vio
+    
 
+def readOutputGGC(output_file):
+
+    regexp = re.compile(r"^\s*(\S*)\s*(\S*)",re.VERBOSE)
+    max_vio = None
+    solve_time = None
+    mipgap = None
+    with open(output_file,'r') as sf:
+        for counter, line in enumerate(sf):
+            word = re.search(regexp,line)
+            if word.group(1) == "Solving" and word.group(2) == "Time":
+                regex_time = re.compile(r"\:\s*(\S*)",re.VERBOSE)
+                find = re.search(regex_time,line)
+                solve_time = float(find.group(1))
+            if word.group(1) == "Gap":
+                regex_gap = re.compile(r"\:\s*(\S*)",re.VERBOSE)
+                find = re.search(regex_gap,line)
+                mipgap = float(find.group(1))
+            if word.group(1) in ['bounds','integrality','LP','constraints']:
+                regex_maxvio = re.compile(r"\:\s*(\S*)\s*(\S*)",re.VERBOSE)
+                find = re.search(regex_maxvio,line)
+                abs_vio = find.group(1)
+                rel_vio = find.group(2)
+                if max_vio:
+                    max_vio = max(max_vio,float(abs_vio))
+                else:
+                    max_vio = float(abs_vio)
+                
+    return solve_time, mipgap, max_vio
+    
+    
 def readSolFileAndUpdate(sol_file, problem):
     data = problem.data
     regexp = re.compile(r"^(\S*)\[(\S*)\]\s*(\S*)",re.VERBOSE)
@@ -826,44 +879,46 @@ def readSolFileAndUpdate(sol_file, problem):
                 var_name.append(sol_info.group(1))
                 var_key.append(sol_info.group(2))
                 var_val.append(sol_info.group(3))
+
+    # Initialize variable objects to 0
     resources_wildfire = {(i,t):
         {
-        'start': False,
-        'travel': False,
-        'rest': False,
-        'end_rest': False,
-        'end': False,
-        'use':  False,
-        'work': False
+        'start': 0,
+        'travel': 0,
+        'rest': 0,
+        'end_rest': 0,
+        'end': 0,
+        'use':  0,
+        'work': 0
         }
         for i in data.I for t in data.T}
-    contained = {t:False for t in data.T}
+    contained = {t:True for t in data.T}
     groups_wildfire = {(g,t):
         {
-        'num_left_resources': False
+        'num_left_resources': 0
         }
         for g in data.G for t in data.T}
+    # Update vars values with solution:
     for counter,var in enumerate(var_name):
         key = var_key[counter]
         val = float(var_val[counter])
         if var == 'contention':
             t = int(key)
-            if val == 0:
-                contained[t] = True
+            if val == 1:
+                contained[t] = False
         elif var == 'missing_resources':
             g,t = key.split(',')
             t = int(t)
-            if val == 0:
-                groups_wildfire[g,t]['num_left_resources'] = True
-        else: # 'start, travel, rest, '
+            groups_wildfire[g,t]['num_left_resources'] = val
+        else: # 'start, travel, rest, end '
             i,t = key.split(',')
             t = int(t)
             if val == 1:
-                resources_wildfire[(i,t)][var] = True
+                resources_wildfire[(i,t)][var] = 1
     # Define z, u and w variable:
     resources = {i:
                 {
-                'select': sum([resources_wildfire[i,t]['end'] for t in data.T])>0
+                'select': sum([resources_wildfire[i,t]['end'] for t in data.T])==1
                 }
                 for i in data.I}
     for i in data.I:
@@ -871,9 +926,9 @@ def readSolFileAndUpdate(sol_file, problem):
             uval = (sum([resources_wildfire[(i,tind)]['start'] for tind in data.T_int(p_max=t)])
                   - sum([resources_wildfire[(i,tind)]['end'] for tind in data.T_int(p_max=t-1)]))
             wval = uval - resources_wildfire[(i,t)]['rest'] - resources_wildfire[(i,t)]['travel']
-            if uval > 0:
+            if uval == 1:
                 resources_wildfire[(i,t)]['use'] = True
-            if wval > 0:
+            if wval == 1:
                 resources_wildfire[(i,t)]['work'] = True
     # Update problem objects:
     problem.resources.update(resources)
@@ -887,4 +942,5 @@ def readSolFileAndUpdate(sol_file, problem):
     problem.wildfire.update(
         {t: {'contained': False if t < first_contained else True}
         for t in data.T})
+    
 # --------------------------------------------------------------------------- #

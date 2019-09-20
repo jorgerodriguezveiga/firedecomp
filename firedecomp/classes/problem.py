@@ -147,6 +147,7 @@ class Problem(object):
 
         if per_period is not True:
             cost = cost[max(self.wildfire.get_names())]
+            
         return cost
 
     def status(self, info="status"):
@@ -282,14 +283,15 @@ class Problem(object):
         elif method == 'benders_scip':
             if benders_scip_options is None:
                 benders_scip_options = {}
-
-            self.benders_scip_model, self.solve_status = scip.solve_benders(
-                self, solver_options=benders_scip_options)
-
-            # Get information
-            model = self.benders_scip_model.model
-            self.solve_status = scip_status.status[model.getStatus()]
+            
             try:
+                self.benders_scip_model, self.solve_status = scip.solve_benders(
+                    self, solver_options=benders_scip_options)
+
+                # Get information
+                model = self.benders_scip_model.model
+                self.solve_status = scip_status.status[model.getStatus()]
+                # Compute constraint violation
                 self.constrvio = 0
                 for c in model.getConss():
                     try:
@@ -299,25 +301,32 @@ class Problem(object):
                     if viol > self.constrvio:
                         self.constrvio = viol
                 self.mipgap = model.getGap()
+                self.solve_time = model.getSolvingTime()
+                
             except Exception as e:
                 print(e)
+                self.solve_status = None
                 self.constrvio = None
                 self.mipgap = None
-            self.solve_time = model.getSolvingTime()
+                self.solve_time = None
+            
 
         elif method == 'gcg_scip':
             if gcg_scip_options is None:
                 gcg_scip_options = {}
+            
+            try:
+                # Solving the problem with GCG via call to system
+                self.solve_status, self.solve_time, self.mipgap, self.constrvio = scip.solve_GCG(
+                    self, model_name='fireproblem', solver_options=gcg_scip_options)
+            except Exception as e:
+                print(e)
+                self.solve_status = None
+                self.solve_time = None 
+                self.mipgap = None
+                self.constrvio = None
 
-            # Solving the problem with GCG via call to system
-            self.solve_status = scip.solve_GCG(
-                self, model_name='fireproblem', solver_options=gcg_scip_options)
-
-            # Get information
-            self.solve_status = 0
-            self.constrvio = None
-            self.mipgap = None
-            self.solve_time = None
+            # There is no model
             self.gcg_scip_model = None
 
         else:
@@ -349,7 +358,7 @@ class Problem(object):
         except TypeError:
             res_penalty = None
 
-        if res_cost and wildfire_cost and res_penalty:
+        if ((res_cost is not None) and (wildfire_cost is not None) and (res_penalty is not None)):
             objfun = res_cost + wildfire_cost + res_penalty
         else:
             objfun = None
@@ -368,7 +377,7 @@ class Problem(object):
             mipgapabs = self.mipgap*objfun
         else:
             mipgapabs = None
-
+            
         return {
             'obj_fun': objfun,
             'res_cost': res_cost,
