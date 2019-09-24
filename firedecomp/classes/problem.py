@@ -448,6 +448,243 @@ class Problem(object):
                l_start + l_grps + l_space*(max_len - len_grps) + l_end + \
                l_start + l_pers + l_space*(max_len - len_pers) + l_end + \
                footer_start + footer_space*max_len + footer_end
+
+    def slack_wildfire_containment_1(self):
+        return sum([self.data.PR[i,t] * self.resources_wildfire[i, t].work
+                    for i in self.data.I for t in self.data.T]) - \
+            sum([self.data.PER[t] * (not self.wildfire[t].contained)
+                 for t in self.data.T])
+
+    def slack_wildfire_containment_2(self):
+        data = self.data
+        return {
+            t:
+                data.M * (not self.wildfire[t+1].contained) -
+                sum([data.PER[t1]
+                     for t1 in data.T_int(p_max=t)]) *
+                (not self.wildfire[t].contained) +
+                sum([data.PR[i, t1] * self.resources_wildfire[i, t1].work
+                     for i in data.I for t1 in data.T_int(p_max=t)])
+            if t < max(data.T) else
+                sum([data.PER[t1]
+                     for t1 in data.T_int(p_max=t)]) *
+                (not self.wildfire[t].contained) +
+                sum([data.PR[i, t1] * self.resources_wildfire[i, t1].work
+                     for i in data.I for t1 in data.T_int(p_max=t)])
+            for t in data.T
+        }
+
+    def slack_start_activity_1(self):
+        data = self.data
+        return {(i, t):
+                    sum([self.resources_wildfire[i, t1].travel
+                         for t1 in data.T_int(p_max=t)]) -
+                    self.data.A[i] * self.resources_wildfire[i, t].work
+         for i in data.I for t in data.T}
+
+    def slack_start_activity_2(self):
+        data = self.data
+        return {
+            i:
+                data.max_t*self.resources[i].select - self.resources_wildfire[i, data.min_t].start -
+                sum([(data.max_t + 1)*self.resources_wildfire[i, t].start
+                    for t in data.T_int(p_min=data.min_t+1)])
+            for i in data.I if data.ITW[i] == True
+        }
+
+    def slack_start_activity_3(self):
+        data = self.data
+        return {
+            i:
+                self.resources[i].select -
+                sum([self.resources_wildfire[i, t].start for t in data.T])
+            for i in data.I if data.ITW[i] == False
+        }
+
+    def slack_end_activity(self):
+        data = self.data
+        return {
+            (i, t):
+                sum([self.resources_wildfire[i, t1].travel
+                     for t1 in data.T_int(p_min=t-data.TRP[i]+1, p_max=t)]) -
+                data.TRP[i]*self.resources_wildfire[i, t].end
+            for i in data.I for t in data.T
+        }
+
+    def get_cr(self):
+        data = self.data
+        cr = {(i, t):
+            sum([
+                (t + 1 - t1) * self.resources_wildfire[i, t1].start
+                - (t - t1) * self.resources_wildfire[i, t1].end
+                - self.resources_wildfire[i, t1].rest
+                - data.WP[i] * self.resources_wildfire[i, t1].end_rest
+                for t1 in data.T_int(p_max=t)])
+            for i in data.I for t in data.T
+            if not data.ITW[i] and not data.IOW[i]
+        }
+        cr.update({
+            (i, t):
+                (t+data.CWP[i]-data.CRP[i]) *
+                self.resources_wildfire[i, data.min_t].start
+                + sum([
+                    (t + 1 - t1 + data.WP[i]) *
+                    self.resources_wildfire[i, t1].start
+                    for t1 in data.T_int(p_min=data.min_t + 1, p_max=t)])
+                - sum([
+                    (t - t1) * self.resources_wildfire[i, t1].end
+                    + self.resources_wildfire[i, t1].rest
+                    + data.WP[i] * self.resources_wildfire[i, t1].end_rest
+                    for t1 in data.T_int(p_max=t)])
+            for i in data.I for t in data.T
+            if data.ITW[i] or data.IOW[i]})
+        return cr
+
+    def slack_break_1_lb(self):
+        data = self.data
+        cr = self.get_cr()
+        return {(i, t): cr[i, t] for i in data.I for t in data.T}
+
+    def slack_break_1_ub(self):
+        data = self.data
+        cr = self.get_cr()
+        return {(i, t): data.WP[i] - cr[i, t]
+                for i in data.I for t in data.T}
+
+    def slack_break_2(self):
+        data = self.data
+        return {
+            (i, t):
+                sum([self.resources_wildfire[i, t1].end_rest
+                     for t1 in data.T_int(p_min=t, p_max=t+data.RP[i]-1)]) -
+                self.resources_wildfire[i, t].rest
+            for i in data.I for t in data.T
+        }
+
+    def slack_break_3(self):
+        data = self.data
+        res = self.resources_wildfire
+        return {
+            (i, t):
+                sum([res[i, t1].rest for t1 in data.T_int(
+                    p_min=t - data.RP[i] + 1, p_max=t)]) -
+                data.RP[i] * res[i, t].end_rest
+            if t >= data.min_t - 1 + data.RP[i] else
+                data.CRP[i] * res[i, data.min_t].start +
+                sum([res[i, t1].rest for t1 in data.T_int(p_max=t)]) -
+                data.RP[i] * res[i, t].end_rest
+            for i in data.I for t in data.T
+        }
+
+    def slack_break_4(self):
+        data = self.data
+        res = self.resources_wildfire
+        return {
+            (i, t):
+                sum([res[i, t1].rest + res[i, t1].travel
+                     for t1 in data.T_int(p_min=t-data.TRP[i],
+                                          p_max=t+data.TRP[i])]) -
+                len(data.T_int(p_min=t-data.TRP[i],
+                               p_max=t+data.TRP[i])) * res[i, t].rest
+            for i in data.I for t in data.T
+        }
+        # return {
+        #     (i, t):
+        #         sum([1-res[i, t1].work
+        #              for t1 in data.T_int(p_min=t-data.TRP[i],
+        #                                   p_max=t+data.TRP[i])]) -
+        #         len(data.T_int(p_min=t-data.TRP[i],
+        #                        p_max=t+data.TRP[i])) * res[i, t].rest
+        #     for i in data.I for t in data.T
+        # }
+
+    def slack_max_usage_periods(self):
+        data = self.data
+        res = self.resources_wildfire
+        return {
+            i: data.UP[i] - data.CUP[i] - sum([res[i, t].use for t in data.T])
+            for i in data.I
+        }
+
+    def slack_non_negligence_1(self):
+        data = self.data
+        res = self.resources_wildfire
+        return {
+            (g, t):
+                sum([res[i, t].work for i in data.Ig[g]]) -
+                data.nMin[g, t] * (not self.wildfire[t].contained) +
+                self.groups_wildfire[g, t].num_left_resources
+            for g in data.G for t in data.T
+        }
+
+    def slack_non_negligence_2(self):
+        data = self.data
+        res = self.resources_wildfire
+        return {
+            (g, t):
+                data.nMax[g, t] * (not self.wildfire[t].contained) -
+                sum([res[i, t].work for i in data.Ig[g]])
+            for g in data.G for t in data.T
+        }
+
+    def slack_logical_1(self):
+        data = self.data
+        res = self.resources_wildfire
+        return {
+            i: sum([t * res[i, t].end for t in data.T]) - sum(
+                [t * res[i, t].start for t in data.T])
+            for i in data.I
+        }
+
+    def slack_logical_2(self):
+        data = self.data
+        res = self.resources_wildfire
+        return {
+            i: 1 - sum([res[i, t].end for t in data.T])
+            for i in data.I
+        }
+
+    def slack_logical_3(self):
+        data = self.data
+        res = self.resources_wildfire
+        return {
+            (i, t): res[i, t].use - res[i, t].rest - res[i, t].travel
+            for i in data.I for t in data.T
+        }
+
+    def slack_logical_4(self):
+        data = self.data
+        res = self.resources_wildfire
+        return {
+            i: sum([res[i, t].work for t in data.T]) - self.resources[i].select
+            for i in data.I
+        }
+
+    def get_infeas_constraints(self, zero=1.0e-12):
+        infeas = {}
+
+        infeas['wildfire_containment_1'] = {'': self.slack_wildfire_containment_1()}
+        infeas['wildfire_containment_2'] = self.slack_wildfire_containment_2()
+        infeas['start_activity_1'] = self.slack_start_activity_1()
+        infeas['start_activity_2'] = self.slack_start_activity_3()
+        infeas['end_activity'] = self.slack_end_activity()
+        infeas['break_1_lb'] = self.slack_break_1_lb()
+        infeas['break_1_ub'] = self.slack_break_1_ub()
+        infeas['break_2'] = self.slack_break_2()
+        infeas['break_3'] = self.slack_break_3()
+        infeas['break_4'] = self.slack_break_4()
+        infeas['max_usage_periods'] = self.slack_max_usage_periods()
+        infeas['non_negligence_1'] = self.slack_non_negligence_1()
+        infeas['non_negligence_2'] = self.slack_non_negligence_2()
+        infeas['logical_1'] = self.slack_logical_1()
+        infeas['logical_2'] = self.slack_logical_2()
+        infeas['logical_3'] = self.slack_logical_3()
+        infeas['logical_4'] = self.slack_logical_4()
+        infeas = {
+            k: {k1: v1 for k1, v1 in v.items() if v1 < -zero}
+            for k, v in infeas.items()
+        }
+        return {k: v for k, v in infeas.items() if len(v) > 0}
 # --------------------------------------------------------------------------- #
 
 

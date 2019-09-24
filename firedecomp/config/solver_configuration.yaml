@@ -9,7 +9,7 @@ original:
 original_scip:
 fix_work:
   mip_gap_obj: 0.01
-  n_start_info: 20
+  n_start_info: null
   max_iters: 1000
   max_time: 600
   start_period: 20

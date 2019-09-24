@@ -89,9 +89,13 @@ def plot_scheduling(problem):
                 None
                 for p in [0] + per_names]
             for i in res_names}
-        first_legend_info = min(
-            [i for i, p in scatter_dict.items() if
-             not all(v is None for v in p)])
+        legend_info = [i for i, p in scatter_dict.items() if
+                       not all(v is None for v in p)]
+        if len(legend_info) > 0:
+            first_legend_info = min(legend_info)
+        else:
+            first_legend_info = None
+
         return [
             go.Scatter(
                 x=p,

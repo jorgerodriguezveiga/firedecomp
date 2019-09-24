@@ -482,12 +482,15 @@ class Master(object):
     def add_opt_start_int_cut(self, vars_coeffs, rhs):
         m = self.model
         cut_num = len(self.constraints.opt_start_int)
-        lhs = sum(
+        list_lhs = [
             coeff*m.getVarByName(var) for var, coeff in vars_coeffs.items()
-            if m.getVarByName(var) is not None)
-        self.constraints.opt_start_int[cut_num] = \
-            m.addConstr(lhs >= rhs, name='start_opt_int[{}]'.format(cut_num))
-        m.update()
+            if m.getVarByName(var) is not None and coeff != 0]
+
+        if len(list_lhs) > 0:
+            lhs = sum(list_lhs)
+            self.constraints.opt_start_int[cut_num] = \
+                m.addConstr(lhs >= rhs, name='start_opt_int[{}]'.format(cut_num))
+            m.update()
 
     def add_feas_int_cut(self, vars_coeffs, rhs):
         m = self.model
@@ -531,7 +534,7 @@ class Master(object):
 
         return obj_val
 
-    def solve(self, solver_options):
+    def solve(self, solver_options, best_obj):
         """Solve mathematical model.
 
         Args:
@@ -570,80 +573,90 @@ class Master(object):
             self.obj_law = self.variables.law_cost.getValue()
             self.solution = {v.VarName: v.x for v in self.model.getVars()}
 
-            # Load variables values
-            self.problem_data.resources.update(
-                {i: {'select': round(variables.z[i].getValue()) == 1}
-                 for i in self.data.I})
+            obj = self.obj_resources_fix + self.obj_resources_variable + \
+                self.obj_wildfire + self.obj_law
 
-            s = {(i, t): round(variables.s[i, t].x) == 1
-                 if t <= self.data.max_t else False
-                 for i in self.data.I for t in orig_data.T}
-            u = {(i, t): round(self.variables.u[i, t].getValue()) == 1
-                 if t <= self.data.max_t else False
-                 for i in self.data.I for t in orig_data.T}
-            e = {(i, t): round(self.variables.e[i, t].x) == 1
-                 if t <= self.data.max_t else False
-                 for i in self.data.I for t in orig_data.T}
-            w = {(i, t): round(self.variables.w[i, t].x) == 1
-                 if t <= self.data.max_t else False
-                 for i in self.data.I for t in orig_data.T}
-            start = {k[0]: k[1] for k, v in s.items() if v is True}
-            r = {(i, t): False for i in self.data.I for t in orig_data.T}
-            r.update({
-                (i, t): round(
-                    self.__start_info__[i, start[i]]['rest'][i, t]*u[i, t])
-                == 1
-                if (i, start[i]) in self.__start_info__ else
-                False
-                for i in self.data.I for t in orig_data.T if i in start})
+            if obj < best_obj:
+                # Load variables values
+                self.problem_data.resources.update(
+                    {i: {'select': round(variables.z[i].getValue()) == 1}
+                     for i in self.data.I})
 
-            er = {
-                (i, t): True
-                if (r[i, t] is True) and (r[i, t + 1] is not True)
-                else False
-                for i in self.data.I for t in orig_data.T_int(
-                    p_max=orig_data.max_t - 1)
-            }
-            er.update({
-                (i, orig_data.max_t): True
-                if r[i, orig_data.max_t] is True else False
-                for i in self.data.I})
-            tr = {
-                 (i, t): u[i, t] - w[i, t] - r[i, t] == 1
-                 for i in self.data.I for t in orig_data.T
-            }
+                s = {(i, t): round(variables.s[i, t].x) == 1
+                     if t <= self.data.max_t else False
+                     for i in self.data.I for t in orig_data.T}
+                u = {(i, t): round(self.variables.u[i, t].getValue()) == 1
+                     if t <= self.data.max_t else False
+                     for i in self.data.I for t in orig_data.T}
+                e = {(i, t): round(self.variables.e[i, t].x) == 1
+                     if t <= self.data.max_t else False
+                     for i in self.data.I for t in orig_data.T}
+                w = {(i, t): round(self.variables.w[i, t].x) == 1
+                     if t <= self.data.max_t else False
+                     for i in self.data.I for t in orig_data.T}
+                start = {k[0]: k[1] for k, v in s.items() if v is True}
+                r = {(i, t): False for i in self.data.I for t in orig_data.T}
+                r.update({
+                    (i, t): round(
+                        self.__start_info__[i, start[i]]['rest'][i, t]*u[i, t])
+                    == 1
+                    if (i, start[i]) in self.__start_info__ else
+                    False
+                    for i in self.data.I for t in orig_data.T if i in start})
 
-            self.problem_data.resources_wildfire.update(
-                {(i, t): {
-                    'start': s[i, t],
-                    'use': u[i, t],
-                    'end': e[i, t],
-                    'work': w[i, t],
-                    'travel': tr[i, t],
-                    'rest': r[i, t],
-                    'end_rest': er[i, t]
+                er = {
+                    (i, t): True
+                    if (r[i, t] is True) and (r[i, t + 1] is not True)
+                    else False
+                    for i in self.data.I for t in orig_data.T_int(
+                        p_max=orig_data.max_t - 1)
                 }
-                 for i in self.data.I for t in orig_data.T})
+                er.update({
+                    (i, orig_data.max_t): True
+                    if r[i, orig_data.max_t] is True else False
+                    for i in self.data.I})
+                er.update({
+                    (i, t): True
+                    for i in self.data.I
+                    for t in orig_data.T_int(p_min=orig_data.min_t+1)
+                    if s[i, t] and self.data.RP[i] == 0
+                })
+                tr = {
+                     (i, t): u[i, t] - w[i, t] - r[i, t] == 1
+                     for i in self.data.I for t in orig_data.T
+                }
 
-            self.problem_data.groups_wildfire.update(
-                {(g, t): {'num_left_resources': self.variables.mu[g, t].x}
-                 if t <= self.data.max_t else {'num_left_resources': 0}
-                 for g in self.data.G for t in orig_data.T})
+                self.problem_data.resources_wildfire.update(
+                    {(i, t): {
+                        'start': s[i, t],
+                        'use': u[i, t],
+                        'end': e[i, t],
+                        'work': w[i, t],
+                        'travel': tr[i, t],
+                        'rest': r[i, t],
+                        'end_rest': er[i, t]
+                    }
+                     for i in self.data.I for t in orig_data.T})
 
-            contained = {t: self.variables.y[t].x == 0
-                         if t <= self.data.max_t else True
-                         for t in orig_data.T}
-            contained_period = [t for t, v in contained.items()
-                                if v is True]
+                self.problem_data.groups_wildfire.update(
+                    {(g, t): {'num_left_resources': self.variables.mu[g, t].x}
+                     if t <= self.data.max_t else {'num_left_resources': 0}
+                     for g in self.data.G for t in orig_data.T})
 
-            if len(contained_period) > 0:
-                first_contained = min(contained_period) + 1
-            else:
-                first_contained = orig_data.max_t + 1
+                contained = {t: self.variables.y[t].x == 0
+                             if t <= self.data.max_t else True
+                             for t in orig_data.T}
+                contained_period = [t for t, v in contained.items()
+                                    if v is True]
 
-            self.problem_data.wildfire.update(
-                {t: {'contained': False if t < first_contained else True}
-                 for t in orig_data.T})
+                if len(contained_period) > 0:
+                    first_contained = min(contained_period) + 1
+                else:
+                    first_contained = orig_data.max_t + 1
+
+                self.problem_data.wildfire.update(
+                    {t: {'contained': False if t < first_contained else True}
+                     for t in orig_data.T})
         else:
             pass
         return m.Status

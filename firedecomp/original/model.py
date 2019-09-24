@@ -268,7 +268,7 @@ def model(data, relaxed=False, slack_containment=False, valid_constraints=None,
     m.addConstr(wildfire_containment_1_expr, name='wildfire_containment_1')
 
     if slack_containment:
-        wildfire_containment_1_expr = (
+        wildfire_containment_2_expr = (
             data.M*y[t] + slack_cont2[t] >=
             sum([data.PER[t1]
                  for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
@@ -276,7 +276,7 @@ def model(data, relaxed=False, slack_containment=False, valid_constraints=None,
                  for i in data.I for t1 in data.T_int.get_names(p_max=t)])
             for t in data.T)
     else:
-        wildfire_containment_1_expr = (
+        wildfire_containment_2_expr = (
             data.M*y[t] >=
             sum([data.PER[t1]
                  for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
@@ -284,7 +284,7 @@ def model(data, relaxed=False, slack_containment=False, valid_constraints=None,
                  for i in data.I for t1 in data.T_int.get_names(p_max=t)])
             for t in data.T)
 
-    m.addConstrs(wildfire_containment_1_expr, name='wildfire_containment_2')
+    m.addConstrs(wildfire_containment_2_expr, name='wildfire_containment_2')
 
     # Start of activity
     # -----------------
@@ -348,13 +348,23 @@ def model(data, relaxed=False, slack_containment=False, valid_constraints=None,
         name='Breaks_3')
 
     m.addConstrs(
-        (sum([r[i, t1]+tr[i, t1]
+        (sum([r[i, t1] + tr[i, t1]
               for t1 in data.T_int.get_names(p_min=t-data.TRP[i],
                                              p_max=t+data.TRP[i])]) >=
          len(data.T_int.get_names(p_min=t-data.TRP[i],
                                   p_max=t+data.TRP[i]))*r[i, t]
          for i in data.I for t in data.T),
         name='Breaks_4')
+
+    # m.addConstrs(
+    #     (sum([1-w[i, t1]  # r[i, t1] + tr[i, t1]
+    #           for t1 in data.T_int.get_names(p_min=t-data.TRP[i],
+    #                                          p_max=t+data.TRP[i])]) >=
+    #      len(data.T_int.get_names(p_min=t-data.TRP[i],
+    #                               p_max=t+data.TRP[i]))*r[i, t]
+    #      for i in data.I for t in data.T),
+    #     name='Breaks_4')
+
 
     # Maximum Number of Usage Periods in a Day
     # ----------------------------------------

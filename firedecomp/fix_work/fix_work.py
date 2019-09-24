@@ -58,6 +58,9 @@ class FixWorkAlgorithm(object):
         if self.log_level == 'fix_work':
             self.tbl = lambda *args: print(utils.format_fix_work(*args))
 
+        if n_start_info is None:
+            n_start_info = float('inf')
+
         self.problem_data = problem_data
 
         # Benders info
@@ -178,10 +181,13 @@ class FixWorkAlgorithm(object):
         self.obj_ub = float('inf')
         self.gap = float('inf')
 
-        periods = [
-            p
-            for p in np.arange(self.start_period, data.max_t, self.step_period)
-        ] + [data.max_t]
+        if self.start_period is not None:
+            periods = [
+                p
+                for p in np.arange(self.start_period, data.max_t, self.step_period)
+            ] + [data.max_t]
+        else:
+            periods = [data.max_t]
 
         warm_start = False
 
@@ -235,7 +241,10 @@ class FixWorkAlgorithm(object):
                         self.status = 2
                         break
                     else:
-                        self.status = 1
+                        self.status = 13
+            elif self.solver_options['TimeLimit'] == 0:
+                self.status = 9
+                break
             else:
                 self.status = status
 
@@ -260,7 +269,7 @@ class FixWorkAlgorithm(object):
         self.get_start_info(
             list_resorce_period=[
                 (i, t)
-                for t in range(min_t, min_t+self.n_start_info)
+                for t in range(min_t, min(min_t+self.n_start_info, max_period))
                 for i in self.problem_data.data.I
             ]
         )
@@ -277,7 +286,9 @@ class FixWorkAlgorithm(object):
             # Solve Master problem
             log.debug("\t[MASTER]:")
             self.period_status = master.solve(
-                solver_options=self.solver_options)
+                solver_options=self.solver_options,
+                best_obj=self.obj
+            )
 
             self.runtime += master.model.runtime
 
