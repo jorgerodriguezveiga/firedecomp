@@ -147,9 +147,8 @@ def simulations(
                     gcg_scip_options=gcg_scip_options,
                     min_res_penalty=1000000,
                     log_level=None)
-
+                
                 solution_dict.update(instance.get_solution_info())
-
                 write.write_solution_as_csv(
                     solution_dict, header=header, mode=mode, file=solution_file,
                     dec=",")
