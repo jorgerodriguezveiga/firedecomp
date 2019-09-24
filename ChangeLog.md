@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
+v3.1.1 - 24/09/2019
+-------------------
+### Fixed ###
+- Fix error getting start resource information.
+- Fix error in fix_work algorithm.
+
 v3.1.0 - 19/08/2019
 -------------------
 
