@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
+v3.1.2 - 01/10/2019
+-------------------
+### Added ###
+- Add new fix_work results.
+
+### Changed ###
+- Improve performance profile plot function in simulations.
+
+### Fixed ###
+- Fix error in gcg_scip.
+
 v3.1.1 - 24/09/2019
 -------------------
 ### Fixed ###
