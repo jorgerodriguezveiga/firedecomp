@@ -808,7 +808,7 @@ def solve_GCG(problem_data, model_name = 'fireproblem', solver_options=None):
     # Call to system:
     gcg_commands = 'set load ' + options_file
     gcg_commands += ' r ' + model_file
-    #gcg_commands += ' r ' + decomp_file
+    gcg_commands += ' r ' + decomp_file
     gcg_commands += ' optimize '
     gcg_commands += ' write solution ' + sol_file
     gcg_commands += ' checksol '
@@ -848,18 +848,18 @@ def readOutputGGC(output_file):
             if word.group(1) == "Solving" and word.group(2) == "Time":
                 regex_time = re.compile(r"\:\s*(\S*)",re.VERBOSE)
                 find = re.search(regex_time,line)
-                solve_time = float(find.group(1))
+                solve_time = float(find.group(1).replace("infinite", "Infinity"))
             if word.group(1) == "Gap":
                 regex_gap = re.compile(r"\:\s*(\S*)",re.VERBOSE)
                 find = re.search(regex_gap,line)
-                mipgap = float(find.group(1))
+                mipgap = float(find.group(1).replace("infinite", "Infinity"))
             if word.group(1) in ['bounds','integrality','LP','constraints']:
                 regex_maxvio = re.compile(r"\:\s*(\S*)\s*(\S*)",re.VERBOSE)
                 find = re.search(regex_maxvio,line)
-                abs_vio = find.group(1)
-                rel_vio = find.group(2)
+                abs_vio = find.group(1).replace("infinite", "Infinity")
+                rel_vio = find.group(2).replace("infinite", "Infinity")
                 if max_vio:
-                    max_vio = max(max_vio,float(abs_vio))
+                    max_vio = max(max_vio, float(abs_vio))
                 else:
                     max_vio = float(abs_vio)
                 
@@ -901,7 +901,7 @@ def readSolFileAndUpdate(sol_file, problem):
     # Update vars values with solution:
     for counter,var in enumerate(var_name):
         key = var_key[counter]
-        val = float(var_val[counter])
+        val = float(var_val[counter].replace("infinite", "Infinity"))
         if var == 'contention':
             t = int(key)
             if val == 1:
