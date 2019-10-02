@@ -10,6 +10,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
+### Added ###
+- Add --seed (-s) argument to specify the desired seeds to solve.
+
+
 v3.1.2 - 01/10/2019
 -------------------
 ### Added ###

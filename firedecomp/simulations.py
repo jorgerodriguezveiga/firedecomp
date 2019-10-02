@@ -18,6 +18,7 @@ from firedecomp.utilities import utils
 # simulations -----------------------------------------------------------------
 def simulations(
         num_simulations=10,
+        seeds=None,
         num_brigades=None,
         num_aircraft=None,
         num_machines=None,
@@ -32,6 +33,8 @@ def simulations(
     Args:
         num_simulations (:obj:`int`): number of simulations of each case.
             Defaults to 10.
+        seeds (:obj:`list`): list of seeds (integers). If None consider
+            num_simulations argument.
         num_brigades (:obj:`list`): list with number of brigades. If ``None``
             defaults to ``[5, 10, 20]``.
         num_aircraft (:obj:`list`): list with number of aircraft. If ``None``
@@ -51,6 +54,9 @@ def simulations(
     """
     if num_simulations is None:
         num_simulations = 10
+
+    if seeds is None:
+        seeds = range(num_simulations)
 
     if num_brigades is None:
         num_brigades = [5, 10, 20]
@@ -84,7 +90,7 @@ def simulations(
         log.info("Number of machines: {}".format(machines))
         log.info("Number of periods: {}".format(periods))
         log.info("#####################################")
-        for i in range(num_simulations):
+        for i in seeds:
             log.info("=====================================")
             log.info("Simulation: {}".format(i))
             log.info("=====================================")
@@ -177,6 +183,15 @@ def parse_args():
         type=int,
         default=10,
         help="Number of simulations of each case."
+    )
+
+    parser.add_argument(
+        "-s",
+        "--seeds",
+        default=None,
+        nargs='+',
+        type=int,
+        help="List with seeds. If None: 0 1 2 3 4 5 6 7 8 9."
     )
 
     parser.add_argument(
