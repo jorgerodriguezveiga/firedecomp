@@ -366,6 +366,7 @@ def main():
     # -------------------------------------------------------------------------
     args = parse_args()
     num_simulations = args.num_simulations
+    seeds = args.seeds
     num_brig = args.num_brig
     num_air = args.num_air
     num_mach = args.num_mach
@@ -423,6 +424,7 @@ def main():
     # -------------------------------------------------------------------------
     simulations(
         num_simulations=num_simulations,
+        seeds=seeds,
         num_brigades=num_brig,
         num_aircraft=num_air,
         num_machines=num_mach,
