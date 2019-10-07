@@ -10,7 +10,6 @@ class Element(object):
 
     def __init__(self, name):
         """Element object.
-
         Args:
             name (:obj:`str` or `int`): element name.
         """
@@ -28,7 +27,6 @@ class Element(object):
 
     def update(self, dictionary):
         """Update object attributes.
-
         Args:
             dictionary (:obj:`dict`): dictionary with attribute information to
                 update.
@@ -57,7 +55,6 @@ class Set(object):
 
     def __init__(self, elements):
         """Set of elements.
-
         Args:
             elements (:obj:`list`): list of elements.
         """
@@ -77,7 +74,6 @@ class Set(object):
 
     def get_element(self, *e):
         """Get element by name.
-
         Args:
             e (:obj:`str` or `int`): element name.
         """
@@ -90,7 +86,6 @@ class Set(object):
 
     def get_info(self, attr):
         """Get a dictionary with attribute information of the elements.
-
         Args:
             attr (:obj:`str`): attribute name.
         """
@@ -108,7 +103,6 @@ class Set(object):
 
     def update(self, dictionary):
         """Update object attributes.
-
         Args:
             dictionary (:obj:`dict`): dictionary with attribute information to
                 update.

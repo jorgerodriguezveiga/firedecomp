@@ -18,7 +18,6 @@ class Resource(gc.Element):
                  select=None
                  ):
         """Initialization of the class.
-
         Args:
             name (:obj:`str`): resource name.
             working_this_wildfire (:obj:`bool`): if True the resource is
@@ -42,12 +41,10 @@ class Resource(gc.Element):
                 (including rests, ...) (min). Defaults to ``480``.
             select (:obj:`bool`): ``True`` if resource is used in the wildfire.
                 Defaults to ``None``.
-
         Example:
             >>> from firedecomp.classes.resources import Resource
             >>> Air1 = Resource(
             >>>     "Air1", fix_cost=1000, variable_cost=100, performance=100)
-
         TODO: Check input: integrality, positivity, ...
         """
         super(Resource, self).__init__(name=name)
@@ -79,7 +76,6 @@ class Resource(gc.Element):
 
     def update_units(self, time, period_unit, inplace=True):
         """Update resource attributes units.
-
         Args:
             period_unit (:obj:`bool`): if ``True`` period units. Defaults to
                 ``True``.
@@ -123,10 +119,8 @@ class Resources(gc.Set):
 
     def __init__(self, resources):
         """Initialization of the class.
-
         Args:
             resources (:obj:`list`): list of resources (:obj:`Resource`).
-
         Example:
             >>> from firedecomp.classes.resources import Resources, Resource
             >>> Air1 = Resource("Air1", fix_cost=1000,
@@ -142,7 +136,6 @@ class Resources(gc.Set):
 
     def update_units(self, time, period_unit=True, inplace=False):
         """Update resources attributes units.
-
         Args:
             time (:obj:`int`): minutes corresponding a period.
             period_unit (:obj:`bool`): if ``True`` period units. Defaults to

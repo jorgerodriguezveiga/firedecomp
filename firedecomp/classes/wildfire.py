@@ -12,7 +12,6 @@ class Period(gc.Element):
 
     def __init__(self, name, perimeter, cost, contained=None):
         """Initialization of the class.
-
         Args:
             name (:obj:`int`): period name.
             perimeter (:obj:`float`): perimeter of the wildfire (km).
@@ -20,11 +19,9 @@ class Period(gc.Element):
                 costs, reforestation, urbane damage, ... (euro).
             contained (:obj:`bool`): ``True`` if wildfire is contained in this
                 period.
-
         Example:
             >>> from firedecomp.classes.wildfire import Period
             >>> p1 = Period(1, perimeter=150, cost=100)
-
         TODO: Check if name is int and perimeter and cost floats or int.
         """
         super(Period, self).__init__(name=name)
@@ -47,13 +44,11 @@ class Wildfire(gc.Set):
 
     def __init__(self, periods, time_per_period=10):
         """Initialization of the class.
-
         Args:
             periods (:obj:`list`): list of periods with wildfire information
                 (:obj:`Period`).
             time_per_period (:obj:`int`): time comprising a period (min).
                 Defaults to ``10``.
-
         Example:
             >>> from firedecomp.classes.wildfire import Period, Wildfire
             >>> p1 = Period(1, increment_perimeter=150, increment_cost=100)
@@ -97,13 +92,11 @@ class Wildfire(gc.Set):
 
     def get_elements(self, p_min=None, p_max=None):
         """Get elements between p_min and p_max.
-
         Args:
             p_min (:obj:`int`, opt): start period. If None, first one is taken.
                 Defaults to ``None``.
             p_max (:obj:`int`, opt): end period. If None, last one is taken.
                 Defaults to ``None``.
-
         Return:
             :obj:`list`: list of periods.
         """

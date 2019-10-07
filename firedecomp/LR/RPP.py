@@ -1,271 +1,404 @@
-"""Module with wildfire suppression model definition."""
+"""Module with lagrangian decomposition."""
 
 # Python packages
 import gurobipy
 import logging as log
-import re
+import pandas as pd
 
 # Package modules
 from firedecomp.classes import solution
 from firedecomp import config
+from firedecomp.original import model
 
 
-# Class which can have attributes set.
-class Expando(object):
-    """Todo: create a class for each type of set."""
-    pass
-
-
-# Master ----------------------------------------------------------------------
-class RelaxedPrimalProblem(object):
-    def __init__(self, problem_data, min_res_penalty=1000000):
-        if problem_data.period_unit is False:
+################################################################################
+# CLASS RelaxedPrimalProblem()
+################################################################################
+class RelaxedPrimalProblem(model.InputModel):
+    def __init__(self, problem_data, lambda1, relaxed=False, min_res_penalty=1000000):
+        if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
+        self.lambda1 = lambda1
         self.problem_data = problem_data
-        self.data = Expando()
-        self.variables = Expando()
-        self.constraints = Expando()
-        self.results = Expando()
-        self.solution = {}
-        self.obj_val = None
+        self.relaxed = relaxed
+        self.min_res_penalty = min_res_penalty
 
-        self.__build_data__(min_res_penalty)
-        self.__build_model__()
+        # Extract data from problem data
+        self.__extract_data_problem__()
 
-    def return_DPP(self):
-	
-	# divide
-        DPP1 = LR.DPP.DecomposedPrimalProblem(
-        	problem_data, min_res_penalty, relaxed=False)
-	DPP = []
-	return DPP
+        # Create gurobi model
+        self.model = self.__get_model__()
 
-    def __build_model__(self):
-        self.model = gurobipy.Model("Master")
-        self.__build_variables__()
-        self.__build_objective__()
-        self.__build_constraints__()
-        self.model.update()
+################################################################################
+# PRIVATE METHOD: __extract_data_problem__()
+################################################################################
+    def __extract_data_problem__(self):
+        """ Extract data from problem class to RPP class.
+        """
+        # SET
+        self.__extract_set_data_problem__()
+        # PARAMETERS
+        self.__extract_parameters_data_problem__()
+        # OTHER PARAMETERS
+        self.Mp = self.min_res_penalty
+        self.M = sum([v for k, v in self.PER.items()])
+        self.min_t = int(min(self.T))
+        self.max_t = int(max(self.T))
 
-    def __build_data__(self, min_res_penalty):
-        """Build problem data."""
-        problem_data = self.problem_data
-        # Sets
-        self.data.I = problem_data.get_names("resources")
-        self.data.G = problem_data.get_names("groups")
-        self.data.T = problem_data.get_names("wildfire")
-        self.data.Ig = {
+        # SENSE
+        self.__sense_opt__()
+
+################################################################################
+# PRIVATE METHOD: __extract_set_data_problem__()
+################################################################################
+    def __extract_set_data_problem__(self):
+        """ Extract SET fields from data problem
+        """
+        #  SETS
+        self.I = self.problem_data.get_names("resources")
+        self.G = self.problem_data.get_names("groups")
+        self.T = self.problem_data.get_names("wildfire")
+        self.Ig = {
             k: [e.name for e in v]
-            for k, v in problem_data.groups.get_info('resources').items()}
-        self.data.T_int = problem_data.wildfire
+            for k, v in self.problem_data.groups.get_info('resources').items()}
+        self.T_int = self.problem_data.wildfire
 
-        # Parameters
-        self.data.C = problem_data.resources.get_info("variable_cost")
-        self.data.P = problem_data.resources.get_info("fix_cost")
-        self.data.BPR = problem_data.resources.get_info("performance")
-        self.data.A = problem_data.resources.get_info("arrival")
-        self.data.CWP = problem_data.resources.get_info("work")
-        self.data.CRP = problem_data.resources.get_info("rest")
-        self.data.CUP = problem_data.resources.get_info("total_work")
-        self.data.ITW = problem_data.resources.get_info("working_this_wildfire")
-        self.data.IOW = problem_data.resources.get_info(
-            "working_other_wildfire")
-        self.data.TRP = problem_data.resources.get_info("time_between_rests")
-        self.data.WP = problem_data.resources.get_info("max_work_time")
-        self.data.RP = problem_data.resources.get_info("necessary_rest_time")
-        self.data.UP = problem_data.resources.get_info("max_work_daily")
-        self.data.PR = problem_data.resources_wildfire.get_info(
-            "resource_performance")
+################################################################################
+# PRIVATE METHOD: __extract_parameters_data_problem__()
+################################################################################
+    def __extract_parameters_data_problem__(self):
+        """ Extract PARAMETERS fields from data problem
+        """
+        self.C = self.problem_data.resources.get_info("variable_cost")
+        self.P = self.problem_data.resources.get_info("fix_cost")
+        self.BPR = self.problem_data.resources.get_info("performance")
+        self.A = self.problem_data.resources.get_info("arrival")
+        self.CWP = self.problem_data.resources.get_info("work")
+        self.CRP = self.problem_data.resources.get_info("rest")
+        self.CUP = self.problem_data.resources.get_info("total_work")
+        self.ITW = self.problem_data.resources.get_info("working_this_wildfire")
+        self.IOW = self.problem_data.resources.get_info("working_other_wildfire")
+        self.TRP = self.problem_data.resources.get_info("time_between_rests")
+        self.WP = self.problem_data.resources.get_info("max_work_time")
+        self.RP = self.problem_data.resources.get_info("necessary_rest_time")
+        self.UP = self.problem_data.resources.get_info("max_work_daily")
+        self.PR = self.problem_data.resources_wildfire.get_info("resource_performance")
+        self.PER = self.problem_data.wildfire.get_info("increment_perimeter")
+        self.NVC = self.problem_data.wildfire.get_info("increment_cost")
+        self.nMin = self.problem_data.groups_wildfire.get_info("min_res_groups")
+        self.nMax = self.problem_data.groups_wildfire.get_info("max_res_groups")
 
-        self.data.PER = problem_data.wildfire.get_info("increment_perimeter")
-        self.data.NVC = problem_data.wildfire.get_info("increment_cost")
+################################################################################
+# PRIVATE METHOD: __sense_opt__()
+################################################################################
+    def __sense_opt__(self):
+        self.sense_opt= gurobipy.GRB.MINIMIZE
 
-        self.data.nMin = problem_data.groups_wildfire.get_info("min_res_groups")
-        self.data.nMax = problem_data.groups_wildfire.get_info("max_res_groups")
+################################################################################
+# PRIVATE METHOD: __get_model__ ()
+# OVERWRITE --> model.__get_model__()
+################################################################################
+    def __get_model__(self, relaxed=False):
+        """Create gurobi API model.
+            Args:
+            relaxed (:bool:): This flag describes if logic values are relaxed.
+                              Default ``False``.
+            Example: ``{'TimeLimit': 10}``.
+        """
+        self.__create_gurobi_model__()
+        self.__create_vars__()
+        self.__create_objfunc__()
+        self.__create_constraints__()
+        self.m.update()
+        model = solution.Solution(
+            self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
+            w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
+        return model
 
-        self.data.Mp = min_res_penalty
-        self.data.M = sum([v for k, v in self.data.PER.items()])
-        self.data.min_t = int(min(self.data.T))
-        self.data.max_t = int(max(self.data.T))
+##########################################################################################
+# PRIVATE METHOD: __create_model__
+################################################################################
+    def __create_gurobi_model__(self):
+        """Create gurobi model.
+        """
+        self.m = gurobipy.Model("Relaxed_Primal_Problem_LR")
 
-    def __build_variables__(self):
-        """Build variables."""
-        m = self.model
-        data = self.data
-        # =========
-        # Resources
+################################################################################
+# PRIVATE METHOD: __relaxed_config__
+################################################################################
+    def __relaxed_config__(self):
+        if self.relaxed is True:
+            self.vtype = gurobipy.GRB.CONTINUOUS
+            self.lb = 0
+            self.ub = 1
+        else:
+            self.vtype = gurobipy.GRB.BINARY
+            self.lb = 0
+            self.ub = 1
+
+################################################################################
+# PRIVATE METHOD: __create_vars__
+################################################################################
+    def __create_vars__(self):
+        """Create vars in gurobi model class
+
+        Args:
+            gurobipy (:obj:`dict`): dictionary with attribute information to
+                update.
+        """
+        self.__relaxed_config__()
+        # VARIABLES
+        # (1) Resources
         # ---------
-        s_ub = {(i, t): 1 if (data.ITW[i] is False) or (t == data.min_t) else 0
-                for i in data.I for t in data.T}
-        # cr definition condition
-        s_ub.update({
-            (i, t): 0 for i in data.I for t in data.T
-            if (data.IOW[i] == 1) and
-               (t > data.min_t) and
-               (t < data.min_t + data.RP[i])})
+        self.s = self.m.addVars(self.I,self.T,vtype=self.vtype, lb=self.lb, ub=self.ub, name="start")
+        self.tr = self.m.addVars(self.I,self.T,vtype=self.vtype, lb=self.lb, ub=self.ub, name="travel")
+        self.r = self.m.addVars(self.I,self.T,vtype=self.vtype, lb=self.lb, ub=self.ub, name="rest")
+        self.er = self.m.addVars(self.I,self.T,vtype=self.vtype, lb=self.lb, ub=self.ub, name="end_rest")
+        self.e = self.m.addVars(self.I,self.T,vtype=self.vtype, lb=self.lb, ub=self.ub, name="end")
 
-        self.variables.s = m.addVars(
-            data.I, data.T, vtype=gurobipy.GRB.BINARY, ub=s_ub, name="start")
-
-        self.variables.z = {i: self.variables.s.sum(i, '*')
-                            for i in data.I}
-
-        # Wildfire
+        # (3) Wildfire
         # --------
-        # These auxiliary variables are included to give subproblem better
-        # solutions.
-        self.variables.mu_prime = m.addVars(
-            data.G, vtype=gurobipy.GRB.CONTINUOUS,
-            name="missing_resources_prime")
+        self.mu = self.m.addVars(self.G, self.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
+                      name="missing_resources")
+        self.__create_var_y_and_fixed_vars__()
 
-        # Subproblem Objective
-        # --------------------
-        self.variables.zeta = m.addVar(lb=0, name='zeta')
+        # (2) Auxiliar variables
+        self.__create_auxiliar_vars__()
+################################################################################
+# PRIVATE METHOD: __create_var_y__
+################################################################################
+    def __create_var_y_and_fixed_vars__(self):
+        self.sizey = len(self.T + [self.min_t-1])
+        self.y = self.m.addVars(self.T + [self.min_t-1], vtype=self.vtype, lb=self.lb, ub=self.ub,
+                              name="contention")
 
-    def get_S_set(self):
-        shared_variables = ["start"]
-        return [
-            k for k, v in self.solution.items()
-            if re.match("|".join(shared_variables)+"\[.*\]", k)
-            if v == 1]
+################################################################################
+# PRIVATE METHOD: __create_objfunc__()
+################################################################################
+    def __create_objfunc__(self):
+# Wildfire Containment (2) and (3)
+        Constr1 = []
+        Constr1.append(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+                    sum([self.PR[i, t]*self.w[i, t]
+                     for i in self.I for t in self.T]))
 
-    def __build_objective__(self):
-        """Build objective."""
-        m = self.model
-        data = self.data
-        s = self.variables.s
-        zeta = self.variables.zeta
-        mu_prime = self.variables.mu_prime
 
-        help_objective = sum([t*s[i, t] for i in data.I for t in data.T]) +\
-                         sum([data.Mp * mu_prime[g] for g in data.G])
-        sub_objective = zeta
+        list_Constr2 = list(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+                    - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+                    for t in self.T)
 
-        self.objective = m.setObjective(
-            help_objective + sub_objective,
-            gurobipy.GRB.MINIMIZE)
+        list_Constr = Constr1 + list_Constr2
 
-    def __build_constraints__(self):
-        """Build variables."""
-        m = self.model
-        data = self.data
 
-        # Variables
-        s = self.variables.s
-        z = self.variables.z
-        mu_prime = self.variables.mu_prime
+# Non-Negligence of Fronts (14) and (15)
+#        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+#                    for g in self.G for t in self.T)
+#        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
+#                    for g in self.G for t in self.T)
 
-        # Benders constraints
-        self.constraints.opt = {}
-        self.constraints.opt_int = {}
-        self.constraints.feas = {}
-        self.constraints.feas_int = {}
+# Objective
+# =========
+        self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
+                       sum([self.P[i] * self.z[i] for i in self.I]) +
+                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+                       0.001*self.y[self.max_t])
+
+        self.LR_obj = 0
+        self.LR_obj_const = []
+        for i in range(0,len(list_Constr)):
+            Constr1 = list_Constr[i]
+            anula=1
+            self.lambda1[i] = self.lambda1[i] * anula
+            self.LR_obj = self.LR_obj + self.lambda1[i] * Constr1 * anula
+            self.LR_obj_const.append(Constr1)
+
+        self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
+################################################################################
+# METHOD: return_lambda_size()
+################################################################################
+    def return_lambda_size(self):
+        num=1+len(list_Constr2)#+len(list_Constr3)+len(list_Constr4)
+        return num
+
+################################################################################
+# PRIVATE METHOD: __create_constraints__()
+################################################################################
+    def __create_constraints__(self):
+    # Constraints
+    # ===========
+    # Wildfire Containment
+    # --------------------
+
+        self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
+
+        #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+        #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
+        #        name='wildfire_containment_1')
+
+        #self.m.addConstrs(
+        #        (-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+        #        - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+        #        <= 0 for t in self.T), name='wildfire_containment_2')
+
+        self.m.addConstrs( (self.y[t-1] >= self.y[t] for t in self.T) ,name='aux_constraint_y1')
+        self.m.addConstrs( (self.w[i,t] <= self.y[t-1] for i in self.I for t in self.T) ,name='aux_constraint_y2')
+
+        # Start of activity
+        # -----------------
+        self.m.addConstrs(
+            (self.A[i]*self.w[i, t] <=
+             sum([self.tr[i, t1] for t1 in self.T_int.get_names(p_max=t)])
+             for i in self.I for t in self.T),
+            name='start_activity_1')
+
+        self.m.addConstrs(
+            (self.s[i, self.min_t] +
+             sum([(self.max_t + 1)*self.s[i, t]
+                  for t in self.T_int.get_names(p_min=self.min_t+1)]) <=
+             self.max_t*self.z[i]
+             for i in self.I if self.ITW[i] == True),
+            name='start_activity_2')
+
+        self.m.addConstrs(
+            (sum([self.s[i, t] for t in self.T]) <= self.z[i]
+             for i in self.I if self.ITW[i] == False),
+            name='start_activity_3')
+
+        # End of Activity
+        # ---------------
+        self.m.addConstrs(
+            (sum([self.tr[i, t1] for t1 in self.T_int.get_names(p_min=t-self.TRP[i]+1,
+                                                           p_max=t)
+                  ]) >= self.TRP[i]*self.e[i, t]
+             for i in self.I for t in self.T),
+            name='end_activity')
+
+        # Breaks
+        # ------
+        self.m.addConstrs(
+            (0 <= self.cr[i, t]
+             for i in self.I for t in self.T),
+            name='Breaks_1_lb')
+
+        self.m.addConstrs(
+            (self.cr[i, t] <= self.WP[i]
+             for i in self.I for t in self.T),
+            name='Breaks_1_ub')
+
+        self.m.addConstrs(
+            (self.r[i, t] <= sum([self.er[i, t1]
+                             for t1 in self.T_int.get_names(p_min=t,
+                                                            p_max=t+self.RP[i]-1)])
+             for i in self.I for t in self.T),
+            name='Breaks_2')
+
+        self.m.addConstrs(
+            (sum([
+                self.r[i, t1]
+                for t1 in self.T_int.get_names(p_min=t-self.RP[i]+1, p_max=t)]) >=
+             self.RP[i]*self.er[i, t]
+             if t >= self.min_t - 1 + self.RP[i] else
+             self.CRP[i]*self.s[i, self.min_t] +
+             sum([self.r[i, t1] for t1 in self.T_int.get_names(p_max=t)]) >=
+             self.RP[i]*self.er[i, t]
+             for i in self.I for t in self.T),
+            name='Breaks_3')
+
+        self.m.addConstrs(
+            (sum([self.r[i, t1]+self.tr[i, t1]
+                  for t1 in self.T_int.get_names(p_min=t-self.TRP[i],
+                                                 p_max=t+self.TRP[i])]) >=
+             len(self.T_int.get_names(p_min=t-self.TRP[i],
+                                      p_max=t+self.TRP[i]))*self.r[i, t]
+             for i in self.I for t in self.T),
+            name='Breaks_4')
+
+        # Maximum Number of Usage Periods in a Day
+        # ----------------------------------------
+        self.m.addConstrs(
+            (sum([self.u[i, t] for t in self.T]) <= self.UP[i] - self.CUP[i]
+             for i in self.I),
+            name='max_usage_periods')
 
         # Non-Negligence of Fronts
         # ------------------------
-        self.constraints.negligence_1 = \
-            m.addConstrs(
-                (sum([z[i] for i in data.Ig[g]]) >=
-                 min([data.nMin[g, t] for t in data.T]) - mu_prime[g]
-                 for g in data.G),
-                name='non-negligence_1')
+        self.m.addConstrs(
+            ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+         <= 0 for g in self.G for t in self.T),
+        name='non-negligence_1')
+
+        self.m.addConstrs(
+        (sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
+         for g in self.G for t in self.T),
+        name='non-negligence_2')
 
         # Logical constraints
         # ------------------------
-        self.constraints.logical_2 = \
-            m.addConstrs(
-                (z[i] <= 1
-                 for i in data.I),
-                name='logical_2')
+        self.m.addConstrs(
+            (sum([t*self.e[i, t] for t in self.T]) >= sum([t*self.s[i, t] for t in self.T])
+             for i in self.I),
+            name='logical_1')
 
-    def add_opt_cut(self, vars_coeffs, rhs):
-        m = self.model
+        self.m.addConstrs(
+            (sum([self.e[i, t] for t in self.T]) <= 1
+             for i in self.I),
+            name='logical_2')
 
-        cut_num = len(self.constraints.opt)
-        self.constraints.opt[cut_num] = m.addConstr(
-            sum(coeff*m.getVarByName(var)
-                for var, coeff in vars_coeffs.items())
-            + self.variables.zeta >= rhs,
-            name='opt[{}]'.format(cut_num)
-        )
-        m.update()
+        self.m.addConstrs(
+            (self.r[i, t] + self.tr[i, t] <= self.u[i, t]
+             for i in self.I for t in self.T),
+            name='logical_3')
 
-    def add_opt_int_cut(self, vars_coeffs, rhs):
-        m = self.model
+        self.m.addConstrs(
+            (sum([self.w[i, t] for t in self.T]) >= self.z[i]
+             for i in self.I),
+            name='logical_4')
 
-        cut_num = len(self.constraints.opt_int)
-        self.constraints.opt_int[cut_num] = m.addConstr(
-            sum(coeff*m.getVarByName(var)
-                for var, coeff in vars_coeffs.items())
-            + self.variables.zeta >= rhs,
-            name='opt_int[{}]'.format(cut_num)
-        )
-        m.update()
+        self.m.update()
 
-    def add_feas_int_cut(self, vars_coeffs, rhs):
-        m = self.model
-
-        cut_num = len(self.constraints.feas_int)
-        self.constraints.feas_int[cut_num] = m.addConstr(
-            sum(coeff*m.getVarByName(var)
-                for var, coeff in vars_coeffs.items()) >= rhs,
-            name='feas_int[{}]'.format(cut_num)
-        )
-        m.update()
-
-    def add_feas_cut(self, vars_coeffs, rhs):
-        m = self.model
-
-        cut_num = len(self.constraints.feas)
-        self.constraints.feas[cut_num] = m.addConstr(
-            sum(coeff*m.getVarByName(var)
-                for var, coeff in vars_coeffs.items()) >= rhs,
-            name='feas[{}]'.format(cut_num)
-        )
-        m.update()
-
-    def get_obj(self):
-        return self.obj_val
-
-    def solve(self, solver_options):
-        """Solve mathematical model.
-
-        Args:
-            solver_options (:obj:`dict`): gurobi options. Default ``None``.
-                Example: ``{'TimeLimit': 10}``.
+################################################################################
+# METHOD: UPDATE LAMBDA1
+################################################################################
+    def update_lambda1(self, lambda1):
+        """Update lambda in RPP model
+            Args:
+            lambda1 (:obj:`list`): Array with lambda values.
         """
-        if solver_options is None:
-            solver_options = {'OutputFlag': 0}
+        self.lambda1 = lambda1
+        self.__create_vars__()
+        self.__create_objfunc__()
+        self.__create_constraints__()
+        self.m.update()
+        self.model = solution.Solution(
+            self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
+            w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
 
-        m = self.model
-        variables = self.variables
+################################################################################
+# METHOD: return_LR_obj()
+################################################################################
+    def return_LR_obj(self, solution):
+        return self.LR_obj.getValue()
 
-        # set gurobi options
-        if isinstance(solver_options, dict):
-            for k, v in solver_options.items():
-                m.setParam(k, v)
+################################################################################
+# METHOD: return_LR_obj2()
+################################################################################
+    def return_LR_obj2(self, solution):
+        total = []
+        num=len(self.LR_obj_const)
+        for i in range(0,num):
+            total.append(self.LR_obj_const[i].getValue())
+        return total
 
-        m.optimize()
+################################################################################
+# METHOD: return_function_obj()
+################################################################################
+    def return_function_obj(self, solution):
+        return self.function_obj.getValue()
 
-        # Todo: check what status number return a solution
-        if m.Status != 3:
-
-            self.obj_val = self.variables.zeta.x
-            self.solution = {v.VarName: v.x for v in self.model.getVars()}
-
-            # Load variables values
-            self.problem_data.resources.update(
-                {i: {'select': variables.z[i].getValue() == 1}
-                 for i in self.data.I})
-
-            self.problem_data.resources_wildfire.update(
-                {(i, t): {
-                    'start': variables.s[i, t].x == 1
-                }
-                 for i in self.data.I for t in self.data.T})
-        else:
-            log.warning(config.gurobi.status_info[m.Status]['description'])
-
-        return m.Status
-# --------------------------------------------------------------------------- #
+################################################################################
+# METHOD: return_sizey
+################################################################################
+    def return_sizey(self):
+        return  len(self.T + [self.min_t-1])

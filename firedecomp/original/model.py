@@ -58,6 +58,23 @@ class InputModel(object):
         self.valid_constraints = valid_constraints
         self.model = self.__get_model__()
 
+    def update_model(self, solution):
+        Tlen = self.T
+        Ilen = self.I
+        Glen = self.G
+        sol1 = solution.get_model()
+        for res in Ilen:
+            for tt in Tlen:
+                self.model.get_model().getVarByName("start["+res+","+str(tt)+"]").start = sol1.getVarByName("start["+str(res)+","+str(tt)+"]").start
+                self.model.get_model().getVarByName("travel["+str(res)+","+str(tt)+"]").start = sol1.getVarByName("travel["+str(res)+","+str(tt)+"]").start
+                self.model.get_model().getVarByName("rest["+str(res)+","+str(tt)+"]").start = sol1.getVarByName("rest["+str(res)+","+str(tt)+"]").start
+                self.model.get_model().getVarByName("end_rest["+str(res)+","+str(tt)+"]").start = sol1.getVarByName("end_rest["+str(res)+","+str(tt)+"]").start
+                self.model.get_model().getVarByName("end["+str(res)+","+str(tt)+"]").start = sol1.getVarByName("end["+str(res)+","+str(tt)+"]").start
+            for gro in Glen:
+                for tt in Tlen:
+                    self.model.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start = sol1.getVarByName("missing_resources["+gro+","+str(tt)+"]").start
+        self.model.get_model().update()
+
     def __get_model__(self):
         return model(self, relaxed=self.relaxed,
                      valid_constraints=self.valid_constraints)
@@ -70,7 +87,7 @@ class InputModel(object):
                 Example: ``{'TimeLimit': 10}``.
         """
         if solver_options is None:
-            solver_options = {'OutputFlag': 0}
+            solver_options = {'OutputFlag': 0, 'LogToConsole':0}
 
         m = self.model
 
@@ -348,23 +365,13 @@ def model(data, relaxed=False, slack_containment=False, valid_constraints=None,
         name='Breaks_3')
 
     m.addConstrs(
-        (sum([r[i, t1] + tr[i, t1]
+        (sum([r[i, t1]+tr[i, t1]
               for t1 in data.T_int.get_names(p_min=t-data.TRP[i],
                                              p_max=t+data.TRP[i])]) >=
          len(data.T_int.get_names(p_min=t-data.TRP[i],
                                   p_max=t+data.TRP[i]))*r[i, t]
          for i in data.I for t in data.T),
         name='Breaks_4')
-
-    # m.addConstrs(
-    #     (sum([1-w[i, t1]  # r[i, t1] + tr[i, t1]
-    #           for t1 in data.T_int.get_names(p_min=t-data.TRP[i],
-    #                                          p_max=t+data.TRP[i])]) >=
-    #      len(data.T_int.get_names(p_min=t-data.TRP[i],
-    #                               p_max=t+data.TRP[i]))*r[i, t]
-    #      for i in data.I for t in data.T),
-    #     name='Breaks_4')
-
 
     # Maximum Number of Usage Periods in a Day
     # ----------------------------------------
