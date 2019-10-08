@@ -165,9 +165,43 @@ class RelaxedPrimalProblem(model.InputModel):
 
         # (2) Auxiliar variables
         self.__create_auxiliar_vars__()
+
 ################################################################################
 # PRIVATE METHOD: __create_var_y__
 ################################################################################
+    def __create_auxiliar_vars__(self):
+        self.u = {
+            (i, t):
+                self.s.sum(i, self.T_int.get_names(p_max=t))
+                - self.e.sum(i, self.T_int.get_names(p_max=t-1))
+            for i in  self.I for t in  self.T }
+        self.w = {(i, t):  self.u[i, t] -  self.r[i, t] -  self.tr[i, t] for i in self.I for t in self.T}
+        self.z = {i:  self.e.sum(i, '*') for i in self.I}
+
+        self.cr = {(i, t):
+              sum([
+                  (t+1-t1)*self.s[i, t1]
+                  - (t-t1)*self.e[i, t1]
+                  - self.r[i, t1]
+                  - self.WP[i]*self.er[i, t1]
+                  for t1 in self.T_int.get_names(p_max=t)])
+              for i in self.I for t in self.T
+              if not self.ITW[i] and not self.IOW[i]}
+
+        self.cr.update({
+            (i, t):
+                (t+self.CWP[i]-self.CRP[i]) * self.s[i, self.min_t]
+                + sum([
+                    (t + 1 - t1 + self.WP[i]) * self.s[i, t1]
+                    for t1 in self.T_int.get_names(p_min=self.min_t+1, p_max=t)])
+                - sum([
+                    (t - t1) * self.e[i, t1]
+                    + self.r[i, t1]
+                    + self.WP[i] * self.er[i, t1]
+                    for t1 in self.T_int.get_names(p_max=t)])
+            for i in self.I for t in self.T
+            if self.ITW[i] or self.IOW[i]})
+
     def __create_var_y_and_fixed_vars__(self):
         self.sizey = len(self.T + [self.min_t-1])
         self.y = self.m.addVars(self.T + [self.min_t-1], vtype=self.vtype, lb=self.lb, ub=self.ub,

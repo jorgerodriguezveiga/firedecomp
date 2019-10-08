@@ -4,19 +4,15 @@
 import time
 
 # Package modules
-from firedecomp.original import model as _model
 from firedecomp.fix_work import fix_work
 from firedecomp.original import model as _model
-from firedecomp.benders import benders
 from firedecomp.LR import LR
 from firedecomp.AL import AL
 from firedecomp import config
 from firedecomp import plot
-import firedecomp.branchprice.model_original as scip_model
 import firedecomp.branchprice.benders_scip as scip
 from firedecomp.config import scip as scip_status
 
-import time
 
 # Problem ---------------------------------------------------------------------
 class Problem(object):
