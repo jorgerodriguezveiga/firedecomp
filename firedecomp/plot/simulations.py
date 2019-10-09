@@ -57,7 +57,8 @@ def get_best(df, columns=None, groupby=None, best_prefix='best_',
 
     if columns is None:
         columns = [{'name': 'obj_fun', 'sense': 'min'},
-                   {'name': 'elapsed_time', 'sense': 'min'}]
+                   {'name': 'elapsed_time', 'sense': 'min'},
+                   {'name': 'solve_time', 'sense': 'min'}]
 
     sense_instances = pd.DataFrame()
     for column in columns:
@@ -186,5 +187,28 @@ def instance_comparison(
                        y=list(performance[c].values()),
                        name=c))
 
-    import pdb; pdb.set_trace()
+    plotly.offline.iplot(data)
+
+
+def sim_boxplot(df, y='solve_time', modes=None, columns=None):
+    if modes is None:
+        modes = ['original', 'fix_work']
+    if columns is None:
+        columns = ['num_brigades', 'num_aircraft', 'num_machines',
+                   'num_periods']
+
+    data = []
+
+    for n, m in enumerate(modes):
+        x = ["-".join([str(j) for j in df.loc[[i], columns].values[0]])
+             for i in df[df['mode'] == m].index.tolist()]
+
+        data.append(
+            go.Box(
+                x=x,
+                y=df[y][df['mode'] == m],
+                legendgroup=m, name=m
+            )
+        )
+
     plotly.offline.iplot(data)
