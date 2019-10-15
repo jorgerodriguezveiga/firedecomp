@@ -177,12 +177,12 @@ class AugmentedLagrangian(object):
 
 # CHECK PREVIOUS LAMBDAS CHANGES
         for i in range(0,len(self.lambda_matrix)-1):
-            if self.termination_counter[i] < self.th_sol :
+            if self.termination_counter[i] < self.th_sol:
                 check = 0
                 lobj_diff = abs((abs(self.lobj_local[i]) - abs(self.lobj_local_prev[i]))/abs(self.lobj_local[i]))*100
                 #print(str(i) + "self.lobj_local[i] - self.lobj_local_prev[i] " + str(lobj_diff) + "% ")
                 if (lobj_diff < 0.1):
-                    self.termination_counter[i]  = self.termination_counter[i] + 1
+                    self.termination_counter[i] = self.termination_counter[i] + 1
                 else:
                     self.termination_counter[i]  = 0
                 self.lobj_local_prev[i] = self.lobj_local[i]
@@ -345,9 +345,10 @@ class AugmentedLagrangian(object):
             # Update DPP
             self.update_DPP_set(self.lambda_matrix, self.beta_matrix, self.DPP_sol, DPP_sol_feasible)
 
-
         # DESTROY DPP
         self.destroy_DPP_set()
+        self.update_problem_best_sol(self.solution_best_original)
+
         return self.solution_best_original
 
 ###############################################################################
@@ -563,3 +564,57 @@ class AugmentedLagrangian(object):
 #
 #        self.log = logger
 #        return 1
+
+    def update_problem_best_sol(self, solution):
+        variables = solution.variables
+        problem = self.problem_data
+        data = problem.data
+
+        problem.resources.update(
+            {i: {'select': round(variables.z[i].getValue()) == 1}
+             for i in data.I})
+
+        s = {(i, t): round(variables.s[i, t].x) == 1
+             for i in data.I for t in data.T}
+        u = {(i, t): round(variables.u[i, t].getValue()) == 1
+             for i in data.I for t in data.T}
+        e = {(i, t): round(variables.e[i, t].x) == 1
+             for i in data.I for t in data.T}
+        w = {(i, t): round(variables.w[i, t].getValue()) == 1
+             for i in data.I for t in data.T}
+        r = {(i, t): round(variables.r[i, t].x) == 1
+             for i in data.I for t in data.T}
+        er = {(i, t): round(variables.er[i, t].x) == 1
+              for i in data.I for t in data.T}
+        tr = {(i, t): round(variables.tr[i, t].x) == 1
+              for i in data.I for t in data.T}
+
+        problem.resources_wildfire.update(
+            {(i, t): {
+                'start': s[i, t],
+                'use': u[i, t],
+                'end': e[i, t],
+                'work': w[i, t],
+                'travel': tr[i, t],
+                'rest': r[i, t],
+                'end_rest': er[i, t]
+            }
+                for i in data.I for t in data.T})
+
+        problem.groups_wildfire.update(
+            {(g, t): {'num_left_resources': variables.mu[g, t].x}
+             for g in data.G for t in data.T})
+
+        contained = {t: variables.y[t].x == 0
+                     for t in data.T}
+        contained_period = [t for t, v in contained.items()
+                            if v is True]
+
+        if len(contained_period) > 0:
+            first_contained = min(contained_period) + 1
+        else:
+            first_contained = data.max_t + 1
+
+        problem.wildfire.update(
+            {t: {'contained': False if t < first_contained else True}
+             for t in data.T})
