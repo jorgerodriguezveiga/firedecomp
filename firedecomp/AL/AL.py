@@ -27,7 +27,7 @@ class AugmentedLagrangian(object):
         min_res_penalty=1000000,
         gap=0.01,
         max_iters=100000,
-        max_time=10,
+        max_time=30,
         log_level="AL",
         solver_options=None,
     ):
@@ -157,10 +157,10 @@ class AugmentedLagrangian(object):
             #if change_per >= 0.1:
             beta_vector[i] = beta_vector[i] * 1.2
 
-            if ii == 1:
-                print(str(LRpen)+" -> lambda "+str(lambda_old[i])+ " + "+str(beta_old[i] * LRpen) + " = " + str(lambda_vector[i]) + " update " + str(beta_old[i]) + " diff " + str(abs(abs(lambda_vector[i])-abs(lambda_old[i]))) + " beta " + str(beta_vector[i]) + " change_per "+str(change_per) )
-        if ii == 1:
-            print("")
+            #if ii == 1:
+            #    print(str(LRpen)+" -> lambda "+str(lambda_old[i])+ " + "+str(beta_old[i] * LRpen) + " = " + str(lambda_vector[i]) + " update " + str(beta_old[i]) + " diff " + str(abs(abs(lambda_vector[i])-abs(lambda_old[i]))) + " beta " + str(beta_vector[i]) + " change_per "+str(change_per) )
+        #if ii == 1:
+        #    print("")
 
         del lambda_old
         del beta_old
@@ -255,9 +255,9 @@ class AugmentedLagrangian(object):
             DPP_sol_feasible.append(1)
             self.DPP_sol.append(self.create_initial_solution(isol, osol))
         # (1) Initialize DPP
-        print("CREATE SET DPP")
+        #print("CREATE SET DPP")
         self.create_DPP_set()
-        print("END CREATE DPP")
+        #print("END CREATE DPP")
         while (termination_criteria == False):
             # (1) Solve DPP problems
             for i in range(0,self.y_master_size-1):
@@ -318,10 +318,10 @@ class AugmentedLagrangian(object):
                         self.upperbound_matrix[i] = self.fobj_local[i]
 
                     if (stop_inf == False):
-                        print("\tlobj "+str(self.lobj_local[i])+" fobj "+str(self.fobj_local[i])+" infeas "+str(self.infeas_local[i]))
+                        #print("\tlobj "+str(self.lobj_local[i])+" fobj "+str(self.fobj_local[i])+" infeas "+str(self.infeas_local[i]))
                         self.subgradient( self.subgradient_local[i] , self.lambda_matrix[i], self.beta_matrix[i], i)
                         if (inf_sol <= 0):
-                            print("Gather_solution"+str(i))
+                            #print("Gather_solution"+str(i))
                             self.DPP_sol[i]=self.gather_solution(DPP_sol_row, self.DPP_sol[i], self.lambda_matrix[i], self.lambda_matrix_prev[i])
                     else:
                         self.termination_counter[i] = self.th_sol + 1
@@ -525,7 +525,7 @@ class AugmentedLagrangian(object):
 ###############################################################################
     def update_DPP_set(self, lambda_matrix, beta_matrix, solution, DPP_feasible):
         for i in range(0,self.y_master_size-1):
-            print("update_DPP_set"+str(i))
+            #print("update_DPP_set"+str(i))
             for j in range(0,self.N):
                 if (DPP_feasible[i] == 1):
                     self.problem_DPP[i][j].update_model(lambda_matrix[i], beta_matrix[i], solution[i])
