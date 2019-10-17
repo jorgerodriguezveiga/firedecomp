@@ -347,7 +347,9 @@ class AugmentedLagrangian(object):
 
         # DESTROY DPP
         self.destroy_DPP_set()
-        self.update_problem_best_sol(self.solution_best_original)
+
+        if self.solution_best_original is not None:
+            self.update_problem_best_sol(self.solution_best_original)
 
         return self.solution_best_original
 
