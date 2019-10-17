@@ -227,6 +227,8 @@ class AugmentedLagrangian(object):
         if stop == bool(True):
             if self.solution_best is not None:
                 self.solution_best_original = self.create_solution_DPP_to_original(self.solution_best)
+            else:
+                self.solution_best_original = None
         return stop
 
 ###############################################################################
