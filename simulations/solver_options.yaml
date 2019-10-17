@@ -25,3 +25,5 @@ benders_scip:
   limits/time: 600
 gcg_scip:
   limits/time: 600
+AL:
+  limits/time: 600
