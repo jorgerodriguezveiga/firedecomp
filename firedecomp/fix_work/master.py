@@ -42,7 +42,7 @@ class Master(object):
         self.no_contention_periods = None
         self.valid_constraints = valid_constraints
 
-        self.__start_info__ = {}
+        self.__start_info__={}
         self.__build_model__()
 
     def update_model(self):

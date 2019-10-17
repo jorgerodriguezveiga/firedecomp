@@ -4,11 +4,12 @@
 import time
 
 # Package modules
-from firedecomp.original import model as _model
 from firedecomp.fix_work import fix_work
+from firedecomp.original import model as _model
+from firedecomp.LR import LR
+from firedecomp.AL import AL
 from firedecomp import config
 from firedecomp import plot
-import firedecomp.branchprice.model_original as scip_model
 import firedecomp.branchprice.benders_scip as scip
 from firedecomp.config import scip as scip_status
 
@@ -46,6 +47,8 @@ class Problem(object):
         self.fix_work_model = None
         self.benders_scip_model = None
         self.gcg_scip_model = None
+        self.LR_model = None
+        self.AL_model = None
         self.solve_status = None
         self.mipgap = None
         self.constrvio = None
@@ -54,6 +57,9 @@ class Problem(object):
 
         self.__build_data__()
         self.__build_period_data__()
+
+    def get_resources(self):
+        return self.resources
 
     def update_units(self, period_unit=True, inplace=True):
         """Update problem units.
@@ -147,7 +153,7 @@ class Problem(object):
 
         if per_period is not True:
             cost = cost[max(self.wildfire.get_names())]
-            
+
         return cost
 
     def status(self, info="status"):
@@ -184,10 +190,23 @@ class Problem(object):
         self.update_units()
         self.data = Data(self)
 
+    def get_variables_solution(self)->dict:
+        """Get variable solution as a dictionary."""
+        solution_dict = {
+            's': {k: float(v) for k, v in self.resources_wildfire.get_info("start").items()},
+            'tr': {k: float(v) for k, v in self.resources_wildfire.get_info("travel").items()},
+            'r': {k: float(v) for k, v in self.resources_wildfire.get_info("rest").items()},
+            'e': {k: float(v) for k, v in self.resources_wildfire.get_info("end").items()},
+            'er': {k: float(v) for k, v in self.resources_wildfire.get_info("end_rest").items()},
+            'mu': {k: float(v) for k, v in self.groups_wildfire.get_info("num_left_resources").items()},
+            'y': {k: float(v) for k, v in self.wildfire.get_info("contained").items()}
+        }
+        return solution_dict
+
     def solve(self, method='original',
               original_options=None, original_scip_options=None,
               fix_work_options=None, benders_scip_options=None,
-              gcg_scip_options=None,
+              gcg_scip_options=None, LR_options=None, AL_options=None,
               min_res_penalty=1000000,
               log_level=None):
         """Solve mathematical model.
@@ -283,7 +302,7 @@ class Problem(object):
         elif method == 'benders_scip':
             if benders_scip_options is None:
                 benders_scip_options = {}
-            
+
             try:
                 self.benders_scip_model, self.solve_status = scip.solve_benders(
                     self, solver_options=benders_scip_options)
@@ -302,19 +321,17 @@ class Problem(object):
                         self.constrvio = viol
                 self.mipgap = model.getGap()
                 self.solve_time = model.getSolvingTime()
-                
+
             except Exception as e:
                 print(e)
                 self.solve_status = None
                 self.constrvio = None
                 self.mipgap = None
                 self.solve_time = None
-            
-
         elif method == 'gcg_scip':
             if gcg_scip_options is None:
                 gcg_scip_options = {}
-            
+
             try:
                 # Solving the problem with GCG via call to system
                 self.solve_status, self.solve_time, self.mipgap, self.constrvio = scip.solve_GCG(
@@ -322,12 +339,46 @@ class Problem(object):
             except Exception as e:
                 print(e)
                 self.solve_status = None
-                self.solve_time = None 
+                self.solve_time = None
                 self.mipgap = None
                 self.constrvio = None
 
             # There is no model
             self.gcg_scip_model = None
+
+        elif method == 'LR':
+            if log_level is None:
+                log_level = 'LR'
+
+            if LR_options is None:
+                LR_options = {
+                    'min_res_penalty': 1000000,
+                    'gap': 0.0,
+                    'max_iters': 100,
+                    'max_time': 60
+                }
+
+            LR_problem = LR.LagrangianRelaxation(
+                self, **LR_options, log_level=log_level)
+            self.solve_status = LR_problem.solve()
+            self.LR_model = LR_problem
+
+        elif method == 'AL':
+            if log_level is None:
+                log_level = 'AL'
+
+            if AL_options is None:
+                AL_options = {
+                    'min_res_penalty': 1000000,
+                    'gap': 0.0,
+                    'max_iters': 100,
+                    'max_time': 60
+                }
+
+            AL_problem = AL.AugmentedLagrangian(
+                self, **AL_options, log_level=log_level)
+            self.solve_status = AL_problem.solve()
+            self.AL_model = AL_problem
 
         else:
             raise ValueError(
@@ -377,7 +428,7 @@ class Problem(object):
             mipgapabs = self.mipgap*objfun
         else:
             mipgapabs = None
-            
+
         return {
             'obj_fun': objfun,
             'res_cost': res_cost,

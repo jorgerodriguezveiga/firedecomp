@@ -1,581 +1,341 @@
-"""Module with wildfire suppression model definition."""
-
+"""Module with lagrangian decomposition methods."""
 # Python packages
 import gurobipy
 import logging as log
 import pandas as pd
+import copy
 
 # Package modules
-from firedecomp.fix_work import utils
+from firedecomp.classes import solution
 from firedecomp import config
-
-
-# Class which can have attributes set.
-class Expando(object):
-    """Todo: create a class for each type of set."""
-    pass
+from firedecomp.LR import RPP
 
 
 # Subproblem ------------------------------------------------------------------
-class DecomposedPrimalProblem(object):
-    """Todo: Considered only selected resources."""
-    def __init__(self, problem_data, min_res_penalty=1000000, relaxed=False,
-                 slack=False):
-        if problem_data.period_unit is False:
-            raise ValueError("Time unit of the problem is not a period.")
+class DecomposedPrimalProblem(RPP.RelaxedPrimalProblem):
+    def __init__(self, problem_data, lambda1, resource_i, list_y, sol, nproblems, NL, relaxed=False,
+                 min_res_penalty=1000000):
+        """Initialize the DecomposedPrimalProblem.
 
-        self.problem_data = problem_data
-        self.min_res_penalty = min_res_penalty
-        self.relaxed = relaxed
-        self.slack = slack
-        self.data = Expando()
-        self.variables = Expando()
-        self.constraints = Expando()
-        self.results = Expando()
-        self.dual = None
+        Args:
+            problem_data (:obj:`Problem`): problem data.
+            lambda1  (:obj:`list`): list of numeric values of lambdas (integers)
+            resource_i (:obj:`int`): index resource
+            option_decomp (:obj:`str`): maximum number of iterations. Defaults to
+                Defaults to 0.01.
+            relaxed (:obj:`float`):  Defaults to 0.01.
+            min_res_penalty (:obj:`int`): .
+                Default to 1000000
+        """
+        self.resource_i = resource_i
+        self.list_y = list_y
+        self.solution = sol
+        self.index_L = []
+        self.nproblems = nproblems
+        self.NL = NL
+        self.UB_value = float("inf")
+        for i in range(0,self.NL):
+            self.index_L.append(0.0)
 
-        self.__build_model__()
+        super().__init__(problem_data, lambda1, relaxed, min_res_penalty)
 
-    def __build_model__(self):
-        self.model = gurobipy.Model("Subproblem")
-        self.__build_data__()
-        self.__build_variables__()
-        self.__build_objective__()
-        self.__build_constraints__()
-        self.model.update()
-
-    def __build_data__(self):
-        """Build problem data."""
-        problem_data = self.problem_data
-        # Sets
-        self.data.I = problem_data.get_names("resources")
-        self.data.G = problem_data.get_names("groups")
-        self.data.T = problem_data.get_names("wildfire")
-        self.data.Ig = {
-            k: [e.name for e in v]
-            for k, v in problem_data.groups.get_info('resources').items()}
-        self.data.T_int = problem_data.wildfire
-
-        # Parameters
-        self.data.C = problem_data.resources.get_info("variable_cost")
-        self.data.P = problem_data.resources.get_info("fix_cost")
-        self.data.BPR = problem_data.resources.get_info("performance")
-        self.data.A = problem_data.resources.get_info("arrival")
-        self.data.CWP = problem_data.resources.get_info("work")
-        self.data.CRP = problem_data.resources.get_info("rest")
-        self.data.CUP = problem_data.resources.get_info("total_work")
-        self.data.ITW = problem_data.resources.get_info("working_this_wildfire")
-        self.data.IOW = problem_data.resources.get_info(
-            "working_other_wildfire")
-        self.data.TRP = problem_data.resources.get_info("time_between_rests")
-        self.data.WP = problem_data.resources.get_info("max_work_time")
-        self.data.RP = problem_data.resources.get_info("necessary_rest_time")
-        self.data.UP = problem_data.resources.get_info("max_work_daily")
-        self.data.PR = problem_data.resources_wildfire.get_info(
-            "resource_performance")
-
-        self.data.PER = problem_data.wildfire.get_info("increment_perimeter")
-        self.data.NVC = problem_data.wildfire.get_info("increment_cost")
-
-        self.data.nMin = problem_data.groups_wildfire.get_info("min_res_groups")
-        self.data.nMax = problem_data.groups_wildfire.get_info("max_res_groups")
-
-        self.data.Mp = self.min_res_penalty
-        self.data.M = sum([v for k, v in self.data.PER.items()])
-        self.data.min_t = int(min(self.data.T))
-        self.data.max_t = int(max(self.data.T))
-
-        self.__update_data__()
-
-    def __update_data__(self):
-        problem_data = self.problem_data
-        self.data.s_fix = {
-            k: 1 if v is True else 0 for k, v in
-            problem_data.resources_wildfire.get_info("start").items()}
-        self.__update_work__()
-
-    def __update_work__(self):
-        """Establish work, travel and rest periods."""
-        data = self.data
-        work = {(i, t): 0 for i in data.I for t in data.T}
-        rest = {(i, t): 0 for i in data.I for t in data.T}
-        travel = {(i, t): 0 for i in data.I for t in data.T}
-
-        for i in data.I:
-            if (data.ITW[i] is False) and (data.IOW[i] is False):
-                work_count = 1
-            else:
-                if data.s_fix[i, data.min_t] == 1:
-                    work_count = data.CWP[i] - data.CRP[i] + 1
-                else:
-                    work_count = data.WP[i] + 1
-
-            start = False
-            travel_count = 1
-            for t in data.T:
-                if data.s_fix[i, t] == 1:
-                    start = True
-
-                if start:
-                    if (data.ITW[i] is True) or (data.IOW[i] is True):
-                        if (work_count == data.CWP[i]+1) and (data.A[i] == 1):
-                            work_count += 1
-                            rest[i, t] = 1
-                            continue
-
-                    if work_count <= data.WP[i] - data.TRP[i]:
-                        work_count += 1
-                        if travel_count <= data.A[i]:
-                            travel_count += 1
-                            travel[i, t] = 1
-                        else:
-                            work[i, t] = 1
-                    elif work_count <= data.WP[i]:
-                        work_count += 1
-                        travel_count += 1
-                        travel[i, t] = 1
-                    elif work_count <= data.WP[i] + data.RP[i]:
-                        work_count += 1
-                        rest[i, t] = 1
-                    elif work_count < data.WP[i] + data.RP[i]:
-                        work_count += 1
-                        travel_count += 1
-                        travel[i, t] = 1
-                    else:
-                        work_count = 0
-                        travel_count += 1
-                        travel[i, t] = 1
-                else:
-                    pass
-
-        data.work = work
-        data.rest = rest
-        data.travel = travel
-
-    def __build_variables__(self):
-        """Build variables."""
-        data = self.data
-
-        if self.slack is True:
-            self.variables.slack = self.model.addVar(
-                vtype=gurobipy.GRB.CONTINUOUS, lb=0, name="slack")
-
-        # Wildfire
-        # --------
-        self.variables.mu = self.model.addVars(
-            data.G, data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
-            name="missing_resources")
-
-        # Other variables
-        # ---------------
-        self.__update_variables__()
-
-    def __update_variables__(self):
-        data = self.data
-
-        if self.relaxed is True:
-            vtype = gurobipy.GRB.CONTINUOUS
-        else:
-            vtype = gurobipy.GRB.BINARY
-
-        lb = 0
-        ub = 1
-
-        s_fix = data.s_fix
-
-        self.variables.s = self.model.addVars(
-            data.I, data.T, vtype=vtype, lb=s_fix, ub=s_fix, name="start")
-        self.variables.z = {
-            i: sum([self.variables.s[i, t] for t in data.T]) for i in data.I}
-
-        start = {i: min([t for t in data.T if s_fix[i, t] == 1]+[data.max_t])
-                 for i in data.I}
-
-        tr_ub = {(i, t): 0 if t < start[i] else 1
-                 for i in data.I for t in data.T}
-        self.variables.tr = self.model.addVars(
-            data.I, data.T, vtype=vtype, lb=lb, ub=tr_ub, name="travel")
+    def return_index_L(self):
+        return self.index_L
+##########################################################################################
+# PRIVATE METHOD: __extract_set_data_problem__ ()
+# OVERWRITE RelaxedPrimalProblem.__extract_set_data_problem__()
+##########################################################################################
+#    def __extract_set_data_problem__(self, relaxed=False):
+#        """ Extract SET fields from data problem
+#        """
 #
-        # Resources
-        # ---------
-        e_ub = {(i, t): sum(s_fix[i, t1] for t1 in data.T)
-                for i in data.I for t in data.T}
-        self.variables.e = self.model.addVars(
-            data.I, data.T, vtype=vtype, lb=lb, ub=e_ub, name="end")
+#        self.__extract_set_data_problem_by_resources__(relaxed)
 
-        # Auxiliar variables
-        self.variables.u = {
-            (i, t):
-                self.variables.s.sum(i, data.T_int.get_names(p_max=t))
-                - self.variables.e.sum(i, data.T_int.get_names(p_max=t - 1))
-            for i in data.I for t in data.T}
+##########################################################################################
+# PRIVATE METHOD: __create_gurobi_model__ ()
+# OVERWRITE RelaxedPrimalProblem.__create_gurobi_model__()
+    def __create_gurobi_model__(self):
+        """Create gurobi model.
+        """
+        self.m = gurobipy.Model("Decomposed_Primal_Problem_LR_"+
+                                 str(self.resource_i))
 
-        self.variables.w = {
-            (i, t):
-                data.work[i, t]*(
-                        self.variables.u[i, t] - self.variables.tr[i, t])
-            for i in data.I for t in data.T}
+################################################################################
+# PRIVATE METHOD: __create_var_y__
+# OVERWRITE RelaxedPrimalProblem.__create_var_y__()
+################################################################################
+    def __create_var_y_and_fixed_vars__(self):
+        self.sizey = len(self.T + [self.min_t-1])
+        self.y = self.m.addVars(self.T + [self.min_t-1], vtype=self.vtype,
+                                    lb=self.lb, ub=self.ub, name="contention")
+        # fixed y
+        for i in range(0,self.sizey):
+            self.y[i].UB=self.list_y[i]
+            self.y[i].LB=self.list_y[i]
+            self.y[i].Start=self.list_y[i]
+        ##########################################
+        ##########################################
+        # fixed solution vars
+        for i in range(0,len(self.I)):
+            for t in self.T:
+                ind = self.I[i]
+                # VAR S
+                if (i != self.resource_i):
+                    self.s[ind,t].UB     = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start
+                    self.s[ind,t].LB     = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start
+                else:
+                    self.s[ind,t].UB     = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").UB
+                    self.s[ind,t].LB     = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").LB
+                self.s[ind,t].Start  = self.solution.get_model().getVarByName("start["+ind+","+str(t)+"]").start
+                # VAR TR
+                if (i != self.resource_i):
+                    self.tr[ind,t].UB     = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").start
+                    self.tr[ind,t].LB     = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").start
+                else:
+                    self.tr[ind,t].UB     = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").UB
+                    self.tr[ind,t].LB     = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").LB
+                self.tr[ind,t].Start  = self.solution.get_model().getVarByName("travel["+ind+","+str(t)+"]").start
+                # VAR R
+                if (i != self.resource_i):
+                    self.r[ind,t].UB     = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").start
+                    self.r[ind,t].LB     = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").start
+                else:
+                    self.r[ind,t].UB     = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").UB
+                    self.r[ind,t].LB     = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").LB
+                self.r[ind,t].Start  = self.solution.get_model().getVarByName("rest["+ind+","+str(t)+"]").start
+                # VAR ER
+                if (i != self.resource_i):
+                    self.er[ind,t].UB     = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").start
+                    self.er[ind,t].LB     = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").start
+                else:
+                    self.er[ind,t].UB     = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").UB
+                    self.er[ind,t].LB     = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").LB
+                self.er[ind,t].Start  = self.solution.get_model().getVarByName("end_rest["+ind+","+str(t)+"]").start
+                # VAR E
+                if (i != self.resource_i):
+                    self.e[ind,t].UB     = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").start
+                    self.e[ind,t].LB     = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").start
+                else:
+                    self.e[ind,t].UB     = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").UB
+                    self.e[ind,t].LB     = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").LB
+                self.e[ind,t].Start  = self.solution.get_model().getVarByName("end["+ind+","+str(t)+"]").start
+        # fixed solution vars
+        for gro in self.G:
+                for tt in self.T:
+                    # VAR MU
+                    self.mu[gro,tt].Start  = self.solution.get_model().getVarByName("missing_resources["+gro+","+str(tt)+"]").start
 
-        # Wildfire
-        self.variables.y = self.model.addVars(
-            data.T + [data.min_t - 1], vtype=vtype, lb=lb, ub=ub,
-            name="contention")
-        self.variables.y[data.min_t - 1].lb = 1
 
-    def __update_model__(self):
-        """Todo: See how update the model correctly."""
-        # self.__update_data__()
-        # self.__update_variables__()
-        # self.__build_objective__()
-        # self.__build_constraints__()
-        # self.model.update()
-        self.__build_model__()
+################################################################################
+# METHOD: UPDATE LAMBDA1
+################################################################################
+    def update_lambda1(self, lambda1, sol):
+        """Update lambda in DPP model
+            Args:
+            lambda1 (:obj:`list`): Array with lambda values.
+        """
 
-    def __build_objective__(self):
-        """Build objective."""
-        m = self.model
-        data = self.data
+        self.solution = sol
+        self.lambda1 = lambda1
+        self.__create_vars__()
+        self.__create_objfunc__()
+        self.__create_constraints__()
+        self.m.update()
+        self.model = solution.Solution(
+            self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
+            w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
 
-        z = self.variables.z
-        u = self.variables.u
-        y = self.variables.y
-        mu = self.variables.mu
 
-        # Objective
-        # =========
-        if self.slack is False:
-            m.setObjective(
-                sum([data.C[i]*u[i, t] for i in data.I for t in data.T]) +
-                sum([data.P[i]*z[i] for i in data.I]) +
-                sum([data.NVC[t]*y[t - 1] for t in data.T]) +
-                sum([data.Mp*mu[g, t] for g in data.G for t in data.T]) +
-                0.001 * y[data.max_t],
-                gurobipy.GRB.MINIMIZE)
-        else:
-            m.setObjective(self.variables.slack, gurobipy.GRB.MINIMIZE)
+################################################################################
+# PRIVATE METHOD: __create_objfunc__()
+################################################################################
+    def __create_objfunc__(self):
+# Wildfire Containment (2) and (3)
+        Constr1 = []
+        Constr1.append(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+                    sum([self.PR[i, t]*self.w[i, t]
+                    for i in self.I for t in self.T]))
 
-    def __build_wildfire_containment_1__(self):
-        data = self.data
-        y = self.variables.y
-        w = self.variables.w
+        list_Constr2 = list(-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+                    - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+                    for t in self.T)
 
-        expr_lhs = \
-            sum([data.PER[t] * y[t - 1] for t in data.T])
-        expr_rhs = \
-            sum([data.PR[i, t] * w[i, t] for i in data.I for t in data.T])
+        list_Constr = Constr1 + list_Constr2
 
-        if self.slack:
-            expr_rhs += self.variables.slack
 
-        self.constraints.wildfire_containment_1 = self.model.addConstr(
-            expr_lhs <= expr_rhs, name='wildfire_containment_1')
+# Non-Negligence of Fronts (14) and (15)
+#        list_Constr3 = list((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+#                    for g in self.G for t in self.T)
+#        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1]
+#                    for g in self.G for t in self.T)
 
-    def __build_wildfire_containment_2__(self):
-        data = self.data
+# Objective
+# =========
 
-        y = self.variables.y
-        w = self.variables.w
-        PER = data.PER
-        PR = data.PR
+        self.function_obj = (sum([self.C[i]*self.u[i, t] for i in self.I for t in self.T]) +
+                       sum([self.P[i] * self.z[i] for i in self.I]) +
+                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+                       0.001*self.y[self.max_t])
+#        if self.resource_i == 0:
+#            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+#                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]) +
+#                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+#                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+#                       0.001*self.y[self.max_t])
+#        else:
+#            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+#                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]])  +
+#                       sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+#                       sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+#                       0.001*self.y[self.max_t]
+#                      )
+        self.LR_obj = 0
+        self.LR_obj_const = []
+        for i in range(0,len(list_Constr)):
+            Constr1 = list_Constr[i]
+            anula=1
+            self.index_L[i] = 1
+        #    if i % self.nproblems != self.resource_i :
+        #        anula=0
+        #        self.index_L[i] = 0
+            self.lambda1[i] = self.lambda1[i] * anula
+            self.LR_obj = self.LR_obj + self.lambda1[i] * Constr1 * anula
+            self.LR_obj_const.append(Constr1 * anula)
 
-        expr_lhs = {
-            t: sum([PER[t1] for t1 in data.T_int.get_names(p_max=t)])*y[t - 1] -
-            sum([PR[i, t1]*w[i, t1]
-                 for i in data.I for t1 in data.T_int.get_names(p_max=t)])
-            for t in data.T}
+        self.m.setObjective( self.function_obj + self.LR_obj, self.sense_opt)
 
-        expr_rhs = {t: data.M * y[t] for t in data.T}
 
-        if self.slack:
-            expr_rhs = {
-                k: v + self.variables.slack for k, v in expr_rhs.items()}
+################################################################################
+# PRIVATE METHOD: __create_constraints__()
+################################################################################
+    def __create_constraints__(self):
+    # Constraints
+    # ===========
+    # Wildfire Containment
+    # --------------------
 
-        self.constraints.wildfire_containment_2 = self.model.addConstrs(
-            (expr_lhs[t] <= expr_rhs[t] for t in data.T),
-            name='wildfire_containment_2')
+        self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
 
-    def __build_end_activity__(self):
-        """Travel time after end working.
+        self.m.addConstr(sum([data.C[i]*u[i, t] for i in data.I for t in data.T]) +
+               sum([data.P[i] * z[i] for i in data.I]) +
+               sum([data.NVC[t] * y[t-1] for t in data.T]) +
+               sum([data.Mp*mu[g, t] for g in data.G for t in data.T]) +
+               0.001*y[data.max_t] < self.UB_value, name='UB_constraint')
 
-        Changed respect to the original paper."""
-        data = self.data
+        #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
+        #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
+        #        name='wildfire_containment_1')
 
-        tr = self.variables.tr
-        e = self.variables.e
+        #self.m.addConstrs(
+        #        (-1.0*self.M*self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)])*self.y[t-1]
+        #        - sum([self.PR[i, t1]*self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
+        #        <= 0 for t in self.T), name='wildfire_containment_2')
 
-        expr_lhs = {(i, t): data.TRP[i]*e[i, t] for i in data.I for t in data.T}
+        self.m.addConstrs( (self.y[t-1] >= self.y[t] for t in self.T) ,name='aux_constraint_y1')
+        #self.m.addConstrs( (self.w[i,t] <= self.y[t-1] for i in self.I for t in self.T) ,name='aux_constraint_y2')
 
-        expr_rhs = {
-            (i, t): sum([tr[i, t1]
-                         for t1 in data.T_int.get_names(
-                            p_min=t - data.TRP[i] + 1,  p_max=t)
-                         ])
-            for i in data.I for t in data.T}
+        # Start of activity
+        # -----------------
+        self.m.addConstrs(
+            (self.A[self.I[self.resource_i]]*self.w[self.I[self.resource_i], t] <=
+             sum([self.tr[self.I[self.resource_i], t1] for t1 in self.T_int.get_names(p_max=t)])
+             for t in self.T),
+            name='start_activity_1')
 
-        if self.slack:
-            expr_rhs = {
-                k: v + self.variables.slack for k, v in expr_rhs.items()}
+        if self.ITW[self.I[self.resource_i]] == True:
+            self.m.addConstr(
+                (self.s[self.I[self.resource_i], self.min_t] +
+                sum([(self.max_t + 1)*self.s[self.I[self.resource_i], t]
+                for t in self.T_int.get_names(p_min=self.min_t+1)]) <=
+                self.max_t*self.z[self.I[self.resource_i]]),
+                name='start_activity_2')
 
-        self.constraints.end_activity = self.model.addConstrs(
-            (expr_lhs[i, t] <= expr_rhs[i, t] for i in data.I for t in data.T),
-            name='end_activity')
-
-    def __build_max_usage_periods__(self):
-        data = self.data
-
-        u = self.variables.u
-
-        expr_lhs = {i: sum([u[i, t] for t in data.T]) for i in data.I}
-        expr_rhs = {i: data.UP[i] - data.CUP[i] for i in data.I}
-
-        if self.slack:
-            expr_rhs = {
-                k: v + self.variables.slack for k, v in expr_rhs.items()}
-
-        self.constraints.max_usage_periods = self.model.addConstrs(
-            (expr_lhs[i] <= expr_rhs[i]
-             for i in data.I),
-            name='max_usage_periods')
-
-    def __build_non_negligence_1__(self):
-        data = self.data
-
-        y = self.variables.y
-        mu = self.variables.mu
-        w = self.variables.w
-
-        expr_lhs = {
-            (g, t): data.nMin[g, t] * y[t - 1] - mu[g, t]
-            for g in data.G for t in data.T}
-        expr_rhs = {
-            (g, t): sum([w[i, t] for i in data.Ig[g]])
-            for g in data.G for t in data.T}
-
-        if self.slack:
-            expr_rhs = {
-                k: v + self.variables.slack for k, v in expr_rhs.items()}
-
-        self.constraints.non_negligence_1 = self.model.addConstrs(
-            (expr_lhs[g, t] <= expr_rhs[g, t]
-             for g in data.G for t in data.T),
-            name='non_negligence_1')
-
-    def __build_non_negligence_2__(self):
-        data = self.data
-
-        y = self.variables.y
-        w = self.variables.w
-
-        expr_lhs = {
-            (g, t): sum([w[i, t] for i in data.Ig[g]])
-            for g in data.G for t in data.T}
-        expr_rhs = {
-            (g, t): data.nMax[g, t] * y[t - 1]
-            for g in data.G for t in data.T}
-
-        if self.slack:
-            expr_rhs = {
-                k: v + self.variables.slack for k, v in expr_rhs.items()}
-
-        self.constraints.non_negligence_2 = self.model.addConstrs(
-            (expr_lhs[g, t] <= expr_rhs[g, t]
-             for g in data.G for t in data.T),
-            name='non_negligence_2')
-
-    def __build_logical_1__(self):
-        data = self.data
-
-        s = self.variables.s
-        e = self.variables.e
-
-        expr_lhs = {i: sum([t*s[i, t] for t in data.T]) for i in data.I}
-        expr_rhs = {i: sum([t*e[i, t] for t in data.T]) for i in data.I}
-
-        if self.slack:
-            expr_rhs = {
-                k: v + self.variables.slack for k, v in expr_rhs.items()}
-
-        self.constraints.logical_1 = self.model.addConstrs(
-            (expr_lhs[i] <= expr_rhs[i]
-             for i in data.I),
-            name='logical_1')
-
-    def __build_logical_2__(self):
-        """Changed."""
-        data = self.data
-
-        z = self.variables.z
-        e = self.variables.e
-
-        expr_lhs = {i: z[i] for i in data.I}
-        expr_rhs = {i: sum([e[i, t] for t in data.T]) for i in data.I}
-
-        if self.slack:
-            expr_rhs = {
-                k: v + self.variables.slack for k, v in expr_rhs.items()}
-
-        self.constraints.logical_2 = self.model.addConstrs(
-            (expr_lhs[i] <= expr_rhs[i]
-             for i in data.I),
-            name='logical_2')
-
-    def __build_logical_3__(self):
-        """Changed."""
-        data = self.data
-
-        u = self.variables.u
-        tr = self.variables.tr
-
-        expr_lhs = {
-            (i, t): tr[i, t]
-            for i in data.I for t in data.T}
-        expr_rhs = {
-            (i, t): u[i, t]
-            for i in data.I for t in data.T}
-
-        if self.slack:
-            expr_rhs = {
-                k: v + self.variables.slack for k, v in expr_rhs.items()}
-
-        self.constraints.logical_3 = self.model.addConstrs(
-            (expr_lhs[i, t] <= expr_rhs[i, t]
-             for i in data.I for t in data.T),
-            name='logical_3')
-
-    def __build_logical_4__(self):
-        data = self.data
-
-        z = self.variables.z
-        w = self.variables.w
-
-        expr_lhs = {i: z[i] for i in data.I}
-
-        expr_rhs = {i: sum([w[i, t] for t in data.T]) for i in data.I}
-
-        if self.slack:
-            expr_rhs = {
-                k: v + self.variables.slack for k, v in expr_rhs.items()}
-
-        self.constraints.logical_4 = self.model.addConstrs(
-            (expr_lhs[i] <= expr_rhs[i]
-             for i in data.I),
-            name='logical_4')
-
-    def __build_constraints__(self):
-        """Build constraints."""
-        # Wildfire Containment
-        # --------------------
-        self.__build_wildfire_containment_1__()
-        self.__build_wildfire_containment_2__()
+        if self.ITW[self.I[self.resource_i]] == True:
+            self.m.addConstr(
+                (sum([self.s[self.I[self.resource_i], t] for t in self.T]) <=
+                self.z[self.I[self.resource_i]]),
+                name='start_activity_3')
 
         # End of Activity
         # ---------------
-        self.__build_end_activity__()
+        self.m.addConstrs(
+            (sum([self.tr[self.I[self.resource_i], t1]
+            for t1 in self.T_int.get_names(p_min=t-self.TRP[self.I[self.resource_i]]+1,p_max=t)]) >=
+            self.TRP[self.I[self.resource_i]]*self.e[self.I[self.resource_i], t] for t in self.T),
+            name='end_activity')
+
+        # Breaks
+        # ------
+        self.m.addConstrs(
+            (0 <= self.cr[self.I[self.resource_i], t] for t in self.T),
+            name='Breaks_1_lb')
+
+        self.m.addConstrs(
+            (self.cr[self.I[self.resource_i], t] <= self.WP[self.I[self.resource_i]] for t in self.T),
+            name='Breaks_1_ub')
+
+        self.m.addConstrs(
+            (self.r[self.I[self.resource_i], t] <= sum([self.er[self.I[self.resource_i], t1]
+            for t1 in self.T_int.get_names(p_min=t,p_max=t+self.RP[self.I[self.resource_i]]-1)])
+            for t in self.T),
+            name='Breaks_2')
+
+        self.m.addConstrs(
+            (sum([self.r[self.I[self.resource_i], t1]
+                for t1 in self.T_int.get_names(p_min=t-self.RP[self.I[self.resource_i]]+1, p_max=t)]) >=
+             self.RP[self.I[self.resource_i]]*self.er[self.I[self.resource_i], t]
+             if t >= self.min_t - 1 + self.RP[self.I[self.resource_i]] else
+             self.CRP[self.I[self.resource_i]]*self.s[self.I[self.resource_i], self.min_t] +
+             sum([self.r[self.I[self.resource_i], t1] for t1 in self.T_int.get_names(p_max=t)]) >=
+             self.RP[self.I[self.resource_i]]*self.er[self.I[self.resource_i], t]
+             for t in self.T),
+            name='Breaks_3')
+
+        self.m.addConstrs(
+            (sum([self.r[self.I[self.resource_i], t1]+self.tr[self.I[self.resource_i], t1]
+                  for t1 in self.T_int.get_names(p_min=t-self.TRP[self.I[self.resource_i]],
+                                                 p_max=t+self.TRP[self.I[self.resource_i]])]) >=
+             len(self.T_int.get_names(p_min=t-self.TRP[self.I[self.resource_i]],
+                                      p_max=t+self.TRP[self.I[self.resource_i]]))*self.r[self.I[self.resource_i], t]
+             for t in self.T),
+            name='Breaks_4')
 
         # Maximum Number of Usage Periods in a Day
         # ----------------------------------------
-        self.__build_max_usage_periods__()
+        self.m.addConstr(
+            (sum([self.u[self.I[self.resource_i], t] for t in self.T]) <= self.UP[self.I[self.resource_i]] - self.CUP[self.I[self.resource_i]]),
+            name='max_usage_periods')
 
         # Non-Negligence of Fronts
         # ------------------------
-        self.__build_non_negligence_1__()
-        self.__build_non_negligence_2__()
+        self.m.addConstrs(
+            ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+         <= 0 for g in self.G for t in self.T),
+        name='non-negligence_1')
+
+        self.m.addConstrs(
+        (sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
+         for g in self.G for t in self.T),
+        name='non-negligence_2')
 
         # Logical constraints
         # ------------------------
-        self.__build_logical_1__()
-        self.__build_logical_2__()
-        self.__build_logical_3__()
-        self.__build_logical_4__()
+        self.m.addConstr(
+            (sum([t*self.e[self.I[self.resource_i], t] for t in self.T]) >= sum([t*self.s[self.I[self.resource_i], t] for t in self.T])),
+            name='logical_1')
 
-    def get_dual(self):
-        """Get dual values of constraints."""
-        return self.dual
+        self.m.addConstr(
+            (sum([self.e[self.I[self.resource_i], t] for t in self.T]) <= 1),
+            name='logical_2')
 
-    def get_constraint_matrix(self):
-        """Get constraint matrix."""
-        return pd.DataFrame(utils.get_matrix_coo(self.model)).fillna(0).T
+        self.m.addConstrs(
+            (self.r[self.I[self.resource_i], t] + self.tr[self.I[self.resource_i], t] <= self.u[self.I[self.resource_i], t]
+             for t in self.T),
+            name='logical_3')
 
-    def get_rhs(self):
-        return pd.Series(utils.get_rhs(self.model))
+        self.m.addConstr(
+            (sum([self.w[self.I[self.resource_i], t] for t in self.T]) >= self.z[self.I[self.resource_i]]),
+            name='logical_4')
 
-    def get_obj(self):
-        return self.model.ObjVal
-
-    def solve(self, solver_options):
-        """Solve mathematical model.
-
-        Args:
-            solver_options (:obj:`dict`): gurobi options. Default ``None``.
-                Example: ``{'TimeLimit': 10}``.
-        """
-        if solver_options is None:
-            solver_options = {'OutputFlag': 0}
-
-        m = self.model
-
-        # set gurobi options
-        if isinstance(solver_options, dict):
-            for k, v in solver_options.items():
-                m.setParam(k, v)
-
-        m.optimize()
-
-        # Todo: check what status number return a solution
-
-        if m.Status != 3:
-            if self.relaxed is True:
-                self.dual = pd.Series({c.ConstrName: c.pi
-                                       for c in self.model.getConstrs()})
-
-            if self.slack is False:
-                u = {(i, t): self.variables.u[i, t].getValue() == 1
-                     for i in self.data.I for t in self.data.T}
-                travel = {
-                    (i, t): max(self.variables.tr[i, t].x,
-                                self.data.travel[i, t]*u[i, t]) == 1
-                    for i in self.data.I for t in self.data.T}
-                rest = {
-                    (i, t): self.data.rest[i, t]*u[i, t] == 1
-                    for i in self.data.I for t in self.data.T}
-                end_rest = {
-                    (i, t): True
-                    if (rest[i, t] == 1) and (rest[i, t+1] == 0) else False
-                    for i in self.data.I for t in self.data.T_int.get_names(
-                            p_max=self.data.max_t-1)}
-                end_rest.update({
-                    (i, self.data.max_t): True
-                    if rest[i, self.data.max_t] == 1 else False
-                    for i in self.data.I})
-
-                self.problem_data.resources_wildfire.update(
-                    {(i, t): {
-                        'travel': travel[i, t],
-                        'rest': rest[i, t],
-                        'end_rest': end_rest,
-                        'use': u[i, t],
-                        'work': self.variables.w[i, t].getValue() == 1
-                    }
-                     for i in self.data.I for t in self.data.T})
-
-                self.problem_data.groups_wildfire.update(
-                    {(g, t): {'number_resources': self.variables.mu[g, t].x}
-                     for g in self.data.G for t in self.data.T})
-
-                contained = {t: self.variables.y[t].x == 0 for t in self.data.T}
-                contained_period = [t for t, v in contained.items()
-                                    if v is True]
-
-                if len(contained_period) > 0:
-                    first_contained = min(contained_period) + 1
-                else:
-                    first_contained = self.max_t + 1
-
-                self.problem_data.wildfire.update(
-                    {t: {'contained': False if t < first_contained else True}
-                     for t in self.data.T})
-        else:
-            log.warning(config.gurobi.status_info[m.Status]['description'])
-
-        return m.Status
-# --------------------------------------------------------------------------- #
+        self.m.update()

@@ -1,0 +1,62 @@
+\ Model Decomposed_Primal_Problem_LR_1_copy
+\ LP format - for model browsing. Use MPS format to capture full model detail.
+Minimize
+ 
+Subject To
+ non-negligence_2[aircraft,7]: start[aircraft_1,1] + start[aircraft_1,2]
+   + start[aircraft_1,3] + start[aircraft_1,4] + start[aircraft_1,5]
+   + start[aircraft_1,6] + start[aircraft_1,7] + start[aircraft_2,1]
+   + start[aircraft_2,2] + start[aircraft_2,3] + start[aircraft_2,4]
+   + start[aircraft_2,5] + start[aircraft_2,6] + start[aircraft_2,7]
+   + start[aircraft_3,1] + start[aircraft_3,2] + start[aircraft_3,3]
+   + start[aircraft_3,4] + start[aircraft_3,5] + start[aircraft_3,6]
+   + start[aircraft_3,7] - travel[aircraft_1,7] - travel[aircraft_2,7]
+   - travel[aircraft_3,7] - rest[aircraft_1,7] - rest[aircraft_2,7]
+   - rest[aircraft_3,7] - end[aircraft_1,1] - end[aircraft_1,2]
+   - end[aircraft_1,3] - end[aircraft_1,4] - end[aircraft_1,5]
+   - end[aircraft_1,6] - end[aircraft_2,1] - end[aircraft_2,2]
+   - end[aircraft_2,3] - end[aircraft_2,4] - end[aircraft_2,5]
+   - end[aircraft_2,6] - end[aircraft_3,1] - end[aircraft_3,2]
+   - end[aircraft_3,3] - end[aircraft_3,4] - end[aircraft_3,5]
+   - end[aircraft_3,6] - 3 contention[6] <= 0
+ logical_3[7]: - start[aircraft_2,1] - start[aircraft_2,2]
+   - start[aircraft_2,3] - start[aircraft_2,4] - start[aircraft_2,5]
+   - start[aircraft_2,6] - start[aircraft_2,7] + travel[aircraft_2,7]
+   + rest[aircraft_2,7] + end[aircraft_2,1] + end[aircraft_2,2]
+   + end[aircraft_2,3] + end[aircraft_2,4] + end[aircraft_2,5]
+   + end[aircraft_2,6] <= 0
+Bounds
+ start[aircraft_1,1] = 1
+ start[aircraft_3,1] = 1
+ travel[aircraft_3,7] = 0
+ rest[aircraft_1,7] = 0
+ rest[aircraft_3,7] = 0
+ end[aircraft_1,1] = 0
+ end[aircraft_1,2] = 0
+ end[aircraft_1,3] = 0
+ end[aircraft_1,4] = 0
+ end[aircraft_1,5] = 0
+ end[aircraft_1,6] = 0
+ end[aircraft_3,1] = 0
+ end[aircraft_3,2] = 0
+ end[aircraft_3,3] = 0
+ end[aircraft_3,4] = 0
+ end[aircraft_3,5] = 0
+ end[aircraft_3,6] = 0
+ contention[6] = 0
+Binaries
+ start[aircraft_1,1] start[aircraft_1,2] start[aircraft_1,3]
+ start[aircraft_1,4] start[aircraft_1,5] start[aircraft_1,6]
+ start[aircraft_1,7] start[aircraft_2,1] start[aircraft_2,2]
+ start[aircraft_2,3] start[aircraft_2,4] start[aircraft_2,5]
+ start[aircraft_2,6] start[aircraft_2,7] start[aircraft_3,1]
+ start[aircraft_3,2] start[aircraft_3,3] start[aircraft_3,4]
+ start[aircraft_3,5] start[aircraft_3,6] start[aircraft_3,7]
+ travel[aircraft_1,7] travel[aircraft_2,7] travel[aircraft_3,7]
+ rest[aircraft_1,7] rest[aircraft_2,7] rest[aircraft_3,7] end[aircraft_1,1]
+ end[aircraft_1,2] end[aircraft_1,3] end[aircraft_1,4] end[aircraft_1,5]
+ end[aircraft_1,6] end[aircraft_2,1] end[aircraft_2,2] end[aircraft_2,3]
+ end[aircraft_2,4] end[aircraft_2,5] end[aircraft_2,6] end[aircraft_3,1]
+ end[aircraft_3,2] end[aircraft_3,3] end[aircraft_3,4] end[aircraft_3,5]
+ end[aircraft_3,6] contention[6]
+End
