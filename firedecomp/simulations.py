@@ -122,6 +122,8 @@ def simulations(
                 fix_work_options = {}
                 benders_scip_options = {}
                 gcg_scip_options = {}
+                AL_options = {}
+                LR_options = {}
 
                 if solver_options is not None:
                     if 'original' in solver_options:
