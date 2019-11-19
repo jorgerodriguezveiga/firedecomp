@@ -15,18 +15,20 @@ from firedecomp.original import model
 # CLASS RelaxedPrimalProblem()
 ################################################################################
 class RelaxedPrimalProblem(model.InputModel):
-    def __init__(self, problem_data, lambda1, beta1, NL, relaxed=False, min_res_penalty=1000000):
+    def __init__(self, problem_data, lambda1, beta1, NL, relaxed=False, min_res_penalty=1000000, valid_constraints=None):
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
 
-        self.lambda1 = lambda1
-        self.beta = beta1
+        self.lambda1 = lambda1.copy()
+        self.beta = beta1.copy()
         self.problem_data = problem_data
         self.relaxed = relaxed
         self.min_res_penalty = min_res_penalty
-        #self.UB_value = float("inf")
         self.NL = NL
-
+        if valid_constraints is None:
+            self.valid_constraints = ['contention', 'work', 'max_obj']
+        else:
+            self.valid_constraints = valid_constraints
         # Extract data from problem data
         self.__extract_data_problem__()
 
@@ -165,6 +167,7 @@ class RelaxedPrimalProblem(model.InputModel):
         # --------
         self.mu = self.m.addVars(self.G, self.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
                       name="missing_resources")
+
         self.__create_var_y_and_aux_vars__()
 
         # (2) Auxiliar variables
@@ -285,9 +288,26 @@ class RelaxedPrimalProblem(model.InputModel):
     # ===========
     # Wildfire Containment
     # --------------------
-        self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
 
-        #self.upperbound_const = self.m.addConstr(self.function_obj_total<=self.UB_value, name='upperbound_const')
+        if 'contention' in self.valid_constraints:
+            expr_lhs = {t: self.y[t] for t in self.T}
+            expr_rhs = {t: self.y[t - 1] for t in self.T}
+
+            self.m.addConstrs(
+                (expr_lhs[t] <= expr_rhs[t] for t in self.T),
+                name='valid_constraint_contention'
+            )
+
+        if 'work' in self.valid_constraints:
+            expr_lhs = {(i, t): self.w[i, t] for i in self.I for t in self.T}
+            expr_rhs = {t: self.y[t - 1] for t in self.T}
+
+            self.m.addConstrs(
+                (expr_lhs[i, t] <= expr_rhs[t] for i in self.I for t in self.T),
+                name='valid_constraint_contention'
+            )
+
+        self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
 
         #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
         #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
@@ -376,18 +396,20 @@ class RelaxedPrimalProblem(model.InputModel):
             (sum([self.u[i, t] for t in self.T]) <= self.UP[i] - self.CUP[i]
              for i in self.I),
             name='max_usage_periods')
-
+    ################################################################
         # Non-Negligence of Fronts
         # ------------------------
-        #self.m.addConstrs(
-        #    ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
-        # <= 0 for g in self.G for t in self.T),
-        #name='non-negligence_1')
+        self.m.addConstrs(
+            ((-1.0*sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t]*self.y[t-1] + self.mu[g, t])
+         <= 0 for g in self.G for t in self.T),
+        name='non-negligence_1')
 
-        #self.m.addConstrs(
-        #(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
-        # for g in self.G for t in self.T),
-        #name='non-negligence_2')
+        self.m.addConstrs(
+        (sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t]*self.y[t-1] <= 0
+         for g in self.G for t in self.T),
+        name='non-negligence_2')
+
+    ################################################################
 
         # Logical constraints
         # ------------------------
@@ -414,24 +436,6 @@ class RelaxedPrimalProblem(model.InputModel):
         self.m.update()
 
 ################################################################################
-# METHOD: UPDATE LAMBDA1
-################################################################################
-    def update_lambda1(self, lambda1):
-        """Update lambda in RPP model
-            Args:
-            lambda1 (:obj:`list`): Array with lambda values.
-        """
-        self.lambda1 = lambda1
-        self.__create_vars__()
-        self.__create_objfunc__()
-        self.__create_constraints_aux__()
-        self.__create_constraints__()
-        self.m.update()
-        self.model = solution.Solution(
-            self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
-            w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
-
-################################################################################
 # METHOD: return_LR_obj()
 ################################################################################
     def return_LR_obj(self, solution):
@@ -450,7 +454,7 @@ class RelaxedPrimalProblem(model.InputModel):
 ################################################################################
 # METHOD: return_function_obj()
 ################################################################################
-    def return_function_obj(self, solution):
+    def return_function_obj(self):
         return self.function_obj.getValue()
 
 ################################################################################

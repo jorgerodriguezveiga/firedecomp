@@ -372,13 +372,35 @@ class Problem(object):
                     'min_res_penalty': 1000000,
                     'gap': 0.0,
                     'max_iters': 100,
-                    'max_time': 60
+                    'max_time': 60,
                 }
 
+            valid_constraints = []
+            if isinstance(original_options, dict):
+                if 'valid_constraints' in original_options:
+                    valid_constraints = original_options['valid_constraints']
+
+                if 'solver_options' in original_options:
+                    solver_options = original_options['solver_options']
+            time1 = time.time()
             AL_problem = AL.AugmentedLagrangian(
-                self, **AL_options, log_level=log_level)
-            self.solve_status = AL_problem.solve()
-            self.AL_model = AL_problem
+                self, **AL_options, min_res_penalty=min_res_penalty,
+                valid_constraints=valid_constraints, log_level=log_level)
+
+            self.AL_model = AL_problem.solve()
+            self.resources = self.AL_model.resources
+            self.wildfire = self.AL_model.wildfire
+            self.groups = self.AL_model.groups
+            self.groups_wildfire = self.AL_model.groups_wildfire
+            self.resources_wildfire = self.AL_model.resources_wildfire
+            self.period_unit = self.AL_model.period_unit
+            self.min_res_penalty = self.AL_model.min_res_penalty
+            self.solve_status = self.AL_model.solve_status
+            self.solve_status = self.AL_model.solve_status
+            self.mipgap = self.AL_model.mipgap
+            self.constrvio = self.AL_model.constrvio
+            self.time = time.time()-time1
+            self.solve_time = time.time()-time1
 
         else:
             raise ValueError(
