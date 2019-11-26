@@ -12,11 +12,22 @@ from firedecomp import config
 from firedecomp import plot
 import firedecomp.branchprice.benders_scip as scip
 from firedecomp.config import scip as scip_status
-
+import copy
 
 # Problem ---------------------------------------------------------------------
 class Problem(object):
     """Problem class."""
+
+    def copy_problem(self):
+        resources_aux = copy.deepcopy(self.resources)
+        wildfire_aux = copy.deepcopy(self.wildfire)
+        groups_aux = copy.deepcopy(self.groups)
+        grp_wild_aux = copy.deepcopy(self.groups_wildfire)
+        res_wild_aux = copy.deepcopy(self.resources_wildfire)
+        period_unit_aux = self.period_unit
+        min_res_penalty_aux = self.min_res_penalty
+        prob = Problem(resources_aux, wildfire_aux, groups_aux, grp_wild_aux, res_wild_aux, period_unit_aux, min_res_penalty_aux)
+        return prob
 
     def __init__(
             self, resources, wildfire, groups,
@@ -388,19 +399,32 @@ class Problem(object):
                 valid_constraints=valid_constraints, log_level=log_level)
 
             self.AL_model = AL_problem.solve()
-            self.resources = self.AL_model.resources
-            self.wildfire = self.AL_model.wildfire
-            self.groups = self.AL_model.groups
-            self.groups_wildfire = self.AL_model.groups_wildfire
-            self.resources_wildfire = self.AL_model.resources_wildfire
-            self.period_unit = self.AL_model.period_unit
-            self.min_res_penalty = self.AL_model.min_res_penalty
-            self.solve_status = self.AL_model.solve_status
-            self.solve_status = self.AL_model.solve_status
-            self.mipgap = self.AL_model.mipgap
-            self.constrvio = self.AL_model.constrvio
-            self.time = time.time()-time1
-            self.solve_time = time.time()-time1
+            if self.AL_model is not None:
+                self.resources = self.AL_model.resources
+                self.wildfire = self.AL_model.wildfire
+                self.groups = self.AL_model.groups
+                self.groups_wildfire = self.AL_model.groups_wildfire
+                self.resources_wildfire = self.AL_model.resources_wildfire
+                self.period_unit = self.AL_model.period_unit
+                self.min_res_penalty = self.AL_model.min_res_penalty
+                self.solve_status = self.AL_model.solve_status
+                self.mipgap = self.AL_model.mipgap
+                self.constrvio = self.AL_model.constrvio
+                self.time = time.time()-time1
+                self.solve_time = time.time()-time1
+            else:
+                self.resources = None
+                self.wildfire = None
+                self.groups = None
+                self.groups_wildfire = None
+                self.resources_wildfire = None
+                self.period_unit = None
+                self.min_res_penalty =None
+                self.solve_status = 11
+                self.mipgap = None
+                self.constrvio = None
+                self.time = time.time()-time1
+                self.solve_time = time.time()-time1
 
         else:
             raise ValueError(
