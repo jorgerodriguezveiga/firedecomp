@@ -191,7 +191,7 @@ class AugmentedLagrangian(object):
 
         # CHECK PREVIOUS LAMBDAS CHANGES
         for i in range(0, len(self.lambda_matrix) - 1):
-            print(str(self.termination_counter[i])+"  "+str(self.infeas_local[i]))
+            #print(str(self.termination_counter[i])+"  "+str(self.infeas_local[i]))
             if self.infeas_local[i] > 0:
                 self.termination_counter[i] = self.termination_counter[i] + 1
 

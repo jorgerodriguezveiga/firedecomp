@@ -249,7 +249,7 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
     ################################################################################
     def update_original_values(self, DPP, change):
 
-        change = 1
+#        change = 1
         if change == 1:
             Tlen = self.T
             Glen = self.G
