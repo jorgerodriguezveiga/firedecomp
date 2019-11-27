@@ -190,16 +190,20 @@ class AugmentedLagrangian(object):
         # print("TERMINATION COUNTER"+str(self.termination_counter))
 
         # CHECK PREVIOUS LAMBDAS CHANGES
-        #for i in range(0, len(self.lambda_matrix) - 1):
-        #    if self.termination_counter[i] < self.th_sol:
-        #        lobj_diff = abs(
-        #            (abs(self.lobj_local[i]) - abs(self.lobj_local_prev[i])) / abs(self.lobj_local[i])) * 100
+        for i in range(0, len(self.lambda_matrix) - 1):
+            print(str(self.termination_counter[i])+"  "+str(self.infeas_local[i]))
+            if self.infeas_local[i] > 0:
+                self.termination_counter[i] = self.termination_counter[i] + 1
+
+            if self.termination_counter[i] < self.th_sol and self.infeas_local[i] <= 0:
+                lobj_diff = abs(
+                    (abs(self.lobj_local[i]) - abs(self.lobj_local_prev[i])) / abs(self.lobj_local[i])) * 100
         #        # print(str(i) + "self.lobj_local[i] - self.lobj_local_prev[i] " + str(lobj_diff) + "% ")
-        #        if (lobj_diff < 0.1):
-        #            self.termination_counter[i] = self.termination_counter[i] + 1
-        #        else:
-        #            self.termination_counter[i] = 0
-        #        self.lobj_local_prev[i] = self.lobj_local[i]
+                if (lobj_diff < 0.1):
+                    self.termination_counter[i] = self.termination_counter[i] + 1
+                else:
+                    self.termination_counter[i] = 0
+                    self.lobj_local_prev[i] = self.lobj_local[i]
 
         # CHECK TERMINATION COUNTER MATRIX
         counter = 0
@@ -293,8 +297,6 @@ class AugmentedLagrangian(object):
                         self.fobj_local[i] = total_obj_function[bestid]
                         self.infeas_local[i] = total_unfeasibility[bestid]
                         self.subgradient_local[i] = total_subgradient[bestid]
-                        if self.infeas_local[i] > 0:
-                            self.termination_counter[i] = self.termination_counter[i] + 1
                         #print("TOTAL" + str(i) +
                         #      " LR " + str(self.lobj_local[i]) +
                         #      " fobj " + str(self.fobj_local[i]) +
@@ -315,13 +317,13 @@ class AugmentedLagrangian(object):
                                 bestid].copy_problem()  # self.update_problem_data_sol(self.problem_DPP[i])
                             self.solution_best_original.constrvio = self.infeas_global
                             self.solution_best_original.solve_status = 2
-                            print("New Solution:")
-                            print(self.solution_best_original.get_solution_info())
+                            #print("New Solution:")
+                            #print(self.solution_best_original.get_solution_info())
                             self.change[i] = 1
                         self.problem_DPP[i].update_original_values(DPP_sol_row[bestid], self.change[i])
 
                     DPP_sol_row.clear()
-            #print("TERMINATION COUNTER" + str(self.termination_counter))
+            print("TERMINATION COUNTER" + str(self.termination_counter))
             # (3) Check termination criteria
             termination_criteria = self.convergence_checking()
             self.v = self.v + 1
