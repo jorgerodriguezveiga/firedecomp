@@ -371,6 +371,7 @@ def get_initial_sol(problem_data):
             for i in problem_data.data.I for t in problem_data.data.T}
     )
 
+
     problem_data.groups_wildfire.update({
         gt.get_index():
             {'num_left_resources': max(

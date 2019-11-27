@@ -16,7 +16,7 @@ from firedecomp.original import model
 ################################################################################
 class RelaxedPrimalProblem(model.InputModel):
     def __init__(self, problem_data, lambda1, beta1, relaxed=False, min_res_penalty=1000000,
-                 valid_constraints=None):
+                 valid_constraints=None,  list_y=[]):
         if problem_data.period_unit is not True:
             raise ValueError("Time unit of the problem is not a period.")
         self.v = 1
@@ -29,6 +29,10 @@ class RelaxedPrimalProblem(model.InputModel):
         self.valid_constraints = valid_constraints
         # Extract data from problem data
         self.__extract_data_problem__()
+        if len(list_y) == 0:
+            self.list_y_init = list_y.copy()
+        else:
+            self.list_y_init = []
 
         self.slack_containment = False
         # Create gurobi model
@@ -114,8 +118,12 @@ class RelaxedPrimalProblem(model.InputModel):
         self.__create_gurobi_model__()
         self.__create_vars__()
         self.__create_objfunc__()
+        self.__create_constraints_aux__
         self.__create_constraints__()
-        #self.m.update()
+        if self.list_y_init is not None:
+            self.s[self.I[0],1].lb = 1
+
+        self.m.update()
         model = solution.Solution(
             self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u,
                          w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
@@ -183,7 +191,12 @@ class RelaxedPrimalProblem(model.InputModel):
                                 name="contention")
 
         self.aux_total = self.m.addVars(self.NL, vtype=gurobipy.GRB.CONTINUOUS, name="aux_total_AL")
-
+        # fixed y
+        if len(self.list_y_init) > 0:
+            for i in range(0, self.sizey):
+                self.y[i].UB = self.list_y_init[i]
+                self.y[i].LB = self.list_y_init[i]
+                self.y[i].start = self.list_y_init[i]
     ################################################################################
     # PRIVATE METHOD: create_auxiliar_vars
     ################################################################################
@@ -229,20 +242,20 @@ class RelaxedPrimalProblem(model.InputModel):
         Constr1.append(sum([self.PER[t] * self.y[t - 1] for t in self.T]) -
                        sum([self.PR[i, t] * self.w[i, t]
                             for i in self.I for t in self.T]))
-
         list_Constr2 = list(
             -1.0 * self.M * self.y[t] + sum([self.PER[t1] for t1 in self.T_int.get_names(p_max=t)]) * self.y[t - 1]
             - sum([self.PR[i, t1] * self.w[i, t1] for i in self.I for t1 in self.T_int.get_names(p_max=t)])
             for t in self.T)
 
         # Non-Negligence of Fronts (14) and (15)
-        list_Constr3 = list(
-            (-1.0 * sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t] * self.y[t - 1] + self.mu[g, t])
-            for g in self.G for t in self.T)
-        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t] * self.y[t - 1]
-                            for g in self.G for t in self.T)
+        #list_Constr3 = list(
+        #    (-1.0 * sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t] * self.y[t - 1] + self.mu[g, t])
+        #    for g in self.G for t in self.T)
+        #list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t] * self.y[t - 1]
+        #                    for g in self.G for t in self.T)
 
-        list_Constr = Constr1 + list_Constr2 #+ list_Constr3 + list_Constr4
+
+        self.list_Constr = Constr1 + list_Constr2 #+ list_Constr3 + list_Constr4
 
         # Objective
         # =========
@@ -252,31 +265,20 @@ class RelaxedPrimalProblem(model.InputModel):
                              sum([self.Mp * self.mu[g, t] for g in self.G for t in self.T]) +
                              0.001 * self.y[self.max_t])
 
-        self.function_obj_total = (sum([self.C[i] * self.u[i, t] for i in self.I for t in self.T]) +
-                                   sum([self.P[i] * self.z[i] for i in self.I]) +
-                                   sum([self.NVC[t] * self.y[t - 1] for t in self.T]) +
-                                   sum([self.Mp * self.mu[g, t] for g in self.G for t in self.T]) +
-                                   0.001 * self.y[self.max_t])
+        self.function_obj_total = self.function_obj
 
         self.LR_obj = 0
         self.LR_obj_const = []
 
-        zero = 0
-        aux_mult = []
-        for i in range(0, len(list_Constr)):
-            Constr1 = list_Constr[i]
-            aux_mult.append( self.lambda1[i] + self.beta[i] * Constr1 / self.v)
-
-        for i in range(0, len(list_Constr)):
-            Constr1 = list_Constr[i]
-            self.m.addConstr(self.aux_total[i] >= 0.0)
-            self.m.addConstr(aux_mult[i] <= self.aux_total[i])
+        for i in range(0, len(self.list_Constr)):
+            Constr1 = self.list_Constr[i]
             self.LR_obj = self.LR_obj + 1 / (2 * self.beta[i]) * (
                         self.aux_total[i] * self.aux_total[i] - self.lambda1[i] * self.lambda1[i])
             self.LR_obj_const.append(Constr1)
 
         self.function_obj_total_pen = self.function_obj_total + self.LR_obj
-        self.m.setObjective(self.function_obj + self.LR_obj, self.sense_opt)
+        self.m.setObjective(self.function_obj, self.sense_opt)
+
 
     ################################################################################
     # PRIVATE METHOD: __create_constraints__()
@@ -288,7 +290,6 @@ class RelaxedPrimalProblem(model.InputModel):
         # --------------------
 
         self.m.addConstr(self.y[self.min_t-1] == 1, name='start_no_contained')
-
 
         #self.m.addConstr(sum([self.PER[t]*self.y[t-1] for t in self.T]) -
         #        sum([self.PR[i, t]*self.w[i, t] for i in self.I for t in self.T]) <= 0,
@@ -453,3 +454,10 @@ class RelaxedPrimalProblem(model.InputModel):
     ################################################################################
     def return_function_obj_total_pen(self):
         return self.function_obj_total_pen.getValue()
+
+    def __create_constraints_aux__(self):
+        for i in range(0, len(self.list_Constr)):
+            Constr1 = self.list_Constr[i]
+            self.m.addConstr(self.aux_total[i] >= 0.0, name="aux1_const"+str(i))
+            self.m.addConstr(self.lambda1[i] + self.beta[i] * Constr1 / self.v <= self.aux_total[i],  name="aux2_const"+str(i))
+        self.m.update()

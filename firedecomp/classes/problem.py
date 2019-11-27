@@ -409,7 +409,7 @@ class Problem(object):
                 self.min_res_penalty = self.AL_model.min_res_penalty
                 self.solve_status = self.AL_model.solve_status
                 self.mipgap = self.AL_model.mipgap
-                self.constrvio = self.AL_model.constrvio
+                self.constrvio = max(0, self.AL_model.constrvio)
                 self.time = time.time()-time1
                 self.solve_time = time.time()-time1
             else:

@@ -27,19 +27,24 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
             min_res_penalty (:obj:`int`): .
                 Default to 1000000
         """
-        self.list_y = list_y
+        self.list_y = list_y.copy()
         self.nproblems = nproblems
-        self.change = []
         self.NL = len(lambda1)
-        for j in range(0, self.NL):
-            self.change.append(1.0)
         self.resource_i = 0
         super().__init__(problem_data, lambda1, beta1, relaxed, min_res_penalty, valid_constraints)
+        self.__create_constraints_aux__()
         self.copy_original_bounds()
-        if init_sol_dict is not None:
-            self.set_init_value_dict(init_sol_dict)
-        if init_sol_prob is not None:
-            self.set_init_value_prob(init_sol_prob)
+        solver_options = {
+            'OutputFlag': 0,
+            'LogToConsole': 0,
+            'TimeLimit': 5,
+        }
+        self.solve(solver_options=solver_options)
+        self.set_init_value_prob(self)
+        #if init_sol_dict is not None:
+        #    self.set_init_value_dict(init_sol_dict)
+        #if init_sol_prob is not None:
+        #    self.set_init_value_prob(init_sol_prob)
     ##########################################################################################
     # PRIVATE METHOD: __create_gurobi_model__ ()
     # OVERWRITE RelaxedPrimalProblem.__create_gurobi_model__()
@@ -80,11 +85,11 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
             for t in self.T)
 
         # Non-Negligence of Fronts (14) and (15)
-        list_Constr3 = list(
-            (-1.0 * sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t] * self.y[t - 1] + self.mu[g, t])
-            for g in self.G for t in self.T)
-        list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t] * self.y[t - 1]
-                            for g in self.G for t in self.T)
+        #list_Constr3 = list(
+        #    (-1.0 * sum([self.w[i, t] for i in self.Ig[g]])) - (self.nMin[g, t] * self.y[t - 1] + self.mu[g, t])
+        #    for g in self.G for t in self.T)
+        #list_Constr4 = list(sum([self.w[i, t] for i in self.Ig[g]]) - self.nMax[g, t] * self.y[t - 1]
+        #                    for g in self.G for t in self.T)
 
         self.list_Constr = Constr1 + list_Constr2  #+ list_Constr3 + list_Constr4
 
@@ -95,51 +100,29 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
                                    sum([self.NVC[t] * self.y[t - 1] for t in self.T]) +
                                    sum([self.Mp * self.mu[g, t] for g in self.G for t in self.T]) +
                                    0.001 * self.y[self.max_t])
-
-        self.function_obj = []
-
-        for i in range(0,len(self.I)):
-            self.function_obj.append(
-                        sum([self.C[self.I[i]] * self.u[self.I[i], t] for t in self.T]) +
-                        sum([self.P[self.I[i]] * self.z[self.I[i]]]) +
-                        (sum([self.NVC[t] * self.y[t - 1] for t in self.T]) +
-                        sum([self.Mp * self.mu[g, t] for g in self.G for t in self.T]) +
-                        0.001 * self.y[self.max_t]))
+        if self.resource_i == 0:
+            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+                   sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]) +
+                   sum([self.NVC[t] * self.y[t-1] for t in self.T]) +
+                   sum([self.Mp*self.mu[g, t] for g in self.G for t in self.T]) +
+                   0.001*self.y[self.max_t])
+        else:
+            self.function_obj = (sum([self.C[self.I[self.resource_i]]*self.u[self.I[self.resource_i], t] for t in self.T]) +
+                       sum([self.P[self.I[self.resource_i]] * self.z[self.I[self.resource_i]]]))
 
         self.LR_obj = 0
         self.LR_obj_const = []
-        aux_mult = []
-        for i in range(0, len(self.list_Constr)):
-            Constr1 = self.list_Constr[i]
-            aux_mult.append( self.lambda1[i] + self.beta[i] * Constr1 / self.v)
 
         for i in range(0, len(self.list_Constr)):
             Constr1 = self.list_Constr[i]
-            self.m.addConstr(self.aux_total[i] >= 0.0)
-            self.m.addConstr(aux_mult[i] <= self.aux_total[i] )
             self.LR_obj = self.LR_obj + 1.0 / (2.0 * self.beta[i]) * (
                     self.aux_total[i] * self.aux_total[i] - self.lambda1[i] * self.lambda1[i])
             self.LR_obj_const.append(Constr1)
 
         self.function_obj_total_pen = self.function_obj_total + self.LR_obj
-        #self.m.setObjective(self.function_obj[self.resource_i] + self.LR_obj, self.sense_opt)
-        self.m.setObjective(self.function_obj_total_pen, self.sense_opt)
-    ################################################################################
-    # PRIVATE METHOD: __update_objfunc__()
-    ################################################################################
-    def __update_objfunc__(self):
-        self.LR_obj = 0
-        self.LR_obj_const = []
+        self.m.setObjective(self.function_obj + self.LR_obj, self.sense_opt)
 
-        for i in range(0, len(self.list_Constr)):
-            Constr1 = self.list_Constr[i]
-            self.m.addConstr(self.aux_mult[i] == self.lambda1[i] + self.beta[i] * Constr1)
-            self.m.addConstr(self.aux_total[i] == max(self.aux_mult[i].getValue() , 0.0))
-            self.LR_obj = self.LR_obj + 1.0 / (2.0 * self.beta[i]) * (
-                    self.aux_total[i] * self.aux_total[i] - self.lambda1[i] * self.lambda1[i])
-            self.LR_obj_const.append(Constr1)
 
-        self.m.setObjective(self.function_obj[self.resource_i] + self.LR_obj, self.sense_opt)
 
     ################################################################################
     # METHOD: set_init_value
@@ -154,11 +137,11 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
         for i in range(0, len(self.I)):
             res = self.I[i]
             for tt in Tlen:
-                self.s_original[res, tt] = dict_update.get('s')[res, tt]
-                self.tr_original[res, tt] = dict_update.get('tr')[res, tt]
-                self.r_original[res, tt] = dict_update.get('r')[res, tt]
-                self.er_original[res, tt] = dict_update.get('er')[res, tt]
-                self.e_original[res, tt] = dict_update.get('e')[res, tt]
+                self.s_original[res, tt] = round(dict_update.get('s')[res, tt])
+                self.tr_original[res, tt] = round(dict_update.get('tr')[res, tt])
+                self.r_original[res, tt] = round(dict_update.get('r')[res, tt])
+                self.er_original[res, tt] = round(dict_update.get('er')[res, tt])
+                self.e_original[res, tt] = round(dict_update.get('e')[res, tt])
 
         for grp in Glen:
             for tt in Tlen:
@@ -178,9 +161,9 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
             res = self.I[i]
             for tt in Tlen:
                 self.s_original[res, tt] = round(problem_update.s[res, tt].X)
-                self.tr_original[res, tt] = round(problem_update.tr[res, tt].X)
+                self.tr_original[res, tt] =round(problem_update.tr[res, tt].X)
                 self.r_original[res, tt] = round(problem_update.r[res, tt].X)
-                self.er_original[res, tt] = round(problem_update.er[res, tt].X)
+                self.er_original[res, tt] =round(problem_update.er[res, tt].X)
                 self.e_original[res, tt] = round(problem_update.e[res, tt].X)
 
         for grp in Glen:
@@ -213,44 +196,36 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
         Tlen = self.T
         Glen = self.G
 
-        #self.m.reset()
-        #for i in range(0, len(self.I)):
-        #    res = self.I[i]
-        #    for tt in Tlen:
-                #if self.resource_i != i:
-                #    self.s[res, tt].setAttr("ub", round(self.s_original[res, tt]))
-                #    self.tr[res, tt].setAttr("ub", round(self.tr_original[res, tt]))
-                #    self.r[res, tt].setAttr("ub", round(self.r_original[res, tt]))
-                #    self.er[res, tt].setAttr("ub", round(self.er_original[res, tt]))
-                #    self.e[res, tt].setAttr("ub", round(self.e_original[res, tt]))
-                #    self.s[res, tt].setAttr("lb", round(self.s_original[res, tt]))
-                #    self.tr[res, tt].setAttr("lb", round(self.tr_original[res, tt]))
-                #    self.r[res, tt].setAttr("lb", round(self.r_original[res, tt]))
-                #    self.er[res, tt].setAttr("lb", round(self.er_original[res, tt]))
-                #    self.e[res, tt].setAttr("lb", round(self.e_original[res, tt]))
-                #else:
-                #    self.s[res, tt].setAttr("ub", self.ub)
-                #    self.tr[res, tt].setAttr("ub", self.ub)
-                #    self.r[res, tt].setAttr("ub", self.ub)
-                #    self.er[res, tt].setAttr("ub", self.ub)
-                #    self.e[res, tt].setAttr("ub", self.ub)
-                #   self.s[res, tt].setAttr("lb", self.lb)
-                #    self.tr[res, tt].setAttr("lb", self.lb)
-                #    self.r[res, tt].setAttr("lb", self.lb)
-                #    self.er[res, tt].setAttr("lb", self.lb)
-                #    self.e[res, tt].setAttr("lb", self.lb)
-         #       self.s[res, tt].setAttr("Start", self.e_original[res, tt])
-         #       self.tr[res, tt].setAttr("Start", self.e_original[res, tt])
-         #       self.r[res, tt].setAttr("Start", self.e_original[res, tt])
-         #       self.er[res, tt].setAttr("Start", self.e_original[res, tt])
-         #       self.e[res, tt].setAttr("Start", self.e_original[res, tt])
+        self.m.reset()
 
-        #for grp in Glen:
-        #    for tt in Tlen:
-        #        self.mu[grp, tt].setAttr("Start", self.mu_original[grp, tt])
+        for i in range(0, len(self.I)):
+            res = self.I[i]
+            for tt in Tlen:
+                if self.resource_i != i:
+                    self.s[res, tt].setAttr("ub", round(self.s_original[res, tt]))
+                    self.tr[res, tt].setAttr("ub", round(self.tr_original[res, tt]))
+                    #self.r[res, tt].setAttr("ub", round(self.r_original[res, tt]))
+                    self.er[res, tt].setAttr("ub", round(self.er_original[res, tt]))
+                    self.e[res, tt].setAttr("ub", round(self.e_original[res, tt]))
+                    self.s[res, tt].setAttr("lb", round(self.s_original[res, tt]))
+                    self.tr[res, tt].setAttr("lb", round(self.tr_original[res, tt]))
+                    #self.r[res, tt].setAttr("lb", round(self.r_original[res, tt]))
+                    self.er[res, tt].setAttr("lb", round(self.er_original[res, tt]))
+                    self.e[res, tt].setAttr("lb", round(self.e_original[res, tt]))
+                else:
+                    self.s[res, tt].setAttr("ub", self.ub)
+                    self.tr[res, tt].setAttr("ub", self.ub)
+                    self.r[res, tt].setAttr("ub", self.ub)
+                    self.er[res, tt].setAttr("ub", self.ub)
+                    self.e[res, tt].setAttr("ub", self.ub)
+                    self.s[res, tt].setAttr("lb", self.lb)
+                    self.tr[res, tt].setAttr("lb", self.lb)
+                    self.r[res, tt].setAttr("lb", self.lb)
+                    self.er[res, tt].setAttr("lb", self.lb)
+                    self.e[res, tt].setAttr("lb", self.lb)
 
-        #self.__create_auxiliar_vars__()
         self.__create_objfunc__()
+        self.__modify_constraints_aux__()
         self.m.update()
 
     def return_best_candidate(self, total_obj_function, total_unfeasibility):
@@ -272,18 +247,12 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
     ################################################################################
     # METHOD: update_original_values
     ################################################################################
-    def update_original_values(self, DPP, change, total_obj_function, total_unfeasibility):
+    def update_original_values(self, DPP, change):
 
-        counter = 0
-        #for i in range(0, len(change)):
-        #    counter = counter + change[i]
-        if counter == 0:#len(change):
+        change = 1
+        if change == 1:
             Tlen = self.T
             Glen = self.G
-            print(total_unfeasibility)
-            print(total_obj_function)
-            print("")
-            print("")
             for res in self.problem_data.get_names("resources"):
                 for tt in Tlen:
                     self.s_original[res, tt] = DPP.get_variables().get_variable('s')[res, tt].X
@@ -296,13 +265,15 @@ class DecomposedPrimalProblem(ARPP.RelaxedPrimalProblem):
                 for tt in Tlen:
                     self.mu_original[grp, tt] = DPP.get_variables().get_variable('mu')[grp, tt].X
 
-            for i in range(0, len(change)):
-                change[i] = 0
-
-
 
     ################################################################################
-    # METHOD: return_function_obj()
+    # PRIVATE METHOD: __modify_constraints_aux__()
     ################################################################################
-    def return_function_obj(self):
-        return self.function_obj[self.resource_i].getValue()
+    def __modify_constraints_aux__(self):
+        for i in range(0, len(self.list_Constr)):
+            Constr1 = self.list_Constr[i]
+            self.m.remove(self.m.getConstrByName("aux2_const"+str(i)))
+            self.m.addConstr(self.lambda1[i] + self.beta[i] * Constr1 / self.v <= self.aux_total[i],
+                             name="aux2_const" + str(i))
+
+        self.m.update()
