@@ -87,7 +87,8 @@ class AugmentedLagrangian(object):
         # Initialize Decomposite Primal Problem Variables
         self.problem_DPP = []
         self.N = len(self.problem_data.get_names("resources"))
-        self.y_master_size = len(self.problem_data.get_names("wildfire") + [int(min(self.problem_data.get_names("wildfire"))) - 1])
+        self.y_master_size = len(
+            self.problem_data.get_names("wildfire") + [int(min(self.problem_data.get_names("wildfire"))) - 1])
         self.counterh_matrix = []
 
         self.lobj_local = []
@@ -167,12 +168,12 @@ class AugmentedLagrangian(object):
 
             lambda_vector[i] = min(max(self.lambda_min, new_lambda), self.lambda_max)
             beta_vector[i] = beta_vector[i] * 1.2
-            #print(str(LRpen) + " -> lambda " + str(lambda_old[i]) + " + " + str(beta_old[i] * LRpen) + " = " + str(
+            # print(str(LRpen) + " -> lambda " + str(lambda_old[i]) + " + " + str(beta_old[i] * LRpen) + " = " + str(
             #    lambda_vector[i]) + " update " + str(beta_old[i]) + " diff " + str(
             #    abs(abs(lambda_vector[i]) - abs(lambda_old[i]))) + " beta " + str(
             #    beta_vector[i]))  # + " change_per "+str(change_per) )
-        #print("")
-        #print("")
+        # print("")
+        # print("")
         for i in range(0, self.NL):
             subgradient_prev[i] = subgradient[i]
             lambda_matrix_prev[i] = lambda_old[i]
@@ -191,14 +192,14 @@ class AugmentedLagrangian(object):
 
         # CHECK PREVIOUS LAMBDAS CHANGES
         for i in range(0, len(self.lambda_matrix) - 1):
-            #print(str(self.termination_counter[i])+"  "+str(self.infeas_local[i]))
+            # print(str(self.termination_counter[i])+"  "+str(self.infeas_local[i]))
             if self.infeas_local[i] > 0:
                 self.termination_counter[i] = self.termination_counter[i] + 1
 
             if self.termination_counter[i] < self.th_sol and self.infeas_local[i] <= 0:
                 lobj_diff = abs(
                     (abs(self.lobj_local[i]) - abs(self.lobj_local_prev[i])) / abs(self.lobj_local[i])) * 100
-        #        # print(str(i) + "self.lobj_local[i] - self.lobj_local_prev[i] " + str(lobj_diff) + "% ")
+                #        # print(str(i) + "self.lobj_local[i] - self.lobj_local_prev[i] " + str(lobj_diff) + "% ")
                 if (lobj_diff < 0.1):
                     self.termination_counter[i] = self.termination_counter[i] + 1
                 else:
@@ -213,7 +214,7 @@ class AugmentedLagrangian(object):
                 counter = counter + 1
         if counter == self.y_master_size:
             all_termination_counter_finished = 1
-        #print("counter" + str(counter) + " termination_counter" + str(self.y_master_size))
+        # print("counter" + str(counter) + " termination_counter" + str(self.y_master_size))
 
         # STOPPING CRITERIA CASES
         current_time = time.time() - self.init_time
@@ -236,8 +237,6 @@ class AugmentedLagrangian(object):
     ###############################################################################
     # PUBLIC METHOD solve()
     ###############################################################################
-    # OLLO FACELO POR GRUPO DE PERIODOS, POR EXEMPLO DE CINCO EN CINCO
-    ###############################################################################
     def solve(self):
         print("SOLVE ALGORITHM")
         termination_criteria = bool(False)
@@ -251,9 +250,10 @@ class AugmentedLagrangian(object):
                     print("\n\nIter: " + str(self.v) + " " +
                           "LR(x): " + str(self.lobj_global) + " " +
                           "f(x):" + str(self.fobj_global) + " " +
-                          "penL:" + str(self.infeas_global) + "\n")
+                          "penL:" + str(self.infeas_global) + " time:" +
+                          str(time.time() - self.init_time) + "\n")
                 if self.termination_counter[i] < self.th_sol:
-                    #print("### Y -> " + str(self.problem_DPP[i].list_y))
+                    # print("### Y -> " + str(self.problem_DPP[i].list_y))
                     DPP_sol_row = []
                     DPP_sol_unfeasible = False
                     total_obj_function = []
@@ -286,7 +286,7 @@ class AugmentedLagrangian(object):
                         total_obj_function.append(self.problem_DPP[i].return_function_obj_total())
                         total_unfeasibility.append(max(subgradient))
                         total_subgradient.append(subgradient)
-                        #print(str(j) + " fobj " + str(self.problem_DPP[i].return_function_obj()) + " total " +
+                        # print(str(j) + " fobj " + str(self.problem_DPP[i].return_function_obj()) + " total " +
                         #      str(self.problem_DPP[i].return_function_obj_total()) + "unfeas " + str(max(subgradient)))
 
                     if DPP_sol_unfeasible:
@@ -317,19 +317,40 @@ class AugmentedLagrangian(object):
                                 bestid].copy_problem()  # self.update_problem_data_sol(self.problem_DPP[i])
                             self.solution_best_original.constrvio = self.infeas_global
                             self.solution_best_original.solve_status = 2
-                            #print("New Solution:")
-                            #print(self.solution_best_original.get_solution_info())
+                            # print("New Solution:")
+                            # print(self.solution_best_original.get_solution_info())
                             self.change[i] = 1
                         self.problem_DPP[i].update_original_values(DPP_sol_row[bestid], self.change[i])
 
                     DPP_sol_row.clear()
-            print("TERMINATION COUNTER" + str(self.termination_counter))
             # (3) Check termination criteria
             termination_criteria = self.convergence_checking()
             self.v = self.v + 1
 
         # DESTROY DPP
-        #print(self.solution_best_original.get_solution_info())
+        # print(self.solution_best_original.get_solution_info())
+        if self.solution_best_original is None:
+            self.problem_DPP[0].change_resource(0, self.lambda_matrix[i], self.beta_matrix[i], self.v)
+            self.problem_DPP[0].solve(self.solver_options)
+            min_fobj = self.problem_DPP[0].return_function_obj_total()
+            min_feasibility = max(self.problem_DPP[0].return_LR_obj2())
+            best_index = 0
+            for i in range(1, self.N):
+                self.problem_DPP[i].change_resource(0, self.lambda_matrix[i], self.beta_matrix[i], self.v)
+                self.problem_DPP[i].solve(self.solver_options)
+                fobj = self.problem_DPP[i].return_function_obj_total()
+                feas = max(self.problem_DPP[i].return_LR_obj2())
+                if min_feasibility >= feas:
+                    if min_feasibility == feas:
+                        if min_fobj > fobj:
+                            best_index = i
+                    else:
+                        best_index = i
+            self.solution_best_original = self.problem_DPP[best_index].problem_data.copy_problem()
+            self.solution_best_original.constrvio = max(self.problem_DPP[i].return_LR_obj2())
+            self.solution_best_original.solve_status = 2
+
+
         self.problem_data = self.solution_best_original
         return self.solution_best_original
 

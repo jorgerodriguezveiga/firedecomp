@@ -399,32 +399,20 @@ class Problem(object):
                 valid_constraints=valid_constraints, log_level=log_level)
 
             self.AL_model = AL_problem.solve()
-            if self.AL_model is not None:
-                self.resources = self.AL_model.resources
-                self.wildfire = self.AL_model.wildfire
-                self.groups = self.AL_model.groups
-                self.groups_wildfire = self.AL_model.groups_wildfire
-                self.resources_wildfire = self.AL_model.resources_wildfire
-                self.period_unit = self.AL_model.period_unit
-                self.min_res_penalty = self.AL_model.min_res_penalty
-                self.solve_status = self.AL_model.solve_status
-                self.mipgap = self.AL_model.mipgap
-                self.constrvio = max(0, self.AL_model.constrvio)
-                self.time = time.time()-time1
-                self.solve_time = time.time()-time1
-            else:
-                self.resources = None
-                self.wildfire = None
-                self.groups = None
-                self.groups_wildfire = None
-                self.resources_wildfire = None
-                self.period_unit = None
-                self.min_res_penalty =None
-                self.solve_status = 11
-                self.mipgap = None
-                self.constrvio = None
-                self.time = time.time()-time1
-                self.solve_time = time.time()-time1
+
+            self.resources = self.AL_model.resources
+            self.wildfire = self.AL_model.wildfire
+            self.groups = self.AL_model.groups
+            self.groups_wildfire = self.AL_model.groups_wildfire
+            self.resources_wildfire = self.AL_model.resources_wildfire
+            self.period_unit = self.AL_model.period_unit
+            self.min_res_penalty = self.AL_model.min_res_penalty
+            self.solve_status = self.AL_model.solve_status
+            self.mipgap = self.AL_model.mipgap
+            self.constrvio = max(0, self.AL_model.constrvio)
+            self.time = time.time()-time1
+            self.solve_time = time.time()-time1
+
 
         else:
             raise ValueError(
