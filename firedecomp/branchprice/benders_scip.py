@@ -734,7 +734,7 @@ def solve_benders(problem_data, solver_options):
     master.optimize()
     # solving the subproblems to get the best solution
     master.computeBestSolSubproblems()
-    master.printStatistics()
+    #master.printStatistics()
     # Todo: check what status number return a solution
     status = master.getStatus()
     if status != "infeasible":
@@ -827,12 +827,17 @@ def solve_GCG(problem_data, model_name = 'fireproblem', solver_options=None):
     else:
         status = 0
     # Leemos fichero con la solucion 
-    if os.path.isfile(sol_file):
+    if os.path.isfile(sol_file) and (max_vio is not None):
         status = 2
         readSolFileAndUpdate(sol_file, problem_data)
     else:
-        status = 0
-        
+        status = 3
+    
+    # Remove auxiliary folder
+    shutil.rmtree(auxiliary_folder)
+    # Remmove core* error file generated
+    subprocess.call("rm core*", shell=True)
+    
     return status, solve_time, mipgap, max_vio
     
 
