@@ -49,7 +49,7 @@ def read_csvs(folder='Finales', file='solution.csv'):
     return df
 
 
-def get_best(df, columns=None, groupby=None, best_prefix='best_',
+def get_best(df, columns=None, groupby=None, filter_best=None, best_prefix='best_',
              rel_prefix='rel_'):
     if groupby is None:
         groupby = ['num_brigades', 'num_aircraft', 'num_machines',
@@ -60,17 +60,25 @@ def get_best(df, columns=None, groupby=None, best_prefix='best_',
                    {'name': 'elapsed_time', 'sense': 'min'},
                    {'name': 'solve_time', 'sense': 'min'}]
 
+    if filter_best is None:
+        filter_best = []
+
+    filter_df = df.copy()
+    for condition in filter_best:
+        op = getattr(operator, condition['operator'])
+        filter_df = filter_df[op(filter_df[condition['column']], condition['value'])]
+
     sense_instances = pd.DataFrame()
     for column in columns:
         sense_instances[best_prefix + column['name']] = getattr(
-            df.groupby(groupby)[column['name']], column['sense'])()
+            filter_df.groupby(groupby)[column['name']], column['sense'])()
 
     sense_instances = sense_instances.reset_index()
     sense_instances = sense_instances.rename(
         columns={column['name']: best_prefix + column['name'] for column in
                  columns})
 
-    new_df = pd.merge(df, sense_instances, on=groupby)
+    new_df = pd.merge(filter_df, sense_instances, on=groupby)
 
     for column in columns:
         best = new_df[best_prefix + column['name']]
@@ -81,7 +89,7 @@ def get_best(df, columns=None, groupby=None, best_prefix='best_',
 
 def performance_profile_graph(
         df, scatter_by='mode', x='elapsed_time', conditions=None,
-        groupby=None, columns=None, best_prefix='best_',
+        groupby=None, columns=None, filter_best=None, best_prefix='best_',
         rel_prefix='rel_', npoints=500):
     """
     Args:
@@ -108,10 +116,13 @@ def performance_profile_graph(
     if conditions is None:
         conditions = []
 
-    df = get_best(df, groupby=groupby, columns=columns,
-                  best_prefix=best_prefix, rel_prefix=rel_prefix)
+    df = get_best(
+        df, groupby=groupby, columns=columns, filter_best=filter_best,
+        best_prefix=best_prefix, rel_prefix=rel_prefix)
 
-    num_instances = sum(df[scatter_by] == list(df[scatter_by])[0])
+    num_instances = max(
+        [sum(df['mode'] == m) for m in set(df['mode'])]
+    )
     performance = dict()
 
     min_x = df[x].min() * 0.9
@@ -129,7 +140,6 @@ def performance_profile_graph(
             for condition in conditions:
                 op = getattr(operator, condition['operator'])
                 m_df = m_df[op(m_df[condition['column']], condition['value'])]
-
             performance[m][t] = m_df.shape[0]/num_instances
 
     performance_df = pd.DataFrame(performance)
