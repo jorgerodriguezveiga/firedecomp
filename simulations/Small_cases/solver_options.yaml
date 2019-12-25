@@ -1,0 +1,27 @@
+original:
+  valid_constraints: ['work', 'contention']
+  solver_options:
+    MIPGapAbs: 0
+    MIPGap: 0
+    OutputFlag: 1
+    LogToConsole: 1
+    TimeLimit: 600
+original_scip:
+fix_work:
+  mip_gap_obj: 0
+  n_start_info: 1000
+  max_iters: 1000
+  max_time: 600
+  start_period: 1000
+  step_period: 6
+  valid_constraints: ['max_obj', 'work', 'contention']
+  solver_options:
+    MIPGapAbs: 0
+    MIPGap: 0
+    TimeLimit: 600
+benders_scip:
+  limits/time: 600
+gcg_scip:
+  limits/time: 600
+AL:
+  max_time: 600
