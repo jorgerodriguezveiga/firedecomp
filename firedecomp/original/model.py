@@ -56,10 +56,15 @@ class InputModel(object):
         self.min_t = int(min(self.T))
         self.max_t = int(max(self.T))
         self.valid_constraints = valid_constraints
+        self.sizey = self.T + [self.min_t-1]
         self.model = self.__get_model__()
 
+    def set_model(self, model):
+        self.model = solution.Solution(model, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u, w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
+
+
     def __get_model__(self):
-        return model(self, relaxed=self.relaxed,
+        return self.model(self, relaxed=self.relaxed,
                      valid_constraints=self.valid_constraints)
 
     def solve(self, solver_options=None):
@@ -70,14 +75,13 @@ class InputModel(object):
                 Example: ``{'TimeLimit': 10}``.
         """
         if solver_options is None:
-            solver_options = {'OutputFlag': 0}
+            solver_options = {'OutputFlag': 0, 'LogToConsole':0}
 
         m = self.model
 
         # set gurobi options
         if isinstance(solver_options, dict):
             for k, v in solver_options.items():
-                print(k, v)
                 m.model.setParam(k, v)
 
         m.model.optimize()
@@ -127,288 +131,272 @@ class InputModel(object):
 # --------------------------------------------------------------------------- #
 
 
-# model -----------------------------------------------------------------------
-def model(data, relaxed=False, slack_containment=False, valid_constraints=None,
-          slack_penalty=1000000000000):
-    """Wildfire suppression model.
+    # model -----------------------------------------------------------------------
+    def model(self, data, relaxed=False, slack_containment=False, valid_constraints=None,
+              slack_penalty=1000000000000):
+        """Wildfire suppression model.
 
-    Args:
-        data (:obj:`firedecomp.model.InputModel`): problem data.
-        relaxed (:obj:`bool`): if True variables will be continuous. Defaults
-            to False.
-        slack_containment (:obj:`bool`): if True add slack variable to wildfire
-            containment constraints. Defaults to False.
-        slack_penalty (:obj:`float`): slack containment penalty.
-    """
-    m = gurobipy.Model("wildfire_supression")
+        Args:
+            data (:obj:`firedecomp.model.InputModel`): problem data.
+            relaxed (:obj:`bool`): if True variables will be continuous. Defaults
+                to False.
+            slack_containment (:obj:`bool`): if True add slack variable to wildfire
+                containment constraints. Defaults to False.
+            slack_penalty (:obj:`float`): slack containment penalty.
+        """
+        self.m = gurobipy.Model("wildfire_supression")
 
-    if relaxed is True:
-        vtype = gurobipy.GRB.CONTINUOUS
-        lb = 0
-        ub = 1
-    else:
-        vtype = gurobipy.GRB.BINARY
-        lb = 0
-        ub = 1
+        if relaxed is True:
+            vtype = gurobipy.GRB.CONTINUOUS
+            lb = 0
+            ub = 1
+        else:
+            vtype = gurobipy.GRB.BINARY
+            lb = 0
+            ub = 1
 
-    if valid_constraints is None:
-        valid_constraints = ['contention', 'work', 'max_obj']
+        if valid_constraints is None:
+            valid_constraints = ['contention', 'work', 'max_obj']
 
-    # Variables
-    # =========
-    # Resources
-    # ---------
-    s = m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="start")
-    tr = m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="travel")
-    r = m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="rest")
-    er = m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="end_rest")
-    e = m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="end")
+        # Variables
+        # =========
+        # Resources
+        # ---------
+        self.s = self.m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="start")
+        self.tr = self.m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="travel")
+        self.r = self.m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="rest")
+        self.er = self.m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="end_rest")
+        self.e = self.m.addVars(data.I, data.T, vtype=vtype, lb=lb, ub=ub, name="end")
 
-    # Auxiliar variables
-    u = {
-        (i, t):
-            s.sum(i, data.T_int.get_names(p_max=t))
-            - e.sum(i, data.T_int.get_names(p_max=t-1))
-        for i in data.I for t in data.T}
-    w = {(i, t): u[i, t] - r[i, t] - tr[i, t] for i in data.I for t in data.T}
-    z = {i: e.sum(i, '*') for i in data.I}
+        # Auxiliar variables
+        self.u = {
+            (i, t):
+                self.s.sum(i, data.T_int.get_names(p_max=t))
+                - self.e.sum(i, data.T_int.get_names(p_max=t-1))
+            for i in data.I for t in data.T}
+        self.w = {(i, t): self.u[i, t] - self.r[i, t] - self.tr[i, t] for i in data.I for t in data.T}
+        self.z = {i: self.e.sum(i, '*') for i in data.I}
 
-    cr = {(i, t):
-          sum([
-              (t+1-t1)*s[i, t1]
-              - (t-t1)*e[i, t1]
-              - r[i, t1]
-              - data.WP[i]*er[i, t1]
-              for t1 in data.T_int.get_names(p_max=t)])
-          for i in data.I for t in data.T
-          if not data.ITW[i] and not data.IOW[i]}
+        self.cr = {(i, t):
+              sum([
+                  (t+1-t1)*self.s[i, t1]
+                  - (t-t1)*self.e[i, t1]
+                  - self.r[i, t1]
+                  - data.WP[i]*self.er[i, t1]
+                  for t1 in data.T_int.get_names(p_max=t)])
+              for i in data.I for t in data.T
+              if not data.ITW[i] and not data.IOW[i]}
 
-    cr.update({
-        (i, t):
-            (t+data.CWP[i]-data.CRP[i]) * s[i, data.min_t]
-            + sum([
-                (t + 1 - t1 + data.WP[i]) * s[i, t1]
-                for t1 in data.T_int.get_names(p_min=data.min_t + 1, p_max=t)])
-            - sum([
-                (t - t1) * e[i, t1]
-                + r[i, t1]
-                + data.WP[i] * er[i, t1]
-                for t1 in data.T_int.get_names(p_max=t)])
-        for i in data.I for t in data.T
-        if data.ITW[i] or data.IOW[i]})
+        self.cr.update({
+            (i, t):
+                (t+data.CWP[i]-data.CRP[i]) * self.s[i, data.min_t]
+                + sum([
+                    (t + 1 - t1 + data.WP[i]) * self.s[i, t1]
+                    for t1 in data.T_int.get_names(p_min=data.min_t + 1, p_max=t)])
+                - sum([
+                    (t - t1) * self.e[i, t1]
+                    + self.r[i, t1]
+                    + data.WP[i] * self.er[i, t1]
+                    for t1 in data.T_int.get_names(p_max=t)])
+            for i in data.I for t in data.T
+            if data.ITW[i] or data.IOW[i]})
 
-    # Wildfire
-    # --------
-    y = m.addVars(data.T + [data.min_t-1], vtype=vtype, lb=lb, ub=ub,
-                  name="contention")
-    mu = m.addVars(data.G, data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
-                   name="missing_resources")
+        # Wildfire
+        # --------
+        self.y = self.m.addVars(data.T + [data.min_t-1], vtype=vtype, lb=lb, ub=ub, name="contention")
+        self.mu = self.m.addVars(data.G, data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0, name="missing_resources")
 
-    if slack_containment:
-        slack_cont1 = m.addVar(vtype=gurobipy.GRB.CONTINUOUS, lb=0,
-                               name="slack_containment_1")
+        if slack_containment:
+            slack_cont1 = self.m.addVar(vtype=gurobipy.GRB.CONTINUOUS, lb=0, name="slack_containment_1")
+            slack_cont2 = self.m.addVars(data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0, name="slack_containment_2")
 
-        slack_cont2 = m.addVars(data.T, vtype=gurobipy.GRB.CONTINUOUS, lb=0,
-                                name="slack_containment_2")
+        # Objective
+        # =========
+        self.obj_expression = \
+            sum([data.C[i]*self.u[i, t] for i in data.I for t in data.T]) + \
+            sum([data.P[i] * self.z[i] for i in data.I]) + \
+            sum([data.NVC[t] * self.y[t-1] for t in data.T]) + \
+            sum([data.Mp*self.mu[g, t] for g in data.G for t in data.T]) + \
+            0.001*self.y[data.max_t]
 
-    # Objective
-    # =========
-    obj_expression = \
-        sum([data.C[i]*u[i, t] for i in data.I for t in data.T]) + \
-        sum([data.P[i] * z[i] for i in data.I]) + \
-        sum([data.NVC[t] * y[t-1] for t in data.T]) + \
-        sum([data.Mp*mu[g, t] for g in data.G for t in data.T]) + \
-        0.001*y[data.max_t]
+        if slack_containment:
+            self.obj_expression += \
+                slack_penalty * slack_cont1 + \
+                sum([slack_penalty * slack_cont2[t] for t in data.T])
 
-    if slack_containment:
-        obj_expression += \
-            slack_penalty * slack_cont1 + \
-            sum([slack_penalty * slack_cont2[t] for t in data.T])
+        self.m.setObjective(self.obj_expression, gurobipy.GRB.MINIMIZE)
 
-    m.setObjective(obj_expression, gurobipy.GRB.MINIMIZE)
+        # Constraints
+        # ===========
 
-    # Constraints
-    # ===========
+        # Valid constraints
+        # -----------------
 
-    # Valid constraints
-    # -----------------
+        if 'contention' in valid_constraints:
+            expr_lhs = {t: self.y[t] for t in data.T}
+            expr_rhs = {t: self.y[t - 1] for t in data.T}
 
-    if 'contention' in valid_constraints:
-        expr_lhs = {t: y[t] for t in data.T}
-        expr_rhs = {t: y[t - 1] for t in data.T}
+            self.m.addConstrs(
+                (expr_lhs[t] <= expr_rhs[t] for t in data.T),
+                name='valid_constraint_contention'
+            )
 
-        m.addConstrs(
-            (expr_lhs[t] <= expr_rhs[t] for t in data.T),
-            name='valid_constraint_contention'
-        )
+        if 'work' in valid_constraints:
+            expr_lhs = {(i, t): self.w[i, t] for i in data.I for t in data.T}
+            expr_rhs = {t: self.y[t - 1] for t in data.T}
 
-    if 'work' in valid_constraints:
-        expr_lhs = {(i, t): w[i, t] for i in data.I for t in data.T}
-        expr_rhs = {t: y[t - 1] for t in data.T}
+            self.m.addConstrs(
+                (expr_lhs[i, t] <= expr_rhs[t] for i in data.I for t in data.T),
+                name='valid_constraint_contention'
+            )
 
-        m.addConstrs(
-            (expr_lhs[i, t] <= expr_rhs[t] for i in data.I for t in data.T),
-            name='valid_constraint_contention'
-        )
+        # Wildfire Containment
+        # --------------------
+        self.m.addConstr(self.y[data.min_t-1] == 1, name='start_no_contained')
 
-    # Wildfire Containment
-    # --------------------
-    m.addConstr(y[data.min_t-1] == 1, name='start_no_contained')
+        if slack_containment:
+            wildfire_containment_1_expr = \
+                sum([data.PER[t] * self.y[t - 1] for t in data.T]) <= \
+                sum([data.PR[i, t] * self.w[i, t] for i in data.I for t in data.T]) + \
+                slack_cont1
+        else:
+            wildfire_containment_1_expr = \
+                sum([data.PER[t] * self.y[t - 1] for t in data.T]) <= \
+                sum([data.PR[i, t] * self.w[i, t] for i in data.I for t in data.T])
 
-    if slack_containment:
-        wildfire_containment_1_expr = \
-            sum([data.PER[t] * y[t - 1] for t in data.T]) <= \
-            sum([data.PR[i, t] * w[i, t] for i in data.I for t in data.T]) + \
-            slack_cont1
-    else:
-        wildfire_containment_1_expr = \
-            sum([data.PER[t] * y[t - 1] for t in data.T]) <= \
-            sum([data.PR[i, t] * w[i, t] for i in data.I for t in data.T])
+        self.m.addConstr(wildfire_containment_1_expr, name='wildfire_containment_1')
 
-    m.addConstr(wildfire_containment_1_expr, name='wildfire_containment_1')
+        if slack_containment:
+            wildfire_containment_2_expr = (
+                data.M*self.y[t] + slack_cont2[t] >=
+                sum([data.PER[t1]
+                     for t1 in data.T_int.get_names(p_max=t)])*self.y[t-1] -
+                sum([data.PR[i, t1]*self.w[i, t1]
+                     for i in data.I for t1 in data.T_int.get_names(p_max=t)])
+                for t in data.T)
+        else:
+            wildfire_containment_2_expr = (
+                data.M*self.y[t] >=
+                sum([data.PER[t1]
+                     for t1 in data.T_int.get_names(p_max=t)])*self.y[t-1] -
+                sum([data.PR[i, t1]*self.w[i, t1]
+                     for i in data.I for t1 in data.T_int.get_names(p_max=t)])
+                for t in data.T)
 
-    if slack_containment:
-        wildfire_containment_2_expr = (
-            data.M*y[t] + slack_cont2[t] >=
-            sum([data.PER[t1]
-                 for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
-            sum([data.PR[i, t1]*w[i, t1]
-                 for i in data.I for t1 in data.T_int.get_names(p_max=t)])
-            for t in data.T)
-    else:
-        wildfire_containment_2_expr = (
-            data.M*y[t] >=
-            sum([data.PER[t1]
-                 for t1 in data.T_int.get_names(p_max=t)])*y[t-1] -
-            sum([data.PR[i, t1]*w[i, t1]
-                 for i in data.I for t1 in data.T_int.get_names(p_max=t)])
-            for t in data.T)
+        self.m.addConstrs(wildfire_containment_2_expr, name='wildfire_containment_2')
 
-    m.addConstrs(wildfire_containment_2_expr, name='wildfire_containment_2')
+        # Start of activity
+        # -----------------
+        self.m.addConstrs(
+            (data.A[i]*self.w[i, t] <=
+             sum([self.tr[i, t1] for t1 in data.T_int.get_names(p_max=t)])
+             for i in data.I for t in data.T),
+            name='start_activity_1')
 
-    # Start of activity
-    # -----------------
-    m.addConstrs(
-        (data.A[i]*w[i, t] <=
-         sum([tr[i, t1] for t1 in data.T_int.get_names(p_max=t)])
-         for i in data.I for t in data.T),
-        name='start_activity_1')
+        self.m.addConstrs(
+            (self.s[i, data.min_t] +
+             sum([(data.max_t + 1)*self.s[i, t]
+                  for t in data.T_int.get_names(p_min=data.min_t+1)]) <=
+             data.max_t*self.z[i]
+             for i in data.I if data.ITW[i] == True),
+            name='start_activity_2')
 
-    m.addConstrs(
-        (s[i, data.min_t] +
-         sum([(data.max_t + 1)*s[i, t]
-              for t in data.T_int.get_names(p_min=data.min_t+1)]) <=
-         data.max_t*z[i]
-         for i in data.I if data.ITW[i] == True),
-        name='start_activity_2')
+        self.m.addConstrs(
+            (sum([self.s[i, t] for t in data.T]) <= self.z[i]
+             for i in data.I if data.ITW[i] == False),
+            name='start_activity_3')
 
-    m.addConstrs(
-        (sum([s[i, t] for t in data.T]) <= z[i]
-         for i in data.I if data.ITW[i] == False),
-        name='start_activity_3')
+        # End of Activity
+        # ---------------
+        self.m.addConstrs(
+            (sum([self.tr[i, t1] for t1 in data.T_int.get_names(p_min=t-data.TRP[i]+1, p_max=t)
+                  ]) >= data.TRP[i]*self.e[i, t]
+             for i in data.I for t in data.T),
+            name='end_activity')
 
-    # End of Activity
-    # ---------------
-    m.addConstrs(
-        (sum([tr[i, t1] for t1 in data.T_int.get_names(p_min=t-data.TRP[i]+1,
-                                                       p_max=t)
-              ]) >= data.TRP[i]*e[i, t]
-         for i in data.I for t in data.T),
-        name='end_activity')
+        # Breaks
+        # ------
+        self.m.addConstrs(
+            (0 <= self.cr[i, t]
+             for i in data.I for t in data.T),
+            name='Breaks_1_lb')
 
-    # Breaks
-    # ------
-    m.addConstrs(
-        (0 <= cr[i, t]
-         for i in data.I for t in data.T),
-        name='Breaks_1_lb')
+        self.m.addConstrs(
+            (self.cr[i, t] <= data.WP[i]
+             for i in data.I for t in data.T),
+            name='Breaks_1_ub')
 
-    m.addConstrs(
-        (cr[i, t] <= data.WP[i]
-         for i in data.I for t in data.T),
-        name='Breaks_1_ub')
+        self.m.addConstrs(
+            (self.r[i, t] <= sum([self.er[i, t1]
+                             for t1 in data.T_int.get_names(p_min=t,
+                                                            p_max=t+data.RP[i]-1)])
+             for i in data.I for t in data.T),
+            name='Breaks_2')
 
-    m.addConstrs(
-        (r[i, t] <= sum([er[i, t1]
-                         for t1 in data.T_int.get_names(p_min=t,
-                                                        p_max=t+data.RP[i]-1)])
-         for i in data.I for t in data.T),
-        name='Breaks_2')
+        self.m.addConstrs(
+            (sum([
+                self.r[i, t1]
+                for t1 in data.T_int.get_names(p_min=t-data.RP[i]+1, p_max=t)]) >=
+             data.RP[i]*self.er[i, t]
+             if t >= data.min_t - 1 + data.RP[i] else
+             data.CRP[i]*self.s[i, data.min_t] +
+             sum([self.r[i, t1] for t1 in data.T_int.get_names(p_max=t)]) >=
+             data.RP[i]*self.er[i, t]
+             for i in data.I for t in data.T),
+            name='Breaks_3')
 
-    m.addConstrs(
-        (sum([
-            r[i, t1]
-            for t1 in data.T_int.get_names(p_min=t-data.RP[i]+1, p_max=t)]) >=
-         data.RP[i]*er[i, t]
-         if t >= data.min_t - 1 + data.RP[i] else
-         data.CRP[i]*s[i, data.min_t] +
-         sum([r[i, t1] for t1 in data.T_int.get_names(p_max=t)]) >=
-         data.RP[i]*er[i, t]
-         for i in data.I for t in data.T),
-        name='Breaks_3')
+        self.m.addConstrs(
+            (sum([self.r[i, t1]+self.tr[i, t1]
+                  for t1 in data.T_int.get_names(p_min=t-data.TRP[i],
+                                                 p_max=t+data.TRP[i])]) >=
+             len(data.T_int.get_names(p_min=t-data.TRP[i],
+                                      p_max=t+data.TRP[i]))*self.r[i, t]
+             for i in data.I for t in data.T),
+            name='Breaks_4')
 
-    m.addConstrs(
-        (sum([r[i, t1] + tr[i, t1]
-              for t1 in data.T_int.get_names(p_min=t-data.TRP[i],
-                                             p_max=t+data.TRP[i])]) >=
-         len(data.T_int.get_names(p_min=t-data.TRP[i],
-                                  p_max=t+data.TRP[i]))*r[i, t]
-         for i in data.I for t in data.T),
-        name='Breaks_4')
+        # Maximum Number of Usage Periods in a Day
+        # ----------------------------------------
+        self.m.addConstrs(
+            (sum([self.u[i, t] for t in data.T]) <= data.UP[i] - data.CUP[i]
+             for i in data.I),
+            name='max_usage_periods')
 
-    # m.addConstrs(
-    #     (sum([1-w[i, t1]  # r[i, t1] + tr[i, t1]
-    #           for t1 in data.T_int.get_names(p_min=t-data.TRP[i],
-    #                                          p_max=t+data.TRP[i])]) >=
-    #      len(data.T_int.get_names(p_min=t-data.TRP[i],
-    #                               p_max=t+data.TRP[i]))*r[i, t]
-    #      for i in data.I for t in data.T),
-    #     name='Breaks_4')
+        # Non-Negligence of Fronts
+        # ------------------------
+        self.m.addConstrs(
+            (sum([self.w[i, t] for i in data.Ig[g]]) >= data.nMin[g, t]*self.y[t-1] - self.mu[g, t]
+             for g in data.G for t in data.T),
+            name='non-negligence_1')
 
+        self.m.addConstrs(
+            (sum([self.w[i, t] for i in data.Ig[g]]) <= data.nMax[g, t]*self.y[t-1]
+             for g in data.G for t in data.T),
+            name='non-negligence_2')
 
-    # Maximum Number of Usage Periods in a Day
-    # ----------------------------------------
-    m.addConstrs(
-        (sum([u[i, t] for t in data.T]) <= data.UP[i] - data.CUP[i]
-         for i in data.I),
-        name='max_usage_periods')
+        # Logical constraints
+        # ------------------------
+        self.m.addConstrs(
+            (sum([t*self.e[i, t] for t in data.T]) >= sum([t*self.s[i, t] for t in data.T])
+             for i in data.I),
+            name='logical_1')
 
-    # Non-Negligence of Fronts
-    # ------------------------
-    m.addConstrs(
-        (sum([w[i, t] for i in data.Ig[g]]) >= data.nMin[g, t]*y[t-1] - mu[g, t]
-         for g in data.G for t in data.T),
-        name='non-negligence_1')
+        self.m.addConstrs(
+            (sum([self.e[i, t] for t in data.T]) <= 1
+             for i in data.I),
+            name='logical_2')
 
-    m.addConstrs(
-        (sum([w[i, t] for i in data.Ig[g]]) <= data.nMax[g, t]*y[t-1]
-         for g in data.G for t in data.T),
-        name='non-negligence_2')
+        self.m.addConstrs(
+            (self.r[i, t] + self.tr[i, t] <= self.u[i, t]
+             for i in data.I for t in data.T),
+            name='logical_3')
 
-    # Logical constraints
-    # ------------------------
-    m.addConstrs(
-        (sum([t*e[i, t] for t in data.T]) >= sum([t*s[i, t] for t in data.T])
-         for i in data.I),
-        name='logical_1')
+        self.m.addConstrs(
+            (sum([self.w[i, t] for t in data.T]) >= self.z[i]
+             for i in data.I),
+            name='logical_4')
 
-    m.addConstrs(
-        (sum([e[i, t] for t in data.T]) <= 1
-         for i in data.I),
-        name='logical_2')
+        self.m.update()
 
-    m.addConstrs(
-        (r[i, t] + tr[i, t] <= u[i, t]
-         for i in data.I for t in data.T),
-        name='logical_3')
-
-    m.addConstrs(
-        (sum([w[i, t] for t in data.T]) >= z[i]
-         for i in data.I),
-        name='logical_4')
-
-    m.update()
-
-    return solution.Solution(
-        m, dict(s=s, tr=tr, r=r, er=er, e=e, u=u, w=w, z=z, cr=cr, y=y, mu=mu))
-# --------------------------------------------------------------------------- #
+        return solution.Solution(
+            self.m, dict(s=self.s, tr=self.tr, r=self.r, er=self.er, e=self.e, u=self.u, w=self.w, z=self.z, cr=self.cr, y=self.y, mu=self.mu))
+    # --------------------------------------------------------------------------- #

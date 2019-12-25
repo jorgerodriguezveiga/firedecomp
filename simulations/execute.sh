@@ -4,13 +4,13 @@
 # methods="original"
 
 # Jorge option
-methods="benders_scip"
+methods="AL"
 
 #Other options
-numB="5 20"
-numA="5 20"
-numM="5 20"
-numP="10 20 30 40 50 60"
+numB="2 4"
+numA="2 4"
+numM="2 4"
+numP="10 15"
 
 # 48 cases
 

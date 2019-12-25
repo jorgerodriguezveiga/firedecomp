@@ -43,8 +43,7 @@ def simulations(
             defaults to ``[5, 10, 20]``.
         num_periods (:obj:`list`): list with number of periods. If ``None``
             defaults to``[20, 30, 40]``.
-        modes (:obj:`str`): list of execution modes. Options allowed:
-            ``'original'``, ``'fix_work'``. If ``None`` defaults to
+        modes (:obj:`str`): list of execution modes. If ``None`` defaults to
             ``['original', 'fix_work']``.
         solver_options (:obj:`dict`): solver options. If None default options.
         solution_file (:obj:`str`): filename (.csv) with transferring results.
@@ -123,6 +122,8 @@ def simulations(
                 fix_work_options = {}
                 benders_scip_options = {}
                 gcg_scip_options = {}
+                AL_options = {}
+                LR_options = {}
 
                 if solver_options is not None:
                     if 'original' in solver_options:
@@ -144,6 +145,12 @@ def simulations(
                     if 'gcg_scip' in solver_options:
                         gcg_scip_options = solver_options['gcg_scip']
 
+                    if 'AL' in solver_options:
+                        AL_options = solver_options['AL']
+
+                    if 'LR' in solver_options:
+                        LR_options = solver_options['LR']
+
                 instance.solve(
                     method=m,
                     original_options=orig_options,
@@ -151,9 +158,11 @@ def simulations(
                     fix_work_options=fix_work_options,
                     benders_scip_options=benders_scip_options,
                     gcg_scip_options=gcg_scip_options,
+                    AL_options=AL_options,
+                    LR_options=LR_options,
                     min_res_penalty=1000000,
                     log_level=None)
-                
+
                 solution_dict.update(instance.get_solution_info())
                 write.write_solution_as_csv(
                     solution_dict, header=header, mode=mode, file=solution_file,
@@ -237,7 +246,7 @@ def parse_args():
         nargs='+',
         type=str,
         choices=['original', 'original_scip', 'fix_work', 'benders_scip',
-                 'gcg_scip'],
+                 'gcg_scip', 'AL', 'LR'],
         help="List of execution modes. "
              "Options allowed: original fix_work. "
              "If None: original fix_work."
