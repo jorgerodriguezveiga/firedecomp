@@ -5,3 +5,8 @@ pandas
 table_logger
 #pyscipopt
 #gurobipy
+
+# To export images as static you need to have instaled plotly-orca.
+# To install it follow: https://plot.ly/python/static-image-export/
+# Main option to install it is:
+# - conda install -c plotly plotly-orca psutil requests
