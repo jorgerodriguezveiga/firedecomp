@@ -235,22 +235,21 @@ class Benders(object):
                         self.problem_data.resources_wildfire.get_info("start")
             else:
                 self.log.debug("\t - Not optimal")
-                # Update subproblem_infeas
-                subproblem_infeas.__update_model__()
-
-                # Solve Subproblem Infeasibilities
-                self.log.debug("\t[SLACK SUBPROBLEM]:")
-                sub_infeas_status = subproblem_infeas.solve(
-                    solver_options=self.solver_options_subproblem)
-
-                if sub_infeas_status == 2:
-                    self.log.debug("\t - Optimal")
-                    self.log.info("\t - Add contention integer feasibility cut")
-                    self.add_contention_feas_int_cut()
-                else:
-                    self.log.debug("\t - Not optimal")
-                    self.log.info("\t - Add integer feasibility cut")
-                    self.add_feas_int_cut()
+                self.add_feas_int_cut()
+                # # Update subproblem_infeas
+                # subproblem_infeas.__update_model__()
+                # # Solve Subproblem Infeasibilities
+                # self.log.debug("\t[SLACK SUBPROBLEM]:")
+                # sub_infeas_status = subproblem_infeas.solve(
+                #     solver_options=self.solver_options_subproblem)
+                # if sub_infeas_status == 2:
+                #     self.log.debug("\t - Optimal")
+                #     self.log.info("\t - Add contention integer feasibility cut")
+                #     self.add_contention_feas_int_cut()
+                # else:
+                #     self.log.debug("\t - Not optimal")
+                #     self.log.info("\t - Add integer feasibility cut")
+                #     self.add_feas_int_cut()
 
             self.log.info("[STOP CRITERIA]:")
             self.log.debug("\t - lb: %s", self.obj_lb)
