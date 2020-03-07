@@ -29,6 +29,7 @@ class Benders(object):
 
         # Benders info
         self.obj_lb = -float("inf")
+        self.obj_lb_prev = -float("inf")
         self.obj_cost_lb = 0
         self.obj_ub = float("inf")
         self.obj_cost_ub = float("inf")
@@ -38,6 +39,10 @@ class Benders(object):
         self.max_time = max_time
         self.solver_options_master = solver_options_master
         self.solver_options_subproblem = solver_options_subproblem
+        self.constrvio = float('inf')
+
+        self.prev_num_cuts = 0
+        self.num_cuts = 0
 
         self.status = 1
         self.iter = 0
@@ -51,9 +56,9 @@ class Benders(object):
         self.master = benders.master.Master(
             problem_data)
         self.subproblem = benders.subproblem.Subproblem(
-            problem_data, relaxed=False)
-        self.subproblem_infeas = benders.subproblem.Subproblem(
-            problem_data, relaxed=False, slack=True)
+            problem_data, slack=True)
+        # self.subproblem_infeas = benders.subproblem.Subproblem(
+        #     problem_data, relaxed=False, slack=True)
 
         # Master info
         self.L = None
@@ -63,38 +68,12 @@ class Benders(object):
             for v in self.master.model.getVars()
             if re.search('start\[([^,]+),(\d+)\]', v.VarName)]
 
+        self.__start_info__ = {}
+
         # Logger
-        self.__log__(log_level)
-
-    def __log__(self, level="benders"):
-        log.addLevelName(60, "benders")
-        log.Logger.benders = logging.benders
-
-        if level != 'benders':
-            log_level = getattr(log, level)
-            logger = log.getLogger('benders_logging')
-            logger.setLevel(log_level)
-            logger.addFilter(logging.BendersFilter())
-            if len(logger.handlers) == 0:
-                ch = log.StreamHandler()
-                ch.setLevel(log_level)
-                # create formatter and add it to the handlers
-                formatter = log.Formatter("%(levelname)8s: %(message)s")
-                ch.setFormatter(formatter)
-                logger.addHandler(ch)
-        else:
-            log_level = 60
-            logger = log.getLogger('benders')
-            logger.setLevel(log_level)
-            if len(logger.handlers) == 0:
-                ch = log.StreamHandler()
-                ch.setLevel(log_level)
-                # create formatter and add it to the handlers
-                formatter = log.Formatter("%(message)s")
-                ch.setFormatter(formatter)
-                logger.addHandler(ch)
-
-        self.log = logger
+        self.log_level = log_level
+        if self.log_level == 'benders':
+            self.tbl = lambda *args: print(utils.format_benders(*args))
 
     def get_obj_bound(self):
         model = self.relaxed_problem.solve(None)
@@ -112,34 +91,6 @@ class Benders(object):
                   for v in self.common_vars}
         rhs = term*(len(s_set)-1)+lower_obj
         self.master.add_opt_int_cut(coeffs, rhs)
-
-    def add_opt_start_int_cut(self):
-        """Corte optimalidad variables enteras.
-
-        Nota: No usar porque no garantizan optimalidad.
-        """
-        S_set = self.master.get_S_set()
-        max_t = int(max(self.problem_data.get_names("wildfire")))
-        vars = []
-        for v in S_set:
-            search = re.search('start\[([^,]+),(\d+)\]', v)
-            if search:
-                res, min_t = search.groups()
-                vars += ["start[{},{}]".format(res, t)
-                         for t in range(int(min_t), max_t+1)]
-            else:
-                raise ValueError(
-                    "Unkown format of variables start '{}'".format(v))
-
-        sub_obj = self.subproblem.get_obj(law=False)
-        master_obj = self.master.get_obj(law=False, zeta=False)
-        zeta_value = 0.1*(sub_obj-master_obj)
-        term = zeta_value
-        s_set = self.master.get_S_set()
-        coeffs = {v: term if v in vars else -term
-                  for v in self.common_vars}
-        rhs = term*(len(s_set)-1)
-        self.master.add_opt_start_int_cut(coeffs, rhs)
 
     def add_contention_feas_int_cut(self):
         """Factibilidad enteras.
@@ -162,11 +113,57 @@ class Benders(object):
         rhs = 1 - len(S_set)
         self.master.add_contention_feas_int_cut(coeffs, rhs)
 
-    def add_feas_int_cut(self):
-        S_set = self.master.get_S_set()
-        coeffs = {v: - 1 if v in S_set else 1 for v in self.common_vars}
-        rhs = 1 - len(S_set)
-        self.master.add_feas_int_cut(coeffs, rhs)
+    def add_opt_start_int_cut(self, i, t):
+        work = self.__start_info__[i, t]['work']
+        max_t = int(max(self.problem_data.get_names("wildfire")))
+        coeffs = {'s[{},{}]'.format(i, t): - max_t}
+        coeffs.update({"w[{},{}]".format(k[0], k[1]): - 1
+                       for k, v in work.items() if v == 0})
+        rhs = - max_t
+        self.master.add_opt_start_int_cut(i, t, coeffs, rhs)
+
+    def get_start_resource_info(self):
+        """Add start info of the selected resource and period.
+        """
+        for r in self.problem_data.resources:
+            if r.select:
+                rp = r.__resource_period__
+                start = rp.get_info("start")
+                index = max(start, key=start.get)
+                if index not in self.__start_info__:
+                    self.__start_info__[index] = {
+                        'work': rp.get_info("work"),
+                        'travel': rp.get_info("travel"),
+                        'rest': rp.get_info("rest"),
+                        'end_rest': rp.get_info("end_rest"),
+                    }
+                    self.add_opt_start_int_cut(*index)
+
+
+    def update_activity(self):
+        start = {
+            rp.resource.get_index(): rp.period.get_index()
+            for rp in self.problem_data.resources_wildfire
+            if rp.start
+        }
+        self.problem_data.resources_wildfire.update(
+            {(i, t):
+             {
+                'rest': self.__start_info__[i, start[i]]['rest'][i, t],
+                'end_rest': self.__start_info__[i, start[i]]['end_rest'][i, t],
+                'travel': self.__start_info__[i, start[i]]['travel'][i, t],
+                'work': self.__start_info__[i, start[i]]['work'][i, t]
+             }
+             if self.problem_data.resources_wildfire[i, t].use else
+             {
+                'rest': False,
+                'end_rest': False,
+                'travel': False,
+                'work': False
+             }
+             for i, t in self.problem_data.resources_wildfire.get_names()
+            }
+        )
 
     def solve(self):
         start_time = time.time()
@@ -174,116 +171,127 @@ class Benders(object):
 
         master = self.master
         subproblem = self.subproblem
-        subproblem_infeas = self.subproblem_infeas
+        # subproblem_infeas = self.subproblem_infeas
 
-        self.log.benders(utils.format_benders([
+        self.tbl("-+-".join(["----------"]*6))
+        self.tbl(
             "ITER",
             "SECONDS",
             "LB",
             "UB",
-            "MIP_GAP",
-            "MIP_GAP_R",
-            "OPT_C",
-            "FEA_CONT_C",
-            "FEA_SING_C"
-        ]))
+            "OPTI_CUT",
+            "FEAS_CUT"
+        )
+        self.tbl("-+-".join(["----------"]*6))
 
-        self.log.benders("-+-".join(["-"*10]*9))
         for it in range(1, self.max_iters+1):
             self.iter = it
-            self.log.info("[ITER]: {}".format(self.iter))
+            log.info("[ITER]: {}".format(self.iter))
 
             # Solve Master problem
-            self.log.debug("\t[MASTER]:")
+            log.debug("\t[MASTER]:")
             master_status = master.solve(
                 solver_options=self.solver_options_master)
-
+            try:
+                self.constrvio = self.master.get_constrvio()
+            except:
+                self.constrvio = float('inf')
             if master_status == 3:
-                self.log.debug("\t - Not optimal solution.")
+                log.debug("\t - Not optimal solution.")
+                self.tbl(
+                    self.iter,
+                    self.time,
+                    self.obj_lb,
+                    self.obj_ub,
+                    len(master.constraints.opt_int) +
+                    len(master.constraints.opt_start_int),
+                    len(master.constraints.content_feas_int) +
+                    len(master.constraints.feas_int)
+                )
                 self.status = 3
                 break
             else:
-                self.log.debug("\t - Optimal")
+                log.debug("\t - Optimal")
                 start = self.problem_data.resources_wildfire.get_info("start")
-                self.log.debug(
+                log.debug(
                     "\t - Solution: " +
                     ", ".join([str(k) for k, v in start.items() if v == 1]))
 
-            # Update subproblems
-            subproblem.__update_model__()
-
             # Solve Subproblem
-            self.log.debug("\t[SUBPROBLEM]:")
-            sub_status = subproblem.solve(
-                solver_options=self.solver_options_subproblem)
+            log.debug("\t[SUBPROBLEM]:")
+            for r in self.problem_data.resources:
+                if r.select:
+                    rp = r.__resource_period__
+                    start = rp.get_info("start")
+                    index = max(start, key=start.get)
+                    if index not in self.__start_info__:
+                        resources = [index[0]]
+                        # Update subproblems
+                        subproblem.__update_model__(resources=resources)
 
-            if sub_status == 2:
-                self.log.debug("\t - Optimal")
+                        # Solve
+                        sub_status = subproblem.solve(
+                            resources=resources,
+                            solver_options=self.solver_options_subproblem)
 
-                self.log.info("\t - Add integer optimality cut")
-                self.add_opt_int_cut()
-                # self.add_opt_start_int_cut()
+                        if sub_status == 2:
+                            self.__start_info__[index] = {
+                                'work': rp.get_info("work"),
+                                'travel': rp.get_info("travel"),
+                                'rest': rp.get_info("rest"),
+                                'end_rest': rp.get_info("end_rest"),
+                            }
+                            log.info("\t - Add integer optimality cut")
+                            self.add_opt_start_int_cut(*index)
+                        else:
+                            log.debug("\t - Not optimal solution.")
 
-                self.log.info("\t - Update objective bounds")
-                self.obj_lb = master.get_obj()
-                self.obj_cost_lb = master.get_obj()
-                new_ub = subproblem.get_obj()
-                if new_ub <= self.obj_ub:
-                    self.log.info("\t - Update best solution")
-                    self.obj_ub = new_ub
-                    self.best_sol = \
-                        self.problem_data.resources_wildfire.get_info("start")
-            else:
-                self.log.debug("\t - Not optimal")
-                self.add_feas_int_cut()
-                # # Update subproblem_infeas
-                # subproblem_infeas.__update_model__()
-                # # Solve Subproblem Infeasibilities
-                # self.log.debug("\t[SLACK SUBPROBLEM]:")
-                # sub_infeas_status = subproblem_infeas.solve(
-                #     solver_options=self.solver_options_subproblem)
-                # if sub_infeas_status == 2:
-                #     self.log.debug("\t - Optimal")
-                #     self.log.info("\t - Add contention integer feasibility cut")
-                #     self.add_contention_feas_int_cut()
-                # else:
-                #     self.log.debug("\t - Not optimal")
-                #     self.log.info("\t - Add integer feasibility cut")
-                #     self.add_feas_int_cut()
-
-            self.log.info("[STOP CRITERIA]:")
-            self.log.debug("\t - lb: %s", self.obj_lb)
-            self.log.debug("\t - ub: %s", self.obj_ub)
-            self.log.info("\t - GAP: %s", self.obj_ub - self.obj_lb)
+            self.obj_lb_prev = self.obj_lb
+            self.obj_lb = master.get_obj()
+            log.info("[STOP CRITERIA]:")
+            log.debug(f"\t - curr_obj: {self.obj_lb}")
+            log.debug(f"\t - prev_obj: {self.obj_lb_prev}")
+            log.info(f"\t - GAP: {self.obj_lb - self.obj_lb_prev}")
 
             self.time = time.time() - start_time
 
-            self.log.benders(utils.format_benders([
+            self.tbl(
                 self.iter,
                 self.time,
                 self.obj_lb,
-                self.obj_ub,
-                (self.obj_ub - self.obj_lb),
-                (self.obj_ub - self.obj_lb)/self.obj_ub,
-                len(master.constraints.opt_int),
-                len(master.constraints.content_feas_int),
+                self.obj_lb_prev,
+                len(master.constraints.opt_int) +
+                len(master.constraints.opt_start_int),
+                len(master.constraints.content_feas_int) +
                 len(master.constraints.feas_int)
-            ]))
+            )
 
-            if (self.obj_ub - self.obj_lb)/self.obj_ub <= self.mip_gap_obj:
-                self.log.info("\t - Convergence.")
-                self.log.benders("\nConvergence.")
+            self.prev_num_cuts = self.num_cuts
+            self.num_cuts = len(master.constraints.opt_int) + \
+                len(master.constraints.opt_start_int) + \
+                len(master.constraints.content_feas_int) + \
+                len(master.constraints.feas_int)
+
+            if self.prev_num_cuts == self.num_cuts:
+                log.info("\t - Convergence.")
+                log.info("\t - Update solution")
+                self.update_activity()
+                master.solve(solver_options=self.solver_options_master)
                 self.status = 2
                 break
             # elif master
             elif self.max_iters == self.iter:
-                self.log.info("\t - Maximum number of iterations exceeded.")
-                self.log.benders("\nMaximum number of iterations exceeded.")
+                log.info("\t - Maximum number of iterations exceeded.")
+                log.info("\t - Update solution")
+                self.update_activity()
+                master.solve(solver_options=self.solver_options_master)
                 self.status = 7
                 break
             elif self.time > self.max_time:
-                self.log.info("\t - Maximum time exceeded.")
-                self.log.benders("\nMaximum time exceeded.")
+                log.info("\t - Maximum time exceeded.")
+                log.info("\t - Update solution")
+                self.update_activity()
+                master.solve(solver_options=self.solver_options_master)
                 self.status = 9
                 break
 

@@ -823,9 +823,10 @@ class Problem(object):
         return {k: v for k, v in infeas.items() if len(v) > 0}
 
     def get_constrvio(self):
+        cons_infeas = self.get_infeas_constraints()
         infeas = [
             - v
-            for i in self.get_infeas_constraints().values()
+            for i in cons_infeas.values()
             for v in i.values()
         ]
         return max([0] + infeas)
