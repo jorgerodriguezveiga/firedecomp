@@ -47,16 +47,6 @@ class Master(model.Model):
             data.I, data.T, vtype=gurobipy.GRB.BINARY, lb=0, ub=s_ub,
             name="start")
 
-    def __build_w__(self):
-        data = self.data
-        u = self.variables.u
-        tr = self.variables.tr
-
-        self.variables.w = {
-            (i, t): u[i, t] - tr[i, t]
-            for i in data.I for t in data.T
-        }
-
     def __build_variables__(self):
         """Build variables."""
         self.__build_s__()
@@ -64,6 +54,7 @@ class Master(model.Model):
         self.__build_tr__()
 
         self.__build_u__()
+        self.__build_r__()
         self.__build_w__()
         self.__build_z__()
 
@@ -74,16 +65,6 @@ class Master(model.Model):
         self.__build_variable_cost_resources__()
         self.__build_wildfire_cost__()
         self.__build_law_cost__()
-
-    def __build_logical_3__(self):
-        data = self.data
-        tr = self.variables.tr
-        u = self.variables.u
-
-        self.model.addConstrs(
-            (tr[i, t] <= u[i, t]
-             for i in data.I for t in data.T),
-            name='logical_3')
 
     def __build_constraints__(self):
         """Build constraints."""
