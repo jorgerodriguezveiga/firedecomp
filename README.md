@@ -11,7 +11,7 @@ These instructions will get you a copy of the project up and running on your loc
 The following prerequisites are needed:
 + **gurobipy**: the main requirement is to have installed the [gurobi](http://www.gurobi.com/registration/general-reg) software and its api ([gurobipy](http://www.gurobi.com/documentation/)).
 
-The remain requirements will be installed with the installation of **pynanos** package.
+The remain requirements will be installed with the installation of **firedecomp** package.
 
 #### Software
 
