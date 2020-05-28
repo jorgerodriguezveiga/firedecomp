@@ -51,7 +51,7 @@ same type (continuous or binary).
 # =====
 setup(
     name='firedecomp',
-    version='3.2.0',
+    version='4.0.0',
     author='Jorge Rodriguez-Veiga, '
            'David Rodriguez-Penas, '
            'Angel Gonzalez-Rueda',

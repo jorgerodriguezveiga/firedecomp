@@ -10,6 +10,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [Unreleased]
 ------------
 
+v4.0.0 - 28/05/2020
+-------------------
+
+### Added ###
+- Final results of simulations.
+
+### Changed ###
+- Improve analysis and plots of the results of the simulations.
+
+
 v3.2.0 - 08/10/2019
 -------------------
 ### Added ###
