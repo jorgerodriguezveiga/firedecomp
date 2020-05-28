@@ -34,12 +34,14 @@ def read_csvs(folder='Finales', file='solution.csv'):
     list_df = []
 
     for subdir in subfolders:
-        file_path = os.path.join(folder, subdir, file)
-        try:
-            list_df.append(
-                pd.read_csv(file_path, sep=';', decimal=",", na_values="None"))
-        except FileNotFoundError as e:
-            print(e)
+        file_dir = os.path.join(folder, subdir)
+        if os.path.isdir(file_dir):
+            file_path = os.path.join(file_dir, file)
+            try:
+                list_df.append(
+                    pd.read_csv(file_path, sep=';', decimal=",", na_values="None"))
+            except FileNotFoundError as e:
+                print(e)
 
     df = pd.concat(list_df, ignore_index=True)
     df['cost'] = df["res_cost"] + df['wildfire_cost']
@@ -90,10 +92,10 @@ def get_best(
 
 
 def performance_profile_graph(
-        df, scatter_by='mode', x='elapsed_time', conditions=None, 
-        groupby=None, lines=None, columns=None, filter_best=None, 
-        best_prefix='best_', rel_prefix='rel_', npoints=500,
-        xaxis=None, yaxis=None, image_filename=None, image_height=None, 
+        df, scatter_by='mode', x='elapsed_time', rename=None, conditions=None,
+        groupby=None, lines=None, columns=None, filter_best=None,
+        best_prefix='best_', rel_prefix='rel_', npoints=500, max_x=None,
+        xaxis=None, yaxis=None, image_filename=None, image_height=None,
         image_width=None
         ):
     """
@@ -114,6 +116,7 @@ def performance_profile_graph(
         best_prefix: best prefix.
         rel_prefix: relative prefix.
         npoints: number of points in x axis.
+        max_x: maximum value in x axis. If None maximum value is considered.
     """
     if groupby is None:
         groupby = ['num_brigades', 'num_aircraft', 'num_machines',
@@ -126,10 +129,20 @@ def performance_profile_graph(
 
     if conditions is None:
         conditions = []
-    
+
     if lines is None:
         lines = {}
-        
+
+    if rename is None:
+        rename = {}
+
+    lines.update({
+        k: {} for k in set(df[scatter_by]).difference(set(lines.keys()))
+    })
+
+    if max_x is None:
+        max_x = float("inf")
+
     df = get_best(
         df, groupby=groupby, columns=columns, filter_best=filter_best,
         best_prefix=best_prefix, rel_prefix=rel_prefix)
@@ -140,14 +153,13 @@ def performance_profile_graph(
     performance = dict()
 
     min_x = df[x].min()*0.999
-    max_x = df[x].max()*1.001
+    max_x = min(df[x].max()*1.001, max_x)
     step = (max_x - min_x)/npoints
     x_range = [min_x + i * step for i in
                range(npoints)]
 
     for m in set(df[scatter_by]):
         performance[m] = dict()
-        # print("Scatter: {}".format(m))
         for t in x_range:
             m_df = df[df[scatter_by] == m]
             m_df = m_df[m_df[x] <= t]
@@ -159,37 +171,32 @@ def performance_profile_graph(
     performance_df = pd.DataFrame(performance)
 
     fig = go.Figure()
-    for c in performance_df.columns:
-        if c in lines:
+    for c in lines:
+        if c in performance_df:
+            name = c
+            if c in rename:
+                name = rename[c]
             fig.add_trace(
                 go.Scatter(
-                    x=performance_df.index, 
-                    y=performance_df[c], 
-                    name=c, 
+                    x=performance_df.index,
+                    y=performance_df[c],
+                    name=name,
                     line=lines[c]
                 )
             )
-        else:
-            fig.add_trace(
-                go.Scatter(
-                    x=performance_df.index, 
-                    y=performance_df[c], 
-                    name=c
-                )
-            )  
 
     fig.add_trace(
         go.Scatter(
-            x=[min_x - (max_x-min_x)*0.01], 
+            x=[min_x - (max_x-min_x)*0.01],
             y=[0],
             mode ='none',
             showlegend=False
         )
     )
-            
+
     layout = dict(
         template='none',
-        xaxis=xaxis, 
+        xaxis=xaxis,
         yaxis=yaxis
     )
 
@@ -197,8 +204,8 @@ def performance_profile_graph(
     fig.show()
     if image_filename:
         fig.write_image(
-            image_filename, 
-            height=image_height, 
+            image_filename,
+            height=image_height,
             width=image_width
         )
 
@@ -247,7 +254,7 @@ def instance_comparison(
             go.Scatter(x=list(performance[c].keys()),
                        y=list(performance[c].values()),
                        name=c))
-    
+
     fig = dict(
         data=data,
         layout=dict(
@@ -259,8 +266,8 @@ def instance_comparison(
 
 
 def sim_boxplot(
-    df, y='solve_time', modes=None, columns=None, colors=None, 
-    layout=None, xaxis=None, yaxis=None, 
+    df, y='solve_time', modes=None, rename=None, columns=None, colors=None,
+    layout=None, xaxis=None, yaxis=None,
     image_filename=None, image_width=None, image_height=None):
     """Boxplot."""
     if modes is None:
@@ -273,11 +280,16 @@ def sim_boxplot(
     if layout is None:
         layout = {}
 
-    default_layout = {'template': 'none'}
-    
+    if rename is None:
+        rename = {}
+
+    default_layout = {
+        'template': 'none'
+    }
+
     layout = layout.copy()
     layout.update(default_layout)
-    
+
     if xaxis is not None:
         layout.update({'xaxis': xaxis})
     if yaxis is not None:
@@ -288,13 +300,17 @@ def sim_boxplot(
         x = ["-".join([str(j) for j in df.loc[[i], columns].values[0]])
              for i in df[df['mode'] == m].index.tolist()]
 
+        name = m
+        if name in rename:
+            name = rename[name]
+
         if m in colors:
             fig.add_trace(
                 go.Box(
                     x=x,
                     y=df[y][df['mode'] == m],
-                    legendgroup=m, name=m,
-                    marker_color=colors[m]
+                    legendgroup=m, name=name,
+                    marker_color=colors[m]['color']
                 )
             )
         else:
@@ -302,15 +318,15 @@ def sim_boxplot(
                 go.Box(
                     x=x,
                     y=df[y][df['mode'] == m],
-                    legendgroup=m, name=m
+                    legendgroup=m, name=name
                 )
-            )  
+            )
 
     fig.update_layout(layout)
     fig.show()
     if image_filename:
         fig.write_image(
-            image_filename, 
-            height=image_height, 
+            image_filename,
+            height=image_height,
             width=image_width
         )
