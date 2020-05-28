@@ -8,6 +8,7 @@ from firedecomp.fix_work import fix_work
 from firedecomp.original import model as _model
 from firedecomp.LR import LR
 from firedecomp.AL import AL
+from firedecomp.benders import benders
 from firedecomp import config
 from firedecomp import plot
 import firedecomp.branchprice.benders_scip as scip
@@ -216,6 +217,7 @@ class Problem(object):
 
     def solve(self, method='original',
               original_options=None, original_scip_options=None,
+              benders_options=None,
               fix_work_options=None, benders_scip_options=None,
               gcg_scip_options=None, LR_options=None, AL_options=None,
               min_res_penalty=1000000,
@@ -292,7 +294,46 @@ class Problem(object):
                 self.constrvio = None
                 self.mipgap = None
             self.solve_time = model.getSolvingTime()
+        elif method == 'benders':
+            if log_level is None:
+                log_level = 'benders'
 
+            default_benders_options = {
+                'max_iters': 10000,
+                'max_time': 600,
+                'mip_gap_obj': 0,
+                'mip_gap_cost': 0,
+                'solver_options_master': {
+                    'MIPGapAbs': 0,
+                    'MIPGap': 0,
+                    'OutputFlag': 0,
+                    'LogToConsole': 0,
+                    'TimeLimit': 600
+                },
+                'solver_options_subproblem': {
+                    'MIPGapAbs': 0,
+                    'MIPGap': 0,
+                    'OutputFlag': 0,
+                    'LogToConsole': 0,
+                    'TimeLimit': 600
+                }
+            }
+
+            if isinstance(benders_options, dict):
+                default_benders_options.update(benders_options)
+
+            self.benders_model = benders.Benders(
+                self, **default_benders_options, log_level=log_level)
+
+            self.solve_status = self.benders_model.solve()
+            self.mipgap = max(
+                0, self.benders_model.obj_ub - self.benders_model.obj_lb)
+            try:
+                self.constrvio = self.get_constrvio()
+            except:
+                self.constrvio = None
+                # self.solve_status = None
+            self.solve_time = self.benders_model.time
         elif method == 'fix_work':
             if log_level is None:
                 log_level = 'fix_work'
@@ -607,6 +648,7 @@ class Problem(object):
 
     def get_cr(self):
         data = self.data
+
         cr = {(i, t):
             sum([
                 (t + 1 - t1) * self.resources_wildfire[i, t1].start
@@ -779,6 +821,15 @@ class Problem(object):
             for k, v in infeas.items()
         }
         return {k: v for k, v in infeas.items() if len(v) > 0}
+
+    def get_constrvio(self):
+        cons_infeas = self.get_infeas_constraints()
+        infeas = [
+            - v
+            for i in cons_infeas.values()
+            for v in i.values()
+        ]
+        return max([0] + infeas)
 # --------------------------------------------------------------------------- #
 
 

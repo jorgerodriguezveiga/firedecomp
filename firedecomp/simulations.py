@@ -119,6 +119,7 @@ def simulations(
                 # Solver options
                 orig_options = {}
                 original_scip_options = {}
+                benders_options = {}
                 fix_work_options = {}
                 benders_scip_options = {}
                 gcg_scip_options = {}
@@ -135,6 +136,9 @@ def simulations(
 
                     if 'original_scip' in solver_options:
                         original_scip_options = solver_options['original_scip']
+
+                    if 'benders' in solver_options:
+                        benders_options = solver_options['benders']
 
                     if 'fix_work' in solver_options:
                         fix_work_options = solver_options['fix_work']
@@ -155,6 +159,7 @@ def simulations(
                     method=m,
                     original_options=orig_options,
                     original_scip_options=original_scip_options,
+                    benders_options=benders_options,
                     fix_work_options=fix_work_options,
                     benders_scip_options=benders_scip_options,
                     gcg_scip_options=gcg_scip_options,
@@ -245,8 +250,8 @@ def parse_args():
         default=None,
         nargs='+',
         type=str,
-        choices=['original', 'original_scip', 'fix_work', 'benders_scip',
-                 'gcg_scip', 'AL', 'LR'],
+        choices=['original', 'original_scip', 'benders', 'fix_work',
+            'benders_scip', 'gcg_scip', 'AL', 'LR'],
         help="List of execution modes. "
              "Options allowed: original fix_work. "
              "If None: original fix_work."

@@ -3,5 +3,13 @@ bson
 plotly
 pandas
 table_logger
+
+# Notebook
+qgrid
+psutil
+requests
+orca
+
+# Solvers
 #pyscipopt
 #gurobipy

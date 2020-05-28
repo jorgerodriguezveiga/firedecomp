@@ -4,7 +4,8 @@
 import gurobipy
 import re
 import logging as log
-
+from io import StringIO
+import sys
 
 # Class which can have attributes set.
 class Expando(object):
@@ -256,6 +257,8 @@ class Master(object):
 
     def __build_end_activity__(self):
         """Travel time after end working.
+
+        for all i, t: w[i,t] <= sum_{t'=t+TRP[i]}^{max_t} e[i,t']
 
         Changed respect to the original paper."""
         data = self.data
@@ -541,11 +544,9 @@ class Master(object):
             solver_options (:obj:`dict`): gurobi options. Default ``None``.
                 Example: ``{'TimeLimit': 10}``.
         """
-        from io import StringIO
-        import sys
-
         old_stdout = sys.stdout
         sys.stdout = StringIO()
+
         if solver_options is None:
             solver_options = {'OutputFlag': 0, 'LogToConsole': 0}
 

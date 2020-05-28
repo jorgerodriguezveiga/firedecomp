@@ -6,6 +6,23 @@ original:
     OutputFlag: 1
     LogToConsole: 1
     TimeLimit: 600
+benders:
+  max_iters: 10000
+  max_time: 600
+  mip_gap_obj: 0
+  mip_gap_cost: 0
+  solver_options_master:
+    MIPGapAbs: 0
+    MIPGap: 0
+    OutputFlag: 0
+    LogToConsole: 0
+    TimeLimit: 600
+  solver_options_subproblem:
+    MIPGapAbs: 0
+    MIPGap: 0
+    OutputFlag: 0
+    LogToConsole: 0
+    TimeLimit: 600
 original_scip:
   limits/time: 600
   display/verblevel: 0
