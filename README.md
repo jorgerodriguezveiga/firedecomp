@@ -45,7 +45,7 @@ To execute firedecomp simulations the ``firedecomp_simulations`` command line ha
 
 To see the function help, type:
 ```
-firedecomp -h
+firedecomp_simulations -h
 ```
 
 If ``firedecomp_simulations`` function is executed with no input arguments default simulations will be executed.
