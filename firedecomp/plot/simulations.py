@@ -96,7 +96,7 @@ def performance_profile_graph(
         groupby=None, lines=None, columns=None, filter_best=None,
         best_prefix='best_', rel_prefix='rel_', npoints=500, max_x=None,
         xaxis=None, yaxis=None, image_filename=None, image_height=None,
-        image_width=None
+        image_width=None, layout=None
         ):
     """
     Args:
@@ -194,11 +194,14 @@ def performance_profile_graph(
         )
     )
 
-    layout = dict(
+    if layout is None:
+        layout = {}
+
+    layout.update(dict(
         template='none',
         xaxis=xaxis,
         yaxis=yaxis
-    )
+    ))
 
     fig.update_layout(layout)
     fig.show()

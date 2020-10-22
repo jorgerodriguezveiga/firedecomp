@@ -104,7 +104,7 @@ class Model(object):
             data.I, data.T, name="end",
             lb=var_info['lb'], ub=var_info['ub'], vtype=var_info['vtype'])
 
-        # Auxiliar variables
+    # Auxiliar variables
     def __build_u__(self):
         data = self.data
         s = self.variables.s
