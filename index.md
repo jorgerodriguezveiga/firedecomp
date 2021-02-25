@@ -1,37 +1,56 @@
-## Welcome to GitHub Pages
+# firedecomp
 
-You can use the [editor on GitHub](https://github.com/jorgerodriguezveiga/firedecomp/edit/gh-pages/index.md) to maintain and preview the content for your website in Markdown files.
+firedecomp package provide different decomposition methods to solve the wildfire containment problem.
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+## Getting Started
 
-### Markdown
+These instructions will get you a copy of the project up and running on your local machine for development and testing purposes.
 
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
+### Prerequisites
 
-```markdown
-Syntax highlighted code block
+The following prerequisites are needed:
++ **gurobipy**: the main requirement is to have installed the [gurobi](http://www.gurobi.com/registration/general-reg) software and its api ([gurobipy](http://www.gurobi.com/documentation/)).
 
-# Header 1
-## Header 2
-### Header 3
+The remain requirements will be installed with the installation of **firedecomp** package.
 
-- Bulleted
-- List
+#### Software
 
-1. Numbered
-2. List
+The following software is needed:
 
-**Bold** and _Italic_ and `Code` text
++ **GUROBI**: Register and install the solver [gurobi](http://www.gurobi.com/registration/general-reg).
++ **SCIP**: download and install the software [scip](https://scip.zib.de/index.php#download).
++ **GCG**: only available on Linux [GCG](http://gcg.or.rwth-aachen.de/doc/INSTALL.html).
 
-[Link](url) and ![Image](src)
+#### Python packages.
+
+The python package requirements are stored in [requirements.txt](requirements.txt) file. To install them type:
+```
+pip install -r requirements.txt
 ```
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+Also gurobipy package is needed, to install it follow the [instructions](http://www.gurobi.com/documentation/7.5/quickstart_mac/the_gurobi_python_interfac.html).
 
-### Jekyll Themes
+## Installing
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/jorgerodriguezveiga/firedecomp/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+To install the firedecomp package, type:
+```
+pip install git+http://github.com/jorgerodriguezveiga/firedecomp.git
+```
+
+## Execution
+
+### Simulations
+
+To execute firedecomp simulations the ``firedecomp_simulations`` command line has been created.
+
+To see the function help, type:
+```
+firedecomp_simulations -h
+```
+
+If ``firedecomp_simulations`` function is executed with no input arguments default simulations will be executed.
+
 
 ### Support or Contact
 
-Having trouble with Pages? Check out our [documentation](https://docs.github.com/categories/github-pages-basics/) or [contact support](https://support.github.com/contact) and we’ll help you sort it out.
+Having trouble with firedecomp package? [Contact support](https://github.com/jorgerodriguezveiga) and we’ll help you sort it out.
