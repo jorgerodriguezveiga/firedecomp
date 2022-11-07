@@ -1,0 +1,5 @@
+slurmstepd: info: Setting TMPDIR to /scratch/805181. Previous errors about TMPDIR can be discarded
+python/3.9.9 loaded
+
+imkl/2021.3.0 loaded
+slurmstepd: error: *** JOB 805181 ON ilk-251 CANCELLED AT 2022-11-04T15:32:10 DUE TO TIME LIMIT ***

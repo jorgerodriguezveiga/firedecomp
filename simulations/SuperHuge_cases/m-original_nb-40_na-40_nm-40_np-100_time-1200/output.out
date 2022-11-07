@@ -1,0 +1,4 @@
+slurmstepd: info: Setting TMPDIR to /scratch/805179. Previous errors about TMPDIR can be discarded
+python/3.9.9 loaded
+
+imkl/2021.3.0 loaded
