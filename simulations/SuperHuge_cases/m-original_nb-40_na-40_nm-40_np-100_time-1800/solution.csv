@@ -7,3 +7,6 @@ seed;num_brigades;num_aircraft;num_machines;num_periods;mode;obj_fun;res_cost;wi
 5;40;40;40;100;original;None;None;None;None;None;None;None;9;1800,0074849128723;2349,8135917186737;None;None
 6;40;40;40;100;original;None;None;None;None;None;None;None;9;1800,0176739692688;2578,179139137268;None;None
 7;40;40;40;100;original;120064860,27;61865,01000000003;2995,26;120000000,0;0,0;0,0;4,440892098500626e-16;2;1508,3858289718628;2459,6778194904327;34;11
+seed;num_brigades;num_aircraft;num_machines;num_periods;mode;obj_fun;res_cost;wildfire_cost;resources_penalty;mipgap;mipgapabs;constrvio;status;solve_time;elapsed_time;selected_resources;contention_period
+8;40;40;40;100;original;None;None;None;None;None;None;None;9;1800,0175349712372;2884,7854857444763;None;None
+9;40;40;40;100;original;None;None;None;None;None;None;None;9;1800,2859001159668;2727,1846590042114;None;None

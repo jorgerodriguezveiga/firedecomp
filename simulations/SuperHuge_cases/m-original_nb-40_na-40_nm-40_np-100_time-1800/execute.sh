@@ -8,4 +8,4 @@
 module load python imkl
 export GRB_LICENSE_FILE=/home/csic/gim/dro/license/gurobi.lic
 
-firedecomp_simulations -n 10 -nb 40 -na 40 -nm 40 -np 100 -m original -so solver_options.yaml -vvv &> simulations.log
+firedecomp_simulations -s 8 9 -nb 40 -na 40 -nm 40 -np 100 -m original -so solver_options.yaml -ar -vvv &> simulations.log
